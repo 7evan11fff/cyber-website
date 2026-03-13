@@ -300,6 +300,100 @@ function LoadingSkeleton() {
   );
 }
 
+function GradeDisplayPulseSkeleton() {
+  return (
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+      <div className="scan-pulse-skeleton h-3 w-28 rounded" />
+      <div className="scan-pulse-skeleton mt-4 h-16 w-24 rounded" />
+      <div className="scan-pulse-skeleton mt-3 h-3 w-40 rounded" />
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        <div className="scan-pulse-skeleton h-9 rounded-lg" />
+        <div className="scan-pulse-skeleton h-9 rounded-lg" />
+      </div>
+      <div className="mt-4 space-y-2">
+        <div className="scan-pulse-skeleton h-3 rounded" />
+        <div className="scan-pulse-skeleton h-3 rounded" />
+        <div className="scan-pulse-skeleton h-3 w-5/6 rounded" />
+      </div>
+    </article>
+  );
+}
+
+function HeaderCardPulseSkeleton() {
+  return (
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50">
+      <div className="flex items-center justify-between gap-2">
+        <div className="scan-pulse-skeleton h-5 w-2/3 rounded" />
+        <div className="scan-pulse-skeleton h-6 w-16 rounded-full" />
+      </div>
+      <div className="scan-pulse-skeleton mt-4 h-3 rounded" />
+      <div className="scan-pulse-skeleton mt-2 h-3 w-11/12 rounded" />
+      <div className="scan-pulse-skeleton mt-4 h-3 rounded" />
+      <div className="scan-pulse-skeleton mt-2 h-3 w-5/6 rounded" />
+    </article>
+  );
+}
+
+function ScanResultsLoadingSkeleton({ mode }: { mode: ScanMode }) {
+  if (mode === "compare") {
+    return (
+      <section className="mt-6 space-y-6" aria-hidden="true">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+            <div className="scan-pulse-skeleton h-3 w-16 rounded" />
+            <div className="scan-pulse-skeleton mt-3 h-4 w-2/3 rounded" />
+            <div className="scan-pulse-skeleton mt-4 h-10 w-16 rounded" />
+            <div className="scan-pulse-skeleton mt-3 h-3 w-3/4 rounded" />
+          </article>
+          <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+            <div className="scan-pulse-skeleton h-3 w-16 rounded" />
+            <div className="scan-pulse-skeleton mt-3 h-4 w-2/3 rounded" />
+            <div className="scan-pulse-skeleton mt-4 h-10 w-16 rounded" />
+            <div className="scan-pulse-skeleton mt-3 h-3 w-3/4 rounded" />
+          </article>
+        </div>
+        <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50">
+          <div className="scan-pulse-skeleton h-5 w-40 rounded" />
+          <div className="scan-pulse-skeleton mt-3 h-3 w-2/3 rounded" />
+          <div className="mt-4 space-y-2">
+            <div className="scan-pulse-skeleton h-12 rounded-lg" />
+            <div className="scan-pulse-skeleton h-12 rounded-lg" />
+          </div>
+        </article>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section>
+            <div className="scan-pulse-skeleton mb-3 h-3 w-28 rounded" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <HeaderCardPulseSkeleton key={`compare-a-${index}`} />
+              ))}
+            </div>
+          </section>
+          <section>
+            <div className="scan-pulse-skeleton mb-3 h-3 w-28 rounded" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <HeaderCardPulseSkeleton key={`compare-b-${index}`} />
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]" aria-hidden="true">
+      <GradeDisplayPulseSkeleton />
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <HeaderCardPulseSkeleton key={`single-${index}`} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function HeaderCard({
   header,
   highlighted = false
@@ -412,6 +506,7 @@ export default function Home() {
   const shortcutsDialogRef = useRef<HTMLDivElement | null>(null);
   const shortcutCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const celebratedScanRef = useRef<string | null>(null);
 
   const singleGradeColor = useMemo(() => {
     if (!report) return "text-slate-200";
@@ -1160,6 +1255,51 @@ export default function Home() {
   }, [loading, scanProgress]);
 
   useEffect(() => {
+    if (!report || loading || report.grade !== "A") return;
+
+    const celebrationId = `${report.checkedAt}-${report.checkedUrl}`;
+    if (celebratedScanRef.current === celebrationId) return;
+    celebratedScanRef.current = celebrationId;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let followUpBurstTimer: number | null = null;
+    void import("canvas-confetti")
+      .then((module) => {
+        const confetti = module.default;
+        confetti({
+          particleCount: 36,
+          spread: 56,
+          startVelocity: 26,
+          origin: { y: 0.72 },
+          scalar: 0.72,
+          gravity: 1,
+          colors: ["#7dd3fc", "#34d399", "#22d3ee", "#a7f3d0"]
+        });
+        followUpBurstTimer = window.setTimeout(() => {
+          confetti({
+            particleCount: 24,
+            spread: 44,
+            startVelocity: 22,
+            origin: { y: 0.74 },
+            scalar: 0.66,
+            gravity: 1.05,
+            colors: ["#38bdf8", "#4ade80", "#5eead4"]
+          });
+        }, 180);
+      })
+      .catch(() => {
+        // Ignore cosmetic animation failures.
+      });
+
+    return () => {
+      if (followUpBurstTimer !== null) {
+        window.clearTimeout(followUpBurstTimer);
+      }
+    };
+  }, [loading, report]);
+
+  useEffect(() => {
     if (!shortcutsOpen) return;
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1853,7 +1993,8 @@ export default function Home() {
         )}
       </section>
 
-      {loading && <LoadingSkeleton />}
+      {loading && mode === "bulk" && <LoadingSkeleton />}
+      {loading && mode !== "bulk" && <ScanResultsLoadingSkeleton mode={mode} />}
 
       <div ref={exportTargetRef}>
         {!loading && report && (

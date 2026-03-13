@@ -96,12 +96,43 @@ html[data-theme="light"] .text-slate-100 {
   animation: skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
+@keyframes scan-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+}
+
+.scan-pulse-skeleton {
+  background: linear-gradient(
+    110deg,
+    rgba(71, 85, 105, 0.45) 15%,
+    rgba(148, 163, 184, 0.32) 50%,
+    rgba(71, 85, 105, 0.45) 85%
+  );
+  animation: scan-pulse 1.15s ease-in-out infinite;
+}
+
 html[data-theme="light"] .skeleton-shimmer {
   background: linear-gradient(
     110deg,
     rgba(203, 213, 225, 0.72) 20%,
     rgba(241, 245, 249, 0.95) 40%,
     rgba(203, 213, 225, 0.72) 60%
+  );
+}
+
+html[data-theme="light"] .scan-pulse-skeleton {
+  background: linear-gradient(
+    110deg,
+    rgba(203, 213, 225, 0.85) 15%,
+    rgba(241, 245, 249, 1) 50%,
+    rgba(203, 213, 225, 0.85) 85%
   );
 }
 

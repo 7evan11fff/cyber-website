@@ -25,6 +25,7 @@ type CheckApiResponse = {
 type RefreshState = "idle" | "running" | "error";
 
 const WATCHLIST_STORAGE_KEY = "security-header-checker:watchlist";
+const WATCHLIST_ALERT_EMAIL_STORAGE_KEY = "security-header-checker:watchlist-alert-email";
 const MAX_WATCHLIST_ITEMS = 20;
 const WATCHLIST_AUTO_REFRESH_MS = 1000 * 60 * 30;
 
@@ -91,6 +92,9 @@ export function WatchlistPanel({
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
   const [refreshState, setRefreshState] = useState<RefreshState>("idle");
   const [activeRefreshId, setActiveRefreshId] = useState<string | null>(null);
+  const [alertEmailInput, setAlertEmailInput] = useState("");
+  const [savedAlertEmail, setSavedAlertEmail] = useState<string | null>(null);
+  const [alertSaveState, setAlertSaveState] = useState<"idle" | "saved" | "error">("idle");
 
   useEffect(() => {
     try {
@@ -101,6 +105,18 @@ export function WatchlistPanel({
       setWatchlist(parsed.filter(isWatchlistEntry).slice(0, MAX_WATCHLIST_ITEMS));
     } catch {
       setWatchlist([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const persistedEmail = localStorage.getItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
+      if (!persistedEmail) return;
+      setAlertEmailInput(persistedEmail);
+      setSavedAlertEmail(persistedEmail);
+    } catch {
+      setAlertEmailInput("");
+      setSavedAlertEmail(null);
     }
   }, []);
 
@@ -235,6 +251,26 @@ export function WatchlistPanel({
     persistWatchlist((previous) => previous.filter((entry) => entry.id !== entryId));
   }
 
+  function onEnableAlerts() {
+    const normalized = alertEmailInput.trim();
+    if (!normalized || !normalized.includes("@")) {
+      setAlertSaveState("error");
+      window.setTimeout(() => setAlertSaveState("idle"), 2500);
+      return;
+    }
+
+    try {
+      localStorage.setItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY, normalized);
+      setSavedAlertEmail(normalized);
+      setAlertEmailInput(normalized);
+      setAlertSaveState("saved");
+    } catch {
+      setAlertSaveState("error");
+    } finally {
+      window.setTimeout(() => setAlertSaveState("idle"), 2500);
+    }
+  }
+
   return (
     <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -260,6 +296,46 @@ export function WatchlistPanel({
             {refreshState === "running" ? "Refreshing..." : "Refresh watchlist"}
           </button>
         </div>
+      </div>
+      <div className="border-t border-slate-800/90 px-4 py-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Email alerts (preview)</p>
+        <form
+          className="mt-2 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onEnableAlerts();
+          }}
+        >
+          <label htmlFor="watchlist-alert-email" className="sr-only">
+            Alert email address
+          </label>
+          <input
+            id="watchlist-alert-email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={alertEmailInput}
+            onChange={(event) => setAlertEmailInput(event.target.value)}
+            placeholder="you@company.com"
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+          />
+          <button
+            type="submit"
+            disabled={disabled}
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Enable alerts
+          </button>
+        </form>
+        {savedAlertEmail && (
+          <p className="mt-2 text-xs text-slate-400">
+            Alerts configured for <span className="text-slate-200">{savedAlertEmail}</span>.
+          </p>
+        )}
+        {alertSaveState === "saved" && <p className="mt-1 text-xs text-emerald-300">Alert email saved locally.</p>}
+        {alertSaveState === "error" && (
+          <p className="mt-1 text-xs text-rose-300">Enter a valid email to enable alerts.</p>
+        )}
       </div>
 
       <div className="border-t border-slate-800/90 px-4 py-3">
