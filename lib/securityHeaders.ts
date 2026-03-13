@@ -19,6 +19,7 @@ const REQUIRED_HEADERS = {
   xxp: "x-xss-protection",
   xcto: "x-content-type-options",
   referrerPolicy: "referrer-policy",
+  featurePolicy: "feature-policy",
   permissionsPolicy: "permissions-policy",
   coop: "cross-origin-opener-policy",
   coep: "cross-origin-embedder-policy",
@@ -213,6 +214,39 @@ function checkReferrerPolicy(value: string | null): HeaderResult {
   };
 }
 
+function checkFeaturePolicy(value: string | null): HeaderResult {
+  if (!value) {
+    return {
+      key: REQUIRED_HEADERS.featurePolicy,
+      label: "Feature-Policy",
+      value,
+      present: false,
+      status: "missing",
+      riskLevel: "medium",
+      whyItMatters:
+        "Legacy precursor to Permissions-Policy used by older browsers to limit camera, microphone, and other features.",
+      guidance: "Add a restrictive policy for legacy browser coverage, or pair with a strong Permissions-Policy."
+    };
+  }
+
+  const normalized = value.toLowerCase();
+  const weak = normalized.includes("*") || normalized.includes("self *");
+
+  return {
+    key: REQUIRED_HEADERS.featurePolicy,
+    label: "Feature-Policy",
+    value,
+    present: true,
+    status: weak ? "weak" : "good",
+    riskLevel: weak ? "medium" : "low",
+    whyItMatters:
+      "Legacy precursor to Permissions-Policy used by older browsers to limit camera, microphone, and other features.",
+    guidance: weak
+      ? "Avoid wildcard allowances and explicitly disable features your app does not need."
+      : "Feature restrictions look explicit for legacy browser compatibility."
+  };
+}
+
 function checkPermissionsPolicy(value: string | null): HeaderResult {
   if (!value) {
     return {
@@ -351,6 +385,7 @@ export function analyzeSecurityHeaders(headers: Headers): HeaderResult[] {
     checkXXssProtection(headers.get(REQUIRED_HEADERS.xxp)),
     checkXContentTypeOptions(headers.get(REQUIRED_HEADERS.xcto)),
     checkReferrerPolicy(headers.get(REQUIRED_HEADERS.referrerPolicy)),
+    checkFeaturePolicy(headers.get(REQUIRED_HEADERS.featurePolicy)),
     checkPermissionsPolicy(headers.get(REQUIRED_HEADERS.permissionsPolicy)),
     checkCrossOriginOpenerPolicy(headers.get(REQUIRED_HEADERS.coop)),
     checkCrossOriginEmbedderPolicy(headers.get(REQUIRED_HEADERS.coep)),

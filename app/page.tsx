@@ -152,7 +152,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What does this security header checker scan?",
     answer:
-      "It checks 10 core HTTP security headers, including CSP, HSTS, X-Frame-Options, Referrer-Policy, and modern cross-origin isolation headers."
+      "It checks 11 core HTTP security headers, including CSP, HSTS, X-Frame-Options, X-XSS-Protection, Feature-Policy, Referrer-Policy, and modern cross-origin isolation headers."
   },
   {
     question: "How quickly can I run a scan?",

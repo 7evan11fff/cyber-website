@@ -84,6 +84,18 @@ export const HEADER_GUIDANCE: HeaderGuidance[] = [
     ]
   },
   {
+    key: "feature-policy",
+    label: "Feature-Policy",
+    headerName: "Feature-Policy",
+    recommendedValue: "camera 'none'; microphone 'none'; geolocation 'none'",
+    purpose: "Legacy browser feature controls that predate Permissions-Policy.",
+    commonMisconfigurations: [
+      "Using permissive wildcards like * for sensitive features",
+      "Relying on it alone without modern Permissions-Policy",
+      "Leaving old directives in place after feature requirements change"
+    ]
+  },
+  {
     key: "permissions-policy",
     label: "Permissions-Policy",
     headerName: "Permissions-Policy",
