@@ -323,7 +323,7 @@ export default function Home() {
     }
   }, []);
 
-  function addToHistory(nextReport: ReportResponse) {
+  const addToHistory = useCallback((nextReport: ReportResponse) => {
     const nextEntry: HistoryEntry = {
       id: `${nextReport.checkedAt}-${nextReport.checkedUrl}`,
       url: nextReport.checkedUrl,
@@ -336,7 +336,7 @@ export default function Home() {
       localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
-  }
+  }, []);
 
   function clearHistory() {
     localStorage.removeItem(HISTORY_STORAGE_KEY);
@@ -365,7 +365,7 @@ export default function Home() {
     return payload as ReportResponse;
   }, []);
 
-  function updatePopularSitesCache(entries: PopularSiteCacheEntry[]) {
+  const updatePopularSitesCache = useCallback((entries: PopularSiteCacheEntry[]) => {
     setPopularSitesCache((previous) => {
       const cacheMap = new Map(previous.map((entry) => [entry.url, entry]));
       for (const entry of entries) {
@@ -377,9 +377,9 @@ export default function Home() {
       localStorage.setItem(POPULAR_CACHE_STORAGE_KEY, JSON.stringify(ordered));
       return ordered;
     });
-  }
+  }, []);
 
-  function clearCurrentState() {
+  const clearCurrentState = useCallback(() => {
     setError(null);
     setReport(null);
     setComparison(null);
@@ -393,7 +393,7 @@ export default function Home() {
       setCompareUrlA("");
       setCompareUrlB("");
     }
-  }
+  }, [mode]);
 
   async function refreshPopularSite(site: string, openReport = false) {
     setActivePopularRefresh(site);
@@ -424,7 +424,7 @@ export default function Home() {
     }
   }
 
-  async function runSingleCheck(targetUrl: string) {
+  const runSingleCheck = useCallback(async (targetUrl: string) => {
     setLoading(true);
     setError(null);
     setReport(null);
@@ -442,9 +442,9 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [addToHistory, requestReport]);
 
-  async function runComparisonCheck(siteAUrl: string, siteBUrl: string) {
+  const runComparisonCheck = useCallback(async (siteAUrl: string, siteBUrl: string) => {
     if (!siteAUrl.trim() || !siteBUrl.trim()) {
       setError("Please enter both URLs to compare.");
       return;
@@ -469,7 +469,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [addToHistory, requestReport]);
 
   function onSingleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -622,7 +622,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [popularCacheByUrl, requestReport]);
+  }, [popularCacheByUrl, requestReport, updatePopularSitesCache]);
 
   useEffect(() => {
     if (loading) {
@@ -673,7 +673,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [compareUrlA, compareUrlB, loading, mode, url]);
+  }, [clearCurrentState, compareUrlA, compareUrlB, loading, mode, runComparisonCheck, runSingleCheck, url]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
