@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
+import { DashboardActions } from "@/app/components/DashboardActions";
 import { SiteNav } from "@/app/components/SiteNav";
 import { authOptions } from "@/lib/auth";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
@@ -24,6 +25,7 @@ export default async function DashboardPage() {
         <p className="mt-2 text-sm text-slate-300">
           Signed in as <span className="font-medium text-slate-100">{session.user.email ?? session.user.name}</span>
         </p>
+        <DashboardActions />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">

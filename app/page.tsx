@@ -7,6 +7,7 @@ import type { HeaderResult } from "@/lib/securityHeaders";
 import { FixSuggestionsPanel } from "@/app/components/FixSuggestionsPanel";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
+import { useToast } from "@/app/components/ToastProvider";
 import { WatchlistPanel } from "@/app/components/WatchlistPanel";
 import {
   HISTORY_STORAGE_KEY,
@@ -463,6 +464,7 @@ function SiteSummary({ title, report }: { title: string; report: ReportResponse 
 }
 
 export default function Home() {
+  const { notify } = useToast();
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [mode, setMode] = useState<ScanMode>("single");
   const [url, setUrl] = useState("");
@@ -1067,8 +1069,10 @@ export default function Home() {
     try {
       await navigator.clipboard.writeText(formatReportForClipboard(report));
       setCopyState("copied");
+      notify({ tone: "success", message: "Report copied to clipboard." });
     } catch {
       setCopyState("error");
+      notify({ tone: "error", message: "Clipboard unavailable. Copy manually instead." });
     } finally {
       window.setTimeout(() => setCopyState("idle"), 2500);
     }
@@ -1081,8 +1085,13 @@ export default function Home() {
       const content = format === "markdown" ? badgeMarkdownCode : badgeHtmlCode;
       await navigator.clipboard.writeText(content);
       setBadgeCopyState(format);
+      notify({
+        tone: "success",
+        message: format === "markdown" ? "Badge markdown copied." : "Badge HTML copied."
+      });
     } catch {
       setBadgeCopyState("error");
+      notify({ tone: "error", message: "Clipboard unavailable. Copy badge code manually." });
     } finally {
       window.setTimeout(() => setBadgeCopyState("idle"), 2500);
     }
@@ -1132,8 +1141,10 @@ export default function Home() {
       URL.revokeObjectURL(objectUrl);
 
       setBulkExportState("exported");
+      notify({ tone: "success", message: "Bulk scan results exported as CSV." });
     } catch {
       setBulkExportState("error");
+      notify({ tone: "error", message: "Could not export CSV. Please try again." });
     } finally {
       window.setTimeout(() => setBulkExportState("idle"), 2500);
     }
@@ -1203,9 +1214,11 @@ export default function Home() {
           url: shareUrl.toString()
         });
         setShareState("shared");
+        notify({ tone: "success", message: "Report shared." });
       } else {
         await navigator.clipboard.writeText(shareUrl.toString());
         setShareState("copied");
+        notify({ tone: "success", message: "Share link copied to clipboard." });
       }
     } catch (shareError) {
       if (shareError instanceof DOMException && shareError.name === "AbortError") {
@@ -1213,6 +1226,7 @@ export default function Home() {
         return;
       }
       setShareState("error");
+      notify({ tone: "error", message: "Could not share this report right now." });
     } finally {
       window.setTimeout(() => setShareState("idle"), 3000);
     }

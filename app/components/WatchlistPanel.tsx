@@ -10,6 +10,7 @@ import {
   mergeWatchlists,
   type WatchlistEntry
 } from "@/lib/userData";
+import { useToast } from "@/app/components/ToastProvider";
 
 type LatestReportSummary = {
   checkedUrl: string;
@@ -86,6 +87,7 @@ export function WatchlistPanel({
   const [serverSyncReady, setServerSyncReady] = useState(false);
   const [syncedUserKey, setSyncedUserKey] = useState<string | null>(null);
   const { data: session, status: sessionStatus } = useSession();
+  const { notify } = useToast();
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -276,14 +278,16 @@ export function WatchlistPanel({
       setActiveRefreshId(entryId);
       try {
         await scanAndUpdateEntry(entryId, entryUrl);
+        notify({ tone: "success", message: "Watchlist entry refreshed." });
       } catch {
         setRefreshState("error");
+        notify({ tone: "error", message: "Could not refresh this watchlist entry." });
         window.setTimeout(() => setRefreshState("idle"), 2500);
       } finally {
         setActiveRefreshId((current) => (current === entryId ? null : current));
       }
     },
-    [scanAndUpdateEntry]
+    [notify, scanAndUpdateEntry]
   );
 
   const refreshAll = useCallback(
@@ -305,13 +309,15 @@ export function WatchlistPanel({
       if (!silent) {
         if (hadError) {
           setRefreshState("error");
+          notify({ tone: "error", message: "Some watchlist checks failed. Please try again shortly." });
           window.setTimeout(() => setRefreshState("idle"), 2500);
         } else {
           setRefreshState("idle");
+          notify({ tone: "success", message: "Watchlist refreshed." });
         }
       }
     },
-    [refreshState, scanAndUpdateEntry, watchlist]
+    [notify, refreshState, scanAndUpdateEntry, watchlist]
   );
 
   useEffect(() => {
@@ -326,11 +332,13 @@ export function WatchlistPanel({
     if (!isAuthenticated) {
       const callbackUrl = typeof window === "undefined" ? "/" : window.location.pathname;
       void signIn(undefined, { callbackUrl });
+      notify({ tone: "info", message: "Sign in to save scans to your watchlist." });
       return;
     }
 
     if (!latestReport) return;
 
+    const wasWatched = watchlist.some((entry) => entry.url === latestReport.checkedUrl);
     persistWatchlist((previous) => {
       const existing = previous.find((entry) => entry.url === latestReport.checkedUrl);
       if (existing) {
@@ -353,16 +361,22 @@ export function WatchlistPanel({
       };
       return [created, ...previous];
     });
+    notify({
+      tone: "success",
+      message: wasWatched ? "Saved watchlist entry updated." : "Scan saved to watchlist."
+    });
   }
 
   function removeEntry(entryId: string) {
     persistWatchlist((previous) => previous.filter((entry) => entry.id !== entryId));
+    notify({ tone: "info", message: "Watchlist entry removed." });
   }
 
   function onEnableAlerts() {
     const normalized = alertEmailInput.trim();
     if (!normalized || !normalized.includes("@")) {
       setAlertSaveState("error");
+      notify({ tone: "error", message: "Enter a valid email to enable alerts." });
       window.setTimeout(() => setAlertSaveState("idle"), 2500);
       return;
     }
@@ -375,8 +389,13 @@ export function WatchlistPanel({
       if (isAuthenticated && serverSyncReady) {
         void syncServerData({ alertEmail: normalized });
       }
+      notify({
+        tone: "success",
+        message: `Alert email saved ${isAuthenticated ? "to your account." : "locally on this device."}`
+      });
     } catch {
       setAlertSaveState("error");
+      notify({ tone: "error", message: "Could not save alert email right now." });
     } finally {
       window.setTimeout(() => setAlertSaveState("idle"), 2500);
     }

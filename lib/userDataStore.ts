@@ -53,6 +53,7 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
     watchlist: normalizeWatchlistEntries(record.watchlist),
     scanHistory: normalizeScanHistoryEntries(record.scanHistory),
     alertEmail: typeof record.alertEmail === "string" ? record.alertEmail : null,
+    notificationOnGradeChange: Boolean(record.notificationOnGradeChange),
     updatedAt: record.updatedAt
   };
 }
@@ -75,7 +76,9 @@ export async function getUserDataForUser(userKey: string): Promise<UserDataRecor
 
 export async function updateUserDataForUser(
   userKey: string,
-  patch: Partial<Pick<UserDataRecord, "watchlist" | "scanHistory" | "alertEmail">>
+  patch: Partial<
+    Pick<UserDataRecord, "watchlist" | "scanHistory" | "alertEmail" | "notificationOnGradeChange">
+  >
 ): Promise<UserDataRecord> {
   const normalizedKey = normalizeUserKey(userKey);
   const data = await readDataFile();
@@ -88,10 +91,24 @@ export async function updateUserDataForUser(
       patch.alertEmail === null || typeof patch.alertEmail === "string"
         ? patch.alertEmail
         : current.alertEmail,
+    notificationOnGradeChange:
+      typeof patch.notificationOnGradeChange === "boolean"
+        ? patch.notificationOnGradeChange
+        : current.notificationOnGradeChange,
     updatedAt: new Date().toISOString()
   });
 
   data.users[normalizedKey] = next;
   await writeDataFile(data);
   return next;
+}
+
+export async function deleteUserDataForUser(userKey: string): Promise<void> {
+  const normalizedKey = normalizeUserKey(userKey);
+  const data = await readDataFile();
+  if (!data.users[normalizedKey]) {
+    return;
+  }
+  delete data.users[normalizedKey];
+  await writeDataFile(data);
 }

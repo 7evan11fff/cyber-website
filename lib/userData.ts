@@ -17,6 +17,7 @@ export type UserDataRecord = {
   watchlist: WatchlistEntry[];
   scanHistory: ScanHistoryEntry[];
   alertEmail: string | null;
+  notificationOnGradeChange: boolean;
   updatedAt: string;
 };
 
@@ -54,6 +55,7 @@ export function createEmptyUserDataRecord(): UserDataRecord {
     watchlist: [],
     scanHistory: [],
     alertEmail: null,
+    notificationOnGradeChange: false,
     updatedAt: new Date(0).toISOString()
   };
 }

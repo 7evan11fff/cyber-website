@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
+import { ToastProvider } from "@/app/components/ToastProvider";
 
 const FALLBACK_SITE_URL = "https://security-header-checker.vercel.app";
 
@@ -62,7 +63,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthSessionProvider>{children}</AuthSessionProvider>
+        <AuthSessionProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
+  deleteUserDataForUser,
   getUserDataForUser,
   getUserKeyFromSessionUser,
   updateUserDataForUser
@@ -33,6 +34,7 @@ export async function PUT(request: Request) {
         watchlist?: unknown;
         scanHistory?: unknown;
         alertEmail?: unknown;
+        notificationOnGradeChange?: unknown;
       }
     | null;
 
@@ -44,6 +46,7 @@ export async function PUT(request: Request) {
     watchlist?: ReturnType<typeof normalizeWatchlistEntries>;
     scanHistory?: ReturnType<typeof normalizeScanHistoryEntries>;
     alertEmail?: string | null;
+    notificationOnGradeChange?: boolean;
   } = {};
 
   if (Array.isArray(body.watchlist)) {
@@ -58,6 +61,21 @@ export async function PUT(request: Request) {
     patch.alertEmail = body.alertEmail;
   }
 
+  if (typeof body.notificationOnGradeChange === "boolean") {
+    patch.notificationOnGradeChange = body.notificationOnGradeChange;
+  }
+
   const saved = await updateUserDataForUser(userKey, patch);
   return NextResponse.json(saved);
+}
+
+export async function DELETE() {
+  const session = await getServerSession(authOptions);
+  const userKey = getUserKeyFromSessionUser(session?.user);
+  if (!userKey) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await deleteUserDataForUser(userKey);
+  return NextResponse.json({ success: true });
 }
