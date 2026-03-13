@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Changelog",
   description:
-    "See the latest Security Header Checker releases, including scan mode enhancements, reporting improvements, and performance updates."
-};
+    "See the latest Security Header Checker releases, including scan mode enhancements, reporting improvements, and performance updates.",
+  path: "/changelog"
+});
 
 const RELEASES = [
   {

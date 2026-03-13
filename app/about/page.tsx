@@ -3,12 +3,14 @@ import Link from "next/link";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { HEADER_GUIDANCE } from "@/lib/headerGuidance";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "About",
   description:
-    "Learn what HTTP security headers do, common configuration mistakes, and where to find authoritative guidance."
-};
+    "Learn what HTTP security headers do, common configuration mistakes, and where to find authoritative guidance.",
+  path: "/about"
+});
 
 const RESOURCES = [
   { label: "securityheaders.com", href: "https://securityheaders.com/" },

@@ -3,31 +3,16 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
-
-const FALLBACK_SITE_URL = "https://security-header-checker.vercel.app";
-
-function resolveMetadataBase(): URL {
-  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!configuredUrl) {
-    return new URL(FALLBACK_SITE_URL);
-  }
-
-  try {
-    return new URL(configuredUrl);
-  } catch {
-    return new URL(FALLBACK_SITE_URL);
-  }
-}
+import { SITE_DESCRIPTION, SITE_NAME, buildOgImageUrl, resolveSiteUrl } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  metadataBase: resolveMetadataBase(),
-  applicationName: "Security Header Checker",
+  metadataBase: resolveSiteUrl(),
+  applicationName: SITE_NAME,
   title: {
-    default: "Security Header Checker",
-    template: "%s | Security Header Checker"
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`
   },
-  description:
-    "Check website security headers, review recent scan history, and compare two sites side by side.",
+  description: SITE_DESCRIPTION,
   keywords: [
     "security headers",
     "http headers",
@@ -40,9 +25,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/"
   },
-  authors: [{ name: "Security Header Checker" }],
-  creator: "Security Header Checker",
-  publisher: "Security Header Checker",
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
   robots: {
     index: true,
     follow: true
@@ -53,25 +38,33 @@ export const metadata: Metadata = {
     telephone: false
   },
   openGraph: {
-    title: "Security Header Checker",
-    description:
-      "Instantly scan security headers, keep local scan history, and compare two URLs in a premium split view.",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    siteName: SITE_NAME,
     type: "website",
     images: [
       {
-        url: "/opengraph-image",
+        url: buildOgImageUrl({
+          title: SITE_NAME,
+          description: SITE_DESCRIPTION
+        }),
         width: 1200,
         height: 630,
-        alt: "Security Header Checker"
+        alt: SITE_NAME
       }
     ]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Security Header Checker",
-    description:
-      "Scan security headers, save recent checks, and compare two sites in one view.",
-    images: ["/opengraph-image"]
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: [
+      buildOgImageUrl({
+        title: SITE_NAME,
+        description: SITE_DESCRIPTION
+      })
+    ]
   },
   icons: {
     icon: "/favicon.ico",

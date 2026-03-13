@@ -2,12 +2,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
+import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "API Docs",
   description:
-    "Security Header Checker API documentation for the badge and check endpoints with copy-ready examples."
-};
+    "Security Header Checker API documentation for the badge and check endpoints with copy-ready examples.",
+  path: "/docs"
+});
 
 function CodeBlock({ code }: { code: string }) {
   return (
@@ -18,6 +20,17 @@ function CodeBlock({ code }: { code: string }) {
 }
 
 export default function DocsPage() {
+  const docsStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Security Header Checker API Docs",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Any",
+    url: absoluteUrl("/docs"),
+    description:
+      "Reference documentation for the Security Header Checker API, including badge and check endpoint examples."
+  };
+
   const badgeCurlExample = `curl "https://security-header-checker.vercel.app/api/badge/github.com?style=flat"`;
   const badgeMarkdownExample =
     "![Security headers grade for github.com](https://security-header-checker.vercel.app/api/badge/github.com?style=flat)";
@@ -39,6 +52,10 @@ console.log(report.grade, report.score, report.results);`;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(docsStructuredData) }}
+      />
       <SiteNav />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">

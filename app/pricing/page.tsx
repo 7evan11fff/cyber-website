@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
+import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Pricing",
   description:
-    "Compare Security Header Checker plans for API limits, watchlist capacity, PDF exports, and deployment monitoring."
-};
+    "Compare Security Header Checker plans for API limits, watchlist capacity, PDF exports, and deployment monitoring.",
+  path: "/pricing"
+});
 
 const TIERS = [
   {
@@ -58,8 +60,35 @@ const TIERS = [
 ] as const;
 
 export default function PricingPage() {
+  const pricingStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Security Header Checker",
+    applicationCategory: "SecurityApplication",
+    operatingSystem: "Web",
+    offers: {
+      "@type": "OfferCatalog",
+      name: "Security Header Checker Pricing",
+      itemListElement: TIERS.map((tier, index) => ({
+        "@type": "Offer",
+        position: index + 1,
+        name: tier.name,
+        price: tier.price === "Custom" ? undefined : tier.price.replace("$", ""),
+        priceCurrency: tier.price === "Custom" ? undefined : "USD",
+        description: tier.subtitle
+      })).filter((offer) => offer.price !== undefined)
+    },
+    url: absoluteUrl("/pricing"),
+    description:
+      "Choose a Security Header Checker plan with the scan capacity and watchlist features your team needs."
+  };
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingStructuredData) }}
+      />
       <SiteNav />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">

@@ -69,6 +69,10 @@ type Testimonial = {
   name: string;
   role: string;
 };
+type FaqItem = {
+  question: string;
+  answer: string;
+};
 
 type SharePayload =
   | {
@@ -137,6 +141,29 @@ const SHORTCUT_ROWS = [
   { keys: "Ctrl + P", action: "Export visible report as PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
   { keys: "Esc", action: "Clear current inputs and results" }
+];
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? "https://security-header-checker.vercel.app";
+const FAQ_ITEMS: FaqItem[] = [
+  {
+    question: "What does this security header checker scan?",
+    answer:
+      "It checks 10 core HTTP security headers, including CSP, HSTS, X-Frame-Options, Referrer-Policy, and modern cross-origin isolation headers."
+  },
+  {
+    question: "How quickly can I run a scan?",
+    answer:
+      "Most scans complete in a few seconds. You can run single scans, compare two sites side by side, or perform bulk checks for multiple domains."
+  },
+  {
+    question: "Do I need to install anything?",
+    answer:
+      "No installation is required. The scanner runs in your browser and calls the API endpoint to analyze response headers for the URL you provide."
+  },
+  {
+    question: "Can I share or export results with my team?",
+    answer:
+      "Yes. You can copy report summaries, share encoded links, export PDFs, and generate badge snippets for docs or dashboards."
+  }
 ];
 
 const statusStyles: Record<HeaderResult["status"], string> = {
@@ -575,7 +602,7 @@ export default function Home() {
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [faqOpen, setFaqOpen] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [revealedSections, setRevealedSections] = useState<Record<string, boolean>>({});
   const { data: session, status: sessionStatus } = useSession();
   const exportTargetRef = useRef<HTMLDivElement | null>(null);
@@ -588,6 +615,46 @@ export default function Home() {
   const celebratedScanRef = useRef<string | null>(null);
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const isAuthenticated = sessionStatus === "authenticated";
+  const softwareApplicationSchema = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Security Header Checker",
+      operatingSystem: "Web",
+      applicationCategory: "SecurityApplication",
+      url: `${SITE_ORIGIN.replace(/\/$/, "")}/`,
+      description:
+        "Scan, score, and compare website security headers with guidance for misconfigurations and missing protections.",
+      featureList: [
+        "Single URL security header scan",
+        "Side-by-side compare mode",
+        "Bulk scanning for multiple domains",
+        "Shareable report links and PDF export",
+        "Watchlist tracking with grade change alerts"
+      ],
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD"
+      }
+    }),
+    []
+  );
+  const faqSchema = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQ_ITEMS.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: item.answer
+        }
+      }))
+    }),
+    []
+  );
 
   const revealClass = useCallback(
     (id: string) =>
@@ -1638,6 +1705,11 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
+      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {liveRegionMessage}
       </p>
@@ -2072,44 +2144,37 @@ export default function Home() {
         )}
 
         <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
-          <button
-            type="button"
-            onClick={() => setFaqOpen((open) => !open)}
-            aria-expanded={faqOpen}
-            aria-controls="security-header-faq-content"
-            className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-900/60"
-          >
-            <span className="text-sm font-medium text-slate-100">What are security headers?</span>
-            <span className="text-xs uppercase tracking-[0.14em] text-slate-400">
-              {faqOpen ? "Hide" : "Show"}
-            </span>
-          </button>
-          {faqOpen && (
-            <div id="security-header-faq-content" className="border-t border-slate-800/90 px-4 py-3">
-              <p className="text-sm text-slate-300">
-                Security headers are HTTP response headers that instruct browsers how to safely handle your site.
-                They reduce the risk of attacks like XSS, clickjacking, and unsafe data exposure.
-              </p>
-              <ul className="mt-3 space-y-2 text-sm text-slate-300">
-                <li>
-                  <span className="font-medium text-slate-100">Content-Security-Policy:</span> limits trusted
-                  scripts, styles, and frames.
+          <div className="border-b border-slate-800/90 px-4 py-3">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-300">
+              Frequently asked questions
+            </h3>
+          </div>
+          <ul>
+            {FAQ_ITEMS.map((item, index) => {
+              const isOpen = openFaqIndex === index;
+              return (
+                <li key={item.question} className="border-t border-slate-800/90 first:border-t-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex((current) => (current === index ? null : index))}
+                    aria-expanded={isOpen}
+                    aria-controls={`security-header-faq-content-${index}`}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-900/60"
+                  >
+                    <span className="text-sm font-medium text-slate-100">{item.question}</span>
+                    <span className="text-xs uppercase tracking-[0.14em] text-slate-400">
+                      {isOpen ? "Hide" : "Show"}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div id={`security-header-faq-content-${index}`} className="border-t border-slate-800/90 px-4 py-3">
+                      <p className="text-sm text-slate-300">{item.answer}</p>
+                    </div>
+                  )}
                 </li>
-                <li>
-                  <span className="font-medium text-slate-100">Strict-Transport-Security:</span> forces HTTPS.
-                </li>
-                <li>
-                  <span className="font-medium text-slate-100">X-Frame-Options:</span> helps prevent clickjacking.
-                </li>
-                <li>
-                  <span className="font-medium text-slate-100">Referrer-Policy:</span> controls referrer leakage.
-                </li>
-                <li>
-                  <span className="font-medium text-slate-100">Permissions-Policy:</span> restricts browser features.
-                </li>
-              </ul>
-            </div>
-          )}
+              );
+            })}
+          </ul>
         </section>
 
         {scanProgress > 0 && (

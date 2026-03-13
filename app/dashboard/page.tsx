@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { DashboardActions } from "@/app/components/DashboardActions";
 import { SiteNav } from "@/app/components/SiteNav";
 import { authOptions } from "@/lib/auth";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description: "Signed-in dashboard for watchlist monitoring and scan history.",
+  alternates: { canonical: "/dashboard" },
+  robots: { index: false, follow: false }
+};
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
