@@ -5,6 +5,13 @@ export type ScanHistoryEntry = {
   checkedAt: string;
 };
 
+export type DomainGradeHistoryPoint = {
+  grade: string;
+  checkedAt: string;
+};
+
+export type DomainGradeHistoryRecord = Record<string, DomainGradeHistoryPoint[]>;
+
 export type WatchlistEntry = {
   id: string;
   url: string;
@@ -19,6 +26,7 @@ export type NotificationFrequency = (typeof NOTIFICATION_FREQUENCIES)[number];
 export type UserDataRecord = {
   watchlist: WatchlistEntry[];
   scanHistory: ScanHistoryEntry[];
+  history: DomainGradeHistoryRecord;
   alertEmail: string | null;
   notificationOnGradeChange: boolean;
   notificationFrequency: NotificationFrequency;
@@ -27,11 +35,14 @@ export type UserDataRecord = {
 };
 
 export const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
+export const DOMAIN_HISTORY_STORAGE_KEY = "security-header-checker:domain-grade-history";
 export const WATCHLIST_STORAGE_KEY = "security-header-checker:watchlist";
 export const WATCHLIST_ALERT_EMAIL_STORAGE_KEY = "security-header-checker:watchlist-alert-email";
 export const WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY =
   "security-header-checker:watchlist-notification-frequency";
 export const MAX_HISTORY_ITEMS = 10;
+export const MAX_DOMAIN_HISTORY_POINTS = 30;
+export const DOMAIN_HISTORY_RETENTION_DAYS = 90;
 export const MAX_WATCHLIST_ITEMS = 20;
 
 export function isScanHistoryEntry(value: unknown): value is ScanHistoryEntry {
@@ -43,6 +54,12 @@ export function isScanHistoryEntry(value: unknown): value is ScanHistoryEntry {
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string"
   );
+}
+
+export function isDomainGradeHistoryPoint(value: unknown): value is DomainGradeHistoryPoint {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<DomainGradeHistoryPoint>;
+  return typeof candidate.grade === "string" && typeof candidate.checkedAt === "string";
 }
 
 export function isWatchlistEntry(value: unknown): value is WatchlistEntry {
@@ -83,12 +100,25 @@ export function createEmptyUserDataRecord(): UserDataRecord {
   return {
     watchlist: [],
     scanHistory: [],
+    history: {},
     alertEmail: null,
     notificationOnGradeChange: false,
     notificationFrequency: "instant",
     watchlistNotificationLog: {},
     updatedAt: new Date(0).toISOString()
   };
+}
+
+export function getDomainKeyFromUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withProtocol);
+    return parsed.hostname ? parsed.hostname.toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function normalizeWatchlistEntries(entries: unknown[]): WatchlistEntry[] {
@@ -123,6 +153,66 @@ export function normalizeScanHistoryEntries(entries: unknown[]): ScanHistoryEntr
   return Array.from(dedupedByKey.values())
     .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())
     .slice(0, MAX_HISTORY_ITEMS);
+}
+
+export function normalizeDomainGradeHistory(value: unknown): DomainGradeHistoryRecord {
+  if (!value || typeof value !== "object") return {};
+  const retentionMs = DOMAIN_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - retentionMs;
+
+  const normalized: DomainGradeHistoryRecord = {};
+  for (const [rawDomain, points] of Object.entries(value)) {
+    const domain = getDomainKeyFromUrl(rawDomain);
+    if (!domain || !Array.isArray(points)) continue;
+
+    const dedupedByTimestamp = new Map<string, DomainGradeHistoryPoint>();
+    for (const point of points) {
+      if (!isDomainGradeHistoryPoint(point)) continue;
+      const checkedAtTime = new Date(point.checkedAt).getTime();
+      if (!Number.isFinite(checkedAtTime) || checkedAtTime < cutoff) continue;
+      dedupedByTimestamp.set(new Date(checkedAtTime).toISOString(), {
+        checkedAt: new Date(checkedAtTime).toISOString(),
+        grade: point.grade
+      });
+    }
+
+    const nextPoints = Array.from(dedupedByTimestamp.values())
+      .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())
+      .slice(0, MAX_DOMAIN_HISTORY_POINTS);
+
+    if (nextPoints.length > 0) {
+      normalized[domain] = nextPoints;
+    }
+  }
+
+  return normalized;
+}
+
+export function mergeDomainGradeHistories(
+  primary: DomainGradeHistoryRecord,
+  secondary: DomainGradeHistoryRecord
+): DomainGradeHistoryRecord {
+  const combined: Record<string, DomainGradeHistoryPoint[]> = {};
+  for (const source of [secondary, primary]) {
+    for (const [domain, points] of Object.entries(source)) {
+      combined[domain] = [...(combined[domain] ?? []), ...points];
+    }
+  }
+  return normalizeDomainGradeHistory(combined);
+}
+
+export function recordDomainGradeHistoryPoint(
+  history: DomainGradeHistoryRecord,
+  sample: { url: string; grade: string; checkedAt: string }
+): DomainGradeHistoryRecord {
+  const domain = getDomainKeyFromUrl(sample.url);
+  if (!domain) {
+    return normalizeDomainGradeHistory(history);
+  }
+  return normalizeDomainGradeHistory({
+    ...history,
+    [domain]: [...(history[domain] ?? []), { grade: sample.grade, checkedAt: sample.checkedAt }]
+  });
 }
 
 export function mergeWatchlists(primary: WatchlistEntry[], secondary: WatchlistEntry[]): WatchlistEntry[] {

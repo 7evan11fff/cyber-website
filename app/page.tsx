@@ -10,11 +10,16 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { WatchlistPanel } from "@/app/components/WatchlistPanel";
 import {
+  DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
   MAX_HISTORY_ITEMS,
+  mergeDomainGradeHistories,
   isScanHistoryEntry,
   mergeScanHistories,
+  normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
+  recordDomainGradeHistoryPoint,
+  type DomainGradeHistoryRecord,
   type ScanHistoryEntry
 } from "@/lib/userData";
 
@@ -597,6 +602,10 @@ export default function Home() {
   const [historyBootstrapped, setHistoryBootstrapped] = useState(false);
   const [historyServerReady, setHistoryServerReady] = useState(false);
   const [syncedHistoryUserKey, setSyncedHistoryUserKey] = useState<string | null>(null);
+  const [domainHistory, setDomainHistory] = useState<DomainGradeHistoryRecord>({});
+  const [domainHistoryBootstrapped, setDomainHistoryBootstrapped] = useState(false);
+  const [domainHistoryServerReady, setDomainHistoryServerReady] = useState(false);
+  const [syncedDomainHistoryUserKey, setSyncedDomainHistoryUserKey] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
   const [popularRefreshing, setPopularRefreshing] = useState(false);
@@ -852,6 +861,22 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    try {
+      const rawDomainHistory = localStorage.getItem(DOMAIN_HISTORY_STORAGE_KEY);
+      if (!rawDomainHistory) {
+        setDomainHistory({});
+        return;
+      }
+      const parsed = JSON.parse(rawDomainHistory);
+      setDomainHistory(normalizeDomainGradeHistory(parsed));
+    } catch {
+      setDomainHistory({});
+    } finally {
+      setDomainHistoryBootstrapped(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!historyBootstrapped) return;
     try {
       if (scanHistory.length === 0) {
@@ -865,9 +890,28 @@ export default function Home() {
   }, [historyBootstrapped, scanHistory]);
 
   useEffect(() => {
+    if (!domainHistoryBootstrapped) return;
+    try {
+      if (Object.keys(domainHistory).length === 0) {
+        localStorage.removeItem(DOMAIN_HISTORY_STORAGE_KEY);
+      } else {
+        localStorage.setItem(DOMAIN_HISTORY_STORAGE_KEY, JSON.stringify(domainHistory));
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [domainHistory, domainHistoryBootstrapped]);
+
+  useEffect(() => {
     if (isAuthenticated) return;
     setHistoryServerReady(false);
     setSyncedHistoryUserKey(null);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setDomainHistoryServerReady(false);
+    setSyncedDomainHistoryUserKey(null);
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -910,6 +954,48 @@ export default function Home() {
   }, [currentUserKey, historyBootstrapped, isAuthenticated, scanHistory, syncedHistoryUserKey]);
 
   useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !domainHistoryBootstrapped) return;
+    if (syncedDomainHistoryUserKey === currentUserKey) return;
+
+    let cancelled = false;
+    const localDomainHistory = domainHistory;
+
+    async function syncLocalAndRemoteDomainHistory() {
+      try {
+        const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
+        const payload = response.ok ? ((await response.json()) as { history?: unknown }) : null;
+        const serverHistory = normalizeDomainGradeHistory(payload?.history);
+        const mergedHistory = mergeDomainGradeHistories(localDomainHistory, serverHistory);
+
+        if (cancelled) return;
+        setDomainHistory(mergedHistory);
+
+        await fetch("/api/user-data", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ history: mergedHistory })
+        });
+      } finally {
+        if (!cancelled) {
+          setDomainHistoryServerReady(true);
+          setSyncedDomainHistoryUserKey(currentUserKey);
+        }
+      }
+    }
+
+    void syncLocalAndRemoteDomainHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUserKey,
+    domainHistory,
+    domainHistoryBootstrapped,
+    isAuthenticated,
+    syncedDomainHistoryUserKey
+  ]);
+
+  useEffect(() => {
     if (!isAuthenticated || !currentUserKey || !historyServerReady) return;
     if (syncedHistoryUserKey !== currentUserKey) return;
 
@@ -921,6 +1007,25 @@ export default function Home() {
       // Ignore sync failures; local state remains source-of-truth until retry.
     });
   }, [currentUserKey, historyServerReady, isAuthenticated, scanHistory, syncedHistoryUserKey]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !domainHistoryServerReady) return;
+    if (syncedDomainHistoryUserKey !== currentUserKey) return;
+
+    void fetch("/api/user-data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: domainHistory })
+    }).catch(() => {
+      // Ignore sync failures; local state remains source-of-truth until retry.
+    });
+  }, [
+    currentUserKey,
+    domainHistory,
+    domainHistoryServerReady,
+    isAuthenticated,
+    syncedDomainHistoryUserKey
+  ]);
 
   useEffect(() => {
     const currentUrl = new URL(window.location.href);
@@ -971,6 +1076,13 @@ export default function Home() {
     };
 
     setScanHistory((previous) => normalizeScanHistoryEntries([nextEntry, ...previous]));
+    setDomainHistory((previous) =>
+      recordDomainGradeHistoryPoint(previous, {
+        url: nextReport.checkedUrl,
+        grade: nextReport.grade,
+        checkedAt: nextReport.checkedAt
+      })
+    );
   }, []);
 
   function clearHistory() {

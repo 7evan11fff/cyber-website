@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import {
+  DOMAIN_HISTORY_STORAGE_KEY,
   MAX_WATCHLIST_ITEMS,
   type NotificationFrequency,
+  type DomainGradeHistoryRecord,
   WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
   WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY,
   WATCHLIST_STORAGE_KEY,
+  mergeDomainGradeHistories,
+  normalizeDomainGradeHistory,
+  recordDomainGradeHistoryPoint,
   isNotificationFrequency,
   isWatchlistEntry,
   mergeWatchlists,
@@ -80,6 +85,7 @@ export function WatchlistPanel({
   disabled?: boolean;
 }) {
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
+  const [domainHistory, setDomainHistory] = useState<DomainGradeHistoryRecord>({});
   const [refreshState, setRefreshState] = useState<RefreshState>("idle");
   const [activeRefreshId, setActiveRefreshId] = useState<string | null>(null);
   const [alertEmailInput, setAlertEmailInput] = useState("");
@@ -88,6 +94,7 @@ export function WatchlistPanel({
   const [notificationFrequency, setNotificationFrequency] = useState<NotificationFrequency>("instant");
   const [alertSaveState, setAlertSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [localWatchlistLoaded, setLocalWatchlistLoaded] = useState(false);
+  const [localDomainHistoryLoaded, setLocalDomainHistoryLoaded] = useState(false);
   const [localEmailLoaded, setLocalEmailLoaded] = useState(false);
   const [localFrequencyLoaded, setLocalFrequencyLoaded] = useState(false);
   const [serverSyncReady, setServerSyncReady] = useState(false);
@@ -101,6 +108,18 @@ export function WatchlistPanel({
   const persistWatchlistLocal = useCallback((entries: WatchlistEntry[]) => {
     try {
       localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(entries));
+    } catch {
+      // Ignore persistence failures in private mode.
+    }
+  }, []);
+
+  const persistDomainHistoryLocal = useCallback((history: DomainGradeHistoryRecord) => {
+    try {
+      if (Object.keys(history).length === 0) {
+        localStorage.removeItem(DOMAIN_HISTORY_STORAGE_KEY);
+      } else {
+        localStorage.setItem(DOMAIN_HISTORY_STORAGE_KEY, JSON.stringify(history));
+      }
     } catch {
       // Ignore persistence failures in private mode.
     }
@@ -129,6 +148,7 @@ export function WatchlistPanel({
   const syncServerData = useCallback(
     async (patch: {
       watchlist?: WatchlistEntry[];
+      history?: DomainGradeHistoryRecord;
       alertEmail?: string | null;
       notificationOnGradeChange?: boolean;
       notificationFrequency?: NotificationFrequency;
@@ -159,6 +179,19 @@ export function WatchlistPanel({
       setWatchlist([]);
     } finally {
       setLocalWatchlistLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawHistory = localStorage.getItem(DOMAIN_HISTORY_STORAGE_KEY);
+      if (!rawHistory) return;
+      const parsed = JSON.parse(rawHistory);
+      setDomainHistory(normalizeDomainGradeHistory(parsed));
+    } catch {
+      setDomainHistory({});
+    } finally {
+      setLocalDomainHistoryLoaded(true);
     }
   }, []);
 
@@ -197,6 +230,7 @@ export function WatchlistPanel({
       !isAuthenticated ||
       !currentUserKey ||
       !localWatchlistLoaded ||
+      !localDomainHistoryLoaded ||
       !localEmailLoaded ||
       !localFrequencyLoaded
     ) {
@@ -206,6 +240,7 @@ export function WatchlistPanel({
 
     let cancelled = false;
     const localWatchlist = watchlist;
+    const localHistory = domainHistory;
     const localAlertEmail = savedAlertEmail;
 
     async function mergeLocalAndRemoteData() {
@@ -214,6 +249,7 @@ export function WatchlistPanel({
         const payload = response.ok
           ? ((await response.json()) as {
               watchlist?: unknown;
+              history?: unknown;
               alertEmail?: unknown;
               notificationOnGradeChange?: unknown;
               notificationFrequency?: unknown;
@@ -225,6 +261,8 @@ export function WatchlistPanel({
             ? payload.watchlist.filter(isWatchlistEntry)
             : [];
         const mergedWatchlist = mergeWatchlists(localWatchlist, serverWatchlist);
+        const serverHistory = normalizeDomainGradeHistory(payload?.history);
+        const mergedHistory = mergeDomainGradeHistories(localHistory, serverHistory);
         const serverEmail = payload && typeof payload.alertEmail === "string" ? payload.alertEmail : null;
         const mergedAlertEmail = serverEmail ?? localAlertEmail;
         const serverNotificationEnabled =
@@ -241,6 +279,8 @@ export function WatchlistPanel({
         if (cancelled) return;
         setWatchlist(mergedWatchlist);
         persistWatchlistLocal(mergedWatchlist);
+        setDomainHistory(mergedHistory);
+        persistDomainHistoryLocal(mergedHistory);
 
         if (mergedAlertEmail) {
           setSavedAlertEmail(mergedAlertEmail);
@@ -257,6 +297,7 @@ export function WatchlistPanel({
 
         await syncServerData({
           watchlist: mergedWatchlist,
+          history: mergedHistory,
           alertEmail: mergedAlertEmail ?? null,
           notificationOnGradeChange: mergedNotificationEnabled,
           notificationFrequency: mergedFrequency
@@ -275,10 +316,13 @@ export function WatchlistPanel({
     };
   }, [
     currentUserKey,
+    domainHistory,
     isAuthenticated,
+    localDomainHistoryLoaded,
     localEmailLoaded,
     localFrequencyLoaded,
     localWatchlistLoaded,
+    persistDomainHistoryLocal,
     persistAlertEmailLocal,
     persistNotificationFrequencyLocal,
     persistWatchlistLocal,
@@ -301,6 +345,20 @@ export function WatchlistPanel({
       });
     },
     [isAuthenticated, persistWatchlistLocal, serverSyncReady, syncServerData]
+  );
+
+  const persistDomainHistory = useCallback(
+    (updater: (previous: DomainGradeHistoryRecord) => DomainGradeHistoryRecord) => {
+      setDomainHistory((previous) => {
+        const next = normalizeDomainGradeHistory(updater(previous));
+        persistDomainHistoryLocal(next);
+        if (isAuthenticated && serverSyncReady) {
+          void syncServerData({ history: next });
+        }
+        return next;
+      });
+    },
+    [isAuthenticated, persistDomainHistoryLocal, serverSyncReady, syncServerData]
   );
 
   const currentReportWatched = useMemo(() => {
@@ -344,6 +402,13 @@ export function WatchlistPanel({
             previousGrade: changed ? entry.lastGrade : null,
             lastCheckedAt: payload.checkedAt
           };
+        })
+      );
+      persistDomainHistory((previous) =>
+        recordDomainGradeHistoryPoint(previous, {
+          url: payload.checkedUrl,
+          grade: payload.grade,
+          checkedAt: payload.checkedAt
         })
       );
 
@@ -400,6 +465,7 @@ export function WatchlistPanel({
       isAuthenticated,
       notificationOnGradeChange,
       notify,
+      persistDomainHistory,
       persistWatchlist,
       savedAlertEmail,
       watchlist
@@ -497,6 +563,13 @@ export function WatchlistPanel({
       };
       return [created, ...previous];
     });
+    persistDomainHistory((previous) =>
+      recordDomainGradeHistoryPoint(previous, {
+        url: latestReport.checkedUrl,
+        grade: latestReport.grade,
+        checkedAt: latestReport.checkedAt
+      })
+    );
     notify({
       tone: "success",
       message: wasWatched ? "Saved watchlist entry updated." : "Scan saved to watchlist."

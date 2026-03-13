@@ -7,10 +7,14 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import {
+  DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
   isScanHistoryEntry,
+  mergeDomainGradeHistories,
   mergeScanHistories,
+  normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
+  recordDomainGradeHistoryPoint,
   type ScanHistoryEntry
 } from "@/lib/userData";
 
@@ -171,6 +175,17 @@ export function ComparePageClient() {
       }));
 
       let nextHistory = normalizeScanHistoryEntries(entries);
+      let nextDomainHistory = normalizeDomainGradeHistory(
+        entries.reduce(
+          (history, entry) =>
+            recordDomainGradeHistoryPoint(history, {
+              url: entry.url,
+              grade: entry.grade,
+              checkedAt: entry.checkedAt
+            }),
+          {}
+        )
+      );
 
       try {
         const localRaw = localStorage.getItem(HISTORY_STORAGE_KEY);
@@ -178,6 +193,12 @@ export function ComparePageClient() {
         const localEntries = Array.isArray(parsed) ? parsed.filter(isScanHistoryEntry) : [];
         nextHistory = normalizeScanHistoryEntries([...entries, ...localEntries]);
         localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
+
+        const localRawHistory = localStorage.getItem(DOMAIN_HISTORY_STORAGE_KEY);
+        const parsedDomainHistory = localRawHistory ? (JSON.parse(localRawHistory) as unknown) : {};
+        const localDomainHistory = normalizeDomainGradeHistory(parsedDomainHistory);
+        nextDomainHistory = mergeDomainGradeHistories(nextDomainHistory, localDomainHistory);
+        localStorage.setItem(DOMAIN_HISTORY_STORAGE_KEY, JSON.stringify(nextDomainHistory));
       } catch {
         // Ignore local storage failures (private mode or blocked storage).
       }
@@ -186,15 +207,19 @@ export function ComparePageClient() {
 
       try {
         const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
-        const payload = response.ok ? ((await response.json()) as { scanHistory?: unknown }) : null;
+        const payload = response.ok
+          ? ((await response.json()) as { scanHistory?: unknown; history?: unknown })
+          : null;
         const serverEntries =
           payload && Array.isArray(payload.scanHistory) ? payload.scanHistory.filter(isScanHistoryEntry) : [];
         const merged = mergeScanHistories(nextHistory, serverEntries);
+        const serverDomainHistory = normalizeDomainGradeHistory(payload?.history);
+        const mergedDomainHistory = mergeDomainGradeHistories(nextDomainHistory, serverDomainHistory);
 
         await fetch("/api/user-data", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scanHistory: merged })
+          body: JSON.stringify({ scanHistory: merged, history: mergedDomainHistory })
         });
       } catch {
         // Keep local history as fallback if server sync fails.

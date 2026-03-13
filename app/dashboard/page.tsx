@@ -4,7 +4,10 @@ import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { DashboardActions } from "@/app/components/DashboardActions";
 import { SiteNav } from "@/app/components/SiteNav";
+import { TrendChart } from "@/app/components/TrendChart";
 import { authOptions } from "@/lib/auth";
+import { getTrendDirection } from "@/lib/gradeTrends";
+import { getDomainKeyFromUrl } from "@/lib/userData";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
 export const metadata: Metadata = {
@@ -22,6 +25,24 @@ export default async function DashboardPage() {
   }
 
   const userData = await getUserDataForUser(userKey);
+
+  const trendTone = {
+    improving: {
+      label: "Improving",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      chartClass: "text-emerald-300"
+    },
+    degrading: {
+      label: "Degrading",
+      className: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+      chartClass: "text-rose-300"
+    },
+    stable: {
+      label: "Stable",
+      className: "border-slate-700 bg-slate-900/80 text-slate-300",
+      chartClass: "text-slate-300"
+    }
+  } as const;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -50,17 +71,60 @@ export default async function DashboardPage() {
             </p>
           ) : (
             <ul className="mt-4 space-y-2">
-              {userData.watchlist.map((entry) => (
-                <li key={entry.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm text-slate-100">{entry.url}</p>
-                    <p className="text-sm font-semibold text-sky-200">Grade {entry.lastGrade}</p>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Last checked {new Date(entry.lastCheckedAt).toLocaleString()}
-                  </p>
-                </li>
-              ))}
+              {userData.watchlist.map((entry) => {
+                const domain = getDomainKeyFromUrl(entry.url);
+                const history = domain ? (userData.history[domain] ?? []) : [];
+                const tone = trendTone[getTrendDirection(history)];
+                const historyHref = domain ? `/dashboard/history/${encodeURIComponent(domain)}` : null;
+
+                return (
+                  <li key={entry.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        {historyHref ? (
+                          <Link
+                            href={historyHref}
+                            className="truncate text-sm text-slate-100 transition hover:text-sky-200"
+                          >
+                            {entry.url}
+                          </Link>
+                        ) : (
+                          <p className="truncate text-sm text-slate-100">{entry.url}</p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-500">
+                          Last checked {new Date(entry.lastCheckedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="w-24">
+                          <TrendChart
+                            points={history}
+                            className={`h-9 w-full ${tone.chartClass}`}
+                            ariaLabel={`Recent grade trend for ${domain ?? entry.url}`}
+                          />
+                        </div>
+                        <p className="text-sm font-semibold text-sky-200">Grade {entry.lastGrade}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex rounded-md border px-2 py-1 text-xs ${tone.className}`}>
+                        {tone.label}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {history.length > 0 ? `${Math.min(history.length, 30)} scans tracked` : "No trend data yet"}
+                      </span>
+                      {historyHref && (
+                        <Link
+                          href={historyHref}
+                          className="text-xs font-medium text-sky-300 transition hover:text-sky-200"
+                        >
+                          View full history
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </article>

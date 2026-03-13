@@ -6,6 +6,7 @@ import {
   createEmptyUserDataRecord,
   type UserDataRecord,
   isNotificationFrequency,
+  normalizeDomainGradeHistory,
   normalizeWatchlistNotificationLog,
   normalizeScanHistoryEntries,
   normalizeWatchlistEntries
@@ -58,6 +59,7 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
   return {
     watchlist: normalizeWatchlistEntries(Array.isArray(record.watchlist) ? record.watchlist : []),
     scanHistory: normalizeScanHistoryEntries(Array.isArray(record.scanHistory) ? record.scanHistory : []),
+    history: normalizeDomainGradeHistory(record.history),
     alertEmail: typeof record.alertEmail === "string" ? record.alertEmail : null,
     notificationOnGradeChange: Boolean(record.notificationOnGradeChange),
     notificationFrequency: normalizedFrequency,
@@ -89,6 +91,7 @@ export async function updateUserDataForUser(
       UserDataRecord,
       | "watchlist"
       | "scanHistory"
+      | "history"
       | "alertEmail"
       | "notificationOnGradeChange"
       | "notificationFrequency"
@@ -103,6 +106,7 @@ export async function updateUserDataForUser(
   const next: UserDataRecord = normalizeRecord({
     watchlist: patch.watchlist ?? current.watchlist,
     scanHistory: patch.scanHistory ?? current.scanHistory,
+    history: patch.history ?? current.history,
     alertEmail:
       patch.alertEmail === null || typeof patch.alertEmail === "string"
         ? patch.alertEmail

@@ -9,6 +9,7 @@ import {
 } from "@/lib/userDataStore";
 import {
   isNotificationFrequency,
+  normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
   normalizeWatchlistEntries,
   normalizeWatchlistNotificationLog
@@ -38,6 +39,7 @@ export async function PUT(request: Request) {
     | {
         watchlist?: unknown;
         scanHistory?: unknown;
+        history?: unknown;
         alertEmail?: unknown;
         notificationOnGradeChange?: unknown;
         notificationFrequency?: unknown;
@@ -52,6 +54,7 @@ export async function PUT(request: Request) {
   const patch: {
     watchlist?: ReturnType<typeof normalizeWatchlistEntries>;
     scanHistory?: ReturnType<typeof normalizeScanHistoryEntries>;
+    history?: ReturnType<typeof normalizeDomainGradeHistory>;
     alertEmail?: string | null;
     notificationOnGradeChange?: boolean;
     notificationFrequency?: "instant" | "daily" | "weekly";
@@ -76,6 +79,16 @@ export async function PUT(request: Request) {
   }
   if (Array.isArray(body.scanHistory)) {
     patch.scanHistory = normalizeScanHistoryEntries(body.scanHistory);
+  }
+
+  if (body.history !== undefined) {
+    if (!body.history || typeof body.history !== "object" || Array.isArray(body.history)) {
+      return NextResponse.json(
+        { error: 'Invalid "history". Expected a domain-to-history object.' },
+        { status: 400 }
+      );
+    }
+    patch.history = normalizeDomainGradeHistory(body.history);
   }
 
   if (body.alertEmail !== undefined && body.alertEmail !== null && typeof body.alertEmail !== "string") {

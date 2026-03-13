@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
 import {
+  DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
   type NotificationFrequency,
   WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
@@ -124,6 +125,7 @@ export function SettingsForm({
 
       try {
         localStorage.removeItem(HISTORY_STORAGE_KEY);
+        localStorage.removeItem(DOMAIN_HISTORY_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY);
