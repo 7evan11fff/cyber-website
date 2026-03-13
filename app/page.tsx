@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
 type ReportResponse = {
@@ -25,6 +25,12 @@ type HistoryEntry = {
   checkedAt: string;
 };
 
+type PopularSiteCacheEntry = {
+  url: string;
+  report: ReportResponse;
+  cachedAt: string;
+};
+
 type HeaderDifference = {
   key: string;
   label: string;
@@ -34,7 +40,10 @@ type HeaderDifference = {
 type ScanMode = "single" | "compare";
 
 const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
+const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
 const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
+const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
+const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_HISTORY_ITEMS = 10;
 
 const statusStyles: Record<HeaderResult["status"], string> = {
@@ -59,6 +68,31 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
     typeof candidate.url === "string" &&
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string"
+  );
+}
+
+function isReportResponse(value: unknown): value is ReportResponse {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ReportResponse>;
+
+  return (
+    typeof candidate.checkedUrl === "string" &&
+    typeof candidate.finalUrl === "string" &&
+    typeof candidate.statusCode === "number" &&
+    typeof candidate.score === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.checkedAt === "string" &&
+    Array.isArray(candidate.results)
+  );
+}
+
+function isPopularSiteCacheEntry(value: unknown): value is PopularSiteCacheEntry {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<PopularSiteCacheEntry>;
+  return (
+    typeof candidate.url === "string" &&
+    typeof candidate.cachedAt === "string" &&
+    isReportResponse(candidate.report)
   );
 }
 
@@ -179,7 +213,7 @@ function SiteSummary({ title, report }: { title: string; report: ReportResponse 
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{title}</p>
-          <p className="mt-2 text-sm text-slate-300">{report.checkedUrl}</p>
+          <p className="mt-2 break-all text-sm text-slate-300">{report.checkedUrl}</p>
         </div>
         <p className={`text-5xl font-bold ${gradeColor(report.grade)}`}>{report.grade}</p>
       </div>
@@ -206,13 +240,20 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [compareUrlA, setCompareUrlA] = useState("");
   const [compareUrlB, setCompareUrlB] = useState("");
+  const [mobileCompareView, setMobileCompareView] = useState<"siteA" | "siteB">("siteA");
   const [loading, setLoading] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
   const [scanHistory, setScanHistory] = useState<HistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
+  const [popularRefreshing, setPopularRefreshing] = useState(false);
+  const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
+  const exportTargetRef = useRef<HTMLDivElement | null>(null);
 
   const singleGradeColor = useMemo(() => {
     if (!report) return "text-slate-200";
@@ -265,6 +306,10 @@ export default function Home() {
     return new Set(comparisonDifferences.map((difference) => difference.key));
   }, [comparisonDifferences]);
 
+  const popularCacheByUrl = useMemo(() => {
+    return new Map(popularSitesCache.map((entry) => [entry.url, entry]));
+  }, [popularSitesCache]);
+
   useEffect(() => {
     try {
       const rawHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
@@ -298,7 +343,7 @@ export default function Home() {
     setScanHistory([]);
   }
 
-  async function requestReport(targetUrl: string): Promise<ReportResponse> {
+  const requestReport = useCallback(async (targetUrl: string): Promise<ReportResponse> => {
     const sanitized = targetUrl.trim();
     if (!sanitized) {
       throw new Error("Please enter a URL.");
@@ -318,6 +363,65 @@ export default function Home() {
     }
 
     return payload as ReportResponse;
+  }, []);
+
+  function updatePopularSitesCache(entries: PopularSiteCacheEntry[]) {
+    setPopularSitesCache((previous) => {
+      const cacheMap = new Map(previous.map((entry) => [entry.url, entry]));
+      for (const entry of entries) {
+        cacheMap.set(entry.url, entry);
+      }
+      const ordered = POPULAR_SITES.map((site) => cacheMap.get(site)).filter(
+        (entry): entry is PopularSiteCacheEntry => Boolean(entry)
+      );
+      localStorage.setItem(POPULAR_CACHE_STORAGE_KEY, JSON.stringify(ordered));
+      return ordered;
+    });
+  }
+
+  function clearCurrentState() {
+    setError(null);
+    setReport(null);
+    setComparison(null);
+    setCopyState("idle");
+    setPdfState("idle");
+    setScanProgress(0);
+
+    if (mode === "single") {
+      setUrl("");
+    } else {
+      setCompareUrlA("");
+      setCompareUrlB("");
+    }
+  }
+
+  async function refreshPopularSite(site: string, openReport = false) {
+    setActivePopularRefresh(site);
+    try {
+      const nextReport = await requestReport(site);
+      const nextEntry: PopularSiteCacheEntry = {
+        url: site,
+        report: nextReport,
+        cachedAt: new Date().toISOString()
+      };
+      updatePopularSitesCache([nextEntry]);
+
+      if (openReport) {
+        setMode("single");
+        setUrl(site);
+        setReport(nextReport);
+        setComparison(null);
+        setError(null);
+        setCopyState("idle");
+        addToHistory(nextReport);
+      }
+    } catch {
+      if (openReport) {
+        void runSingleCheck(site);
+      }
+    } finally {
+      setActivePopularRefresh((current) => (current === site ? null : current));
+    }
   }
 
   async function runSingleCheck(targetUrl: string) {
@@ -346,6 +450,7 @@ export default function Home() {
       return;
     }
 
+    setMobileCompareView("siteA");
     setLoading(true);
     setError(null);
     setReport(null);
@@ -388,6 +493,23 @@ export default function Home() {
     void runSingleCheck(entryUrl);
   }
 
+  function onPopularSiteClick(site: string) {
+    const cached = popularCacheByUrl.get(site);
+
+    if (cached) {
+      setMode("single");
+      setUrl(site);
+      setReport(cached.report);
+      setComparison(null);
+      setError(null);
+      setCopyState("idle");
+      addToHistory(cached.report);
+      return;
+    }
+
+    void refreshPopularSite(site, true);
+  }
+
   async function onCopyReport() {
     if (!report) return;
 
@@ -400,6 +522,158 @@ export default function Home() {
       window.setTimeout(() => setCopyState("idle"), 2500);
     }
   }
+
+  async function onExportPdf() {
+    if (!exportTargetRef.current || (!report && !comparison)) return;
+
+    setPdfState("generating");
+    try {
+      const html2pdfModule = await import("html2pdf.js");
+      const html2pdfFactory = (html2pdfModule.default ??
+        html2pdfModule) as unknown as () => {
+        from: (source: HTMLElement) => {
+          set: (options: Record<string, unknown>) => { save: () => Promise<void> };
+        };
+      };
+
+      const filename =
+        mode === "compare"
+          ? `security-compare-report-${Date.now()}.pdf`
+          : `security-report-${Date.now()}.pdf`;
+
+      await html2pdfFactory()
+        .from(exportTargetRef.current)
+        .set({
+          filename,
+          margin: 8,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#020617" },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] }
+        })
+        .save();
+      setPdfState("idle");
+    } catch {
+      setPdfState("error");
+      window.setTimeout(() => setPdfState("idle"), 3000);
+    }
+  }
+
+  useEffect(() => {
+    try {
+      const rawPopularSites = localStorage.getItem(POPULAR_CACHE_STORAGE_KEY);
+      if (!rawPopularSites) return;
+
+      const parsed = JSON.parse(rawPopularSites);
+      if (!Array.isArray(parsed)) return;
+
+      const loadedEntries = parsed
+        .filter(isPopularSiteCacheEntry)
+        .filter((entry) => POPULAR_SITES.includes(entry.url));
+      const ordered = POPULAR_SITES.map((site) =>
+        loadedEntries.find((entry) => entry.url === site)
+      ).filter((entry): entry is PopularSiteCacheEntry => Boolean(entry));
+      setPopularSitesCache(ordered);
+    } catch {
+      setPopularSitesCache([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const staleSites = POPULAR_SITES.filter((site) => {
+      const cached = popularCacheByUrl.get(site);
+      if (!cached) return true;
+      return Date.now() - new Date(cached.cachedAt).getTime() > POPULAR_CACHE_TTL_MS;
+    });
+
+    if (staleSites.length === 0) return;
+
+    setPopularRefreshing(true);
+    void Promise.all(
+      staleSites.map(async (site) => {
+        try {
+          const nextReport = await requestReport(site);
+          return {
+            url: site,
+            report: nextReport,
+            cachedAt: new Date().toISOString()
+          } satisfies PopularSiteCacheEntry;
+        } catch {
+          return null;
+        }
+      })
+    )
+      .then((results) => {
+        if (cancelled) return;
+        const nextEntries = results.filter(
+          (entry): entry is PopularSiteCacheEntry => Boolean(entry)
+        );
+        if (nextEntries.length > 0) {
+          updatePopularSitesCache(nextEntries);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPopularRefreshing(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [popularCacheByUrl, requestReport]);
+
+  useEffect(() => {
+    if (loading) {
+      setScanProgress(9);
+      const timer = window.setInterval(() => {
+        setScanProgress((current) => {
+          if (current >= 92) return current;
+          const nextStep = Math.min(current + Math.random() * 14 + 3, 92);
+          return Math.round(nextStep);
+        });
+      }, 220);
+
+      return () => {
+        window.clearInterval(timer);
+      };
+    }
+
+    if (scanProgress === 0) return;
+
+    setScanProgress(100);
+    const resetTimer = window.setTimeout(() => setScanProgress(0), 380);
+    return () => {
+      window.clearTimeout(resetTimer);
+    };
+  }, [loading, scanProgress]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (loading || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (mode === "single") {
+          void runSingleCheck(url);
+          return;
+        }
+        void runComparisonCheck(compareUrlA, compareUrlB);
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        clearCurrentState();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [compareUrlA, compareUrlB, loading, mode, url]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -426,7 +700,10 @@ export default function Home() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("compare")}
+            onClick={() => {
+              setMode("compare");
+              setMobileCompareView("siteA");
+            }}
             className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
               mode === "compare"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
@@ -436,6 +713,10 @@ export default function Home() {
             Compare
           </button>
         </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Shortcuts: <span className="text-slate-300">Enter</span> to run scan,{" "}
+          <span className="text-slate-300">Esc</span> to clear.
+        </p>
 
         {mode === "single" ? (
           <>
@@ -504,6 +785,43 @@ export default function Home() {
           </form>
         )}
 
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={clearCurrentState}
+            disabled={loading}
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Clear current
+          </button>
+          <button
+            type="button"
+            onClick={onExportPdf}
+            disabled={loading || pdfState === "generating" || (!report && !comparison)}
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {pdfState === "generating" ? "Generating PDF..." : "Export PDF"}
+          </button>
+          {pdfState === "error" && (
+            <span className="text-xs text-rose-300">Could not export PDF. Try again.</span>
+          )}
+        </div>
+
+        {scanProgress > 0 && (
+          <section className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3">
+            <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
+              <span>{mode === "compare" ? "Comparing security headers..." : "Scanning site..."}</span>
+              <span>{scanProgress}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-200"
+                style={{ width: `${scanProgress}%` }}
+              />
+            </div>
+          </section>
+        )}
+
         <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <button
@@ -554,6 +872,58 @@ export default function Home() {
           )}
         </section>
 
+        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <p className="text-sm font-medium text-slate-200">Recent Popular Sites</p>
+            <p className="text-xs text-slate-500">
+              {popularRefreshing ? "Refreshing cache..." : "Cached security snapshots"}
+            </p>
+          </div>
+          <div className="border-t border-slate-800/90 px-4 py-3">
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {POPULAR_SITES.map((site) => {
+                const cached = popularCacheByUrl.get(site);
+                const isRefreshingThisSite = activePopularRefresh === site;
+                return (
+                  <li key={site} className="rounded-lg border border-slate-800/80 bg-slate-900/70 p-3">
+                    <p className="truncate text-sm font-medium text-slate-100">{site}</p>
+                    {cached ? (
+                      <>
+                        <p className={`mt-1 text-xl font-semibold ${gradeColor(cached.report.grade)}`}>
+                          Grade {cached.report.grade}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Cached {new Date(cached.cachedAt).toLocaleString()}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">No cached report yet.</p>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onPopularSiteClick(site)}
+                        disabled={loading || isRefreshingThisSite}
+                        className="flex-1 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {cached ? "Open report" : "Pre-scan"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void refreshPopularSite(site)}
+                        disabled={loading || isRefreshingThisSite}
+                        className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isRefreshingThisSite ? "..." : "Refresh"}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+
         {error && (
           <p className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
             {error}
@@ -563,113 +933,142 @@ export default function Home() {
 
       {loading && <LoadingSkeleton />}
 
-      {!loading && report && (
-        <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-          <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-            <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
-            <p className={`mt-2 text-7xl font-bold ${singleGradeColor}`}>{report.grade}</p>
-            <p className="mt-1 text-sm text-slate-300">
-              Score: {report.score}/{report.results.length * 2}
-            </p>
-            <button
-              type="button"
-              onClick={onCopyReport}
-              className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-            >
-              {copyState === "copied" ? "Copied report" : "Copy Report"}
-            </button>
-            {copyState === "error" && (
-              <p className="mt-2 text-xs text-rose-300">
-                Clipboard unavailable. Please copy manually.
+      <div ref={exportTargetRef}>
+        {!loading && report && (
+          <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+            <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
+              <p className={`mt-2 text-7xl font-bold ${singleGradeColor}`}>{report.grade}</p>
+              <p className="mt-1 text-sm text-slate-300">
+                Score: {report.score}/{report.results.length * 2}
               </p>
-            )}
-            <div className="mt-4 space-y-1 text-sm text-slate-300">
-              <p>
-                <span className="text-slate-500">Checked URL:</span> {report.checkedUrl}
-              </p>
-              <p>
-                <span className="text-slate-500">Final URL:</span> {report.finalUrl}
-              </p>
-              <p>
-                <span className="text-slate-500">Status:</span> {report.statusCode}
-              </p>
-              <p>
-                <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
-              </p>
+              <button
+                type="button"
+                onClick={onCopyReport}
+                className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                {copyState === "copied" ? "Copied report" : "Copy Report"}
+              </button>
+              {copyState === "error" && (
+                <p className="mt-2 text-xs text-rose-300">
+                  Clipboard unavailable. Please copy manually.
+                </p>
+              )}
+              <div className="mt-4 space-y-1 text-sm text-slate-300">
+                <p className="break-all">
+                  <span className="text-slate-500">Checked URL:</span> {report.checkedUrl}
+                </p>
+                <p className="break-all">
+                  <span className="text-slate-500">Final URL:</span> {report.finalUrl}
+                </p>
+                <p>
+                  <span className="text-slate-500">Status:</span> {report.statusCode}
+                </p>
+                <p>
+                  <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
+                </p>
+              </div>
+            </article>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {report.results.map((header) => (
+                <HeaderCard key={header.key} header={header} />
+              ))}
             </div>
-          </article>
+          </section>
+        )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {report.results.map((header) => (
-              <HeaderCard key={header.key} header={header} />
-            ))}
-          </div>
-        </section>
-      )}
+        {!loading && comparison && (
+          <section className="mt-6 space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <SiteSummary title="Site A" report={comparison.siteA} />
+              <SiteSummary title="Site B" report={comparison.siteB} />
+            </div>
 
-      {!loading && comparison && (
-        <section className="mt-6 space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <SiteSummary title="Site A" report={comparison.siteA} />
-            <SiteSummary title="Site B" report={comparison.siteB} />
-          </div>
-
-          <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50">
-            <h2 className="text-lg font-semibold text-slate-100">Header Differences</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Highlighted rows call out mismatches in presence, strength, or values.
-            </p>
-            {comparisonDifferences.length === 0 ? (
-              <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                Nice work — both sites have matching header coverage across all checked categories.
+            <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50">
+              <h2 className="text-lg font-semibold text-slate-100">Header Differences</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Highlighted rows call out mismatches in presence, strength, or values.
               </p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {comparisonDifferences.map((difference) => (
-                  <li
-                    key={difference.key}
-                    className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold text-sky-100">{difference.label}</p>
-                    <ul className="mt-1 space-y-1 text-sm text-sky-200/90">
-                      {difference.messages.map((message) => (
-                        <li key={message}>• {message}</li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
+              {comparisonDifferences.length === 0 ? (
+                <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                  Nice work — both sites have matching header coverage across all checked categories.
+                </p>
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {comparisonDifferences.map((difference) => (
+                    <li
+                      key={difference.key}
+                      className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3"
+                    >
+                      <p className="text-sm font-semibold text-sky-100">{difference.label}</p>
+                      <ul className="mt-1 space-y-1 text-sm text-sky-200/90">
+                        {difference.messages.map((message) => (
+                          <li key={message}>• {message}</li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section>
-              <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site A Headers</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {comparison.siteA.results.map((header) => (
-                  <HeaderCard
-                    key={`a-${header.key}`}
-                    header={header}
-                    highlighted={differingHeaderKeys.has(header.key)}
-                  />
-                ))}
+            <div className="lg:hidden">
+              <div className="inline-flex rounded-lg border border-slate-700 bg-slate-950/80 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileCompareView("siteA")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                    mobileCompareView === "siteA"
+                      ? "bg-sky-500 text-slate-950"
+                      : "text-slate-300 hover:text-sky-200"
+                  }`}
+                >
+                  Site A Headers
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileCompareView("siteB")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                    mobileCompareView === "siteB"
+                      ? "bg-sky-500 text-slate-950"
+                      : "text-slate-300 hover:text-sky-200"
+                  }`}
+                >
+                  Site B Headers
+                </button>
               </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site B Headers</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {comparison.siteB.results.map((header) => (
-                  <HeaderCard
-                    key={`b-${header.key}`}
-                    header={header}
-                    highlighted={differingHeaderKeys.has(header.key)}
-                  />
-                ))}
-              </div>
-            </section>
-          </div>
-        </section>
-      )}
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <section className={mobileCompareView === "siteA" ? "block" : "hidden lg:block"}>
+                <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site A Headers</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {comparison.siteA.results.map((header) => (
+                    <HeaderCard
+                      key={`a-${header.key}`}
+                      header={header}
+                      highlighted={differingHeaderKeys.has(header.key)}
+                    />
+                  ))}
+                </div>
+              </section>
+              <section className={mobileCompareView === "siteB" ? "block" : "hidden lg:block"}>
+                <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site B Headers</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {comparison.siteB.results.map((header) => (
+                    <HeaderCard
+                      key={`b-${header.key}`}
+                      header={header}
+                      highlighted={differingHeaderKeys.has(header.key)}
+                    />
+                  ))}
+                </div>
+              </section>
+            </div>
+          </section>
+        )}
+      </div>
 
       <footer className="mt-10 border-t border-slate-800/80 pt-6 text-sm text-slate-400">
         <p>
