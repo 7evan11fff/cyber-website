@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { SiteNav } from "@/app/components/SiteNav";
 
-export default function SignInPage() {
+function SignInContent() {
   const searchParams = useSearchParams();
   const { status } = useSession();
 
@@ -53,5 +53,24 @@ export default function SignInPage() {
         </Link>
       </section>
     </main>
+  );
+}
+
+function SignInFallback() {
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <SiteNav />
+      <section className="mx-auto mt-12 w-full max-w-xl rounded-2xl border border-slate-800/90 bg-slate-900/80 p-8 shadow-2xl shadow-slate-950/60">
+        <p className="text-sm text-slate-300">Loading sign-in options...</p>
+      </section>
+    </main>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInFallback />}>
+      <SignInContent />
+    </Suspense>
   );
 }
