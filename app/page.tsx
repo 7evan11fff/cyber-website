@@ -1056,6 +1056,7 @@ export default function Home() {
     report,
     runComparisonCheck,
     runSingleCheck,
+    shortcutsOpen,
     toggleShortcutsModal,
     url
   ]);
