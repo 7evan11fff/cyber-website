@@ -51,6 +51,53 @@ function normalizeUrl(value: string) {
   return value.trim();
 }
 
+function escapeCsvCell(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, "\"\"")}"`;
+  }
+  return value;
+}
+
+function escapeMarkdownCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " <br/> ");
+}
+
+function formatCheckedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function toExportRow(entry: BulkScanResult): [string, string, string, string, string] {
+  const report = entry.report;
+  if (!report) {
+    return [
+      entry.inputUrl,
+      "--",
+      "--",
+      entry.error ? `Scan failed: ${entry.error}` : "--",
+      "--"
+    ];
+  }
+
+  const score = `${report.score}/${report.results.length * 2}`;
+  const missingHeaders = entry.missingHeaders.length > 0 ? entry.missingHeaders.join("; ") : "None";
+
+  return [report.finalUrl || entry.inputUrl, report.grade, score, missingHeaders, formatCheckedAt(report.checkedAt)];
+}
+
+function buildMarkdownTable(entries: BulkScanResult[]): string {
+  const header = ["URL", "Grade", "Score", "Missing Headers", "Checked At"];
+  const separator = ["---", "---", "---", "---", "---"];
+  const rows = entries.map((entry) => toExportRow(entry));
+
+  return [
+    `| ${header.join(" | ")} |`,
+    `| ${separator.join(" | ")} |`,
+    ...rows.map((row) => `| ${row.map((cell) => escapeMarkdownCell(cell)).join(" | ")} |`)
+  ].join("\n");
+}
+
 function toBase64Url(value: string) {
   const bytes = new TextEncoder().encode(value);
   let binary = "";
@@ -111,6 +158,8 @@ export function BulkPageClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BulkScanResult[]>([]);
+  const [bulkExportState, setBulkExportState] = useState<"idle" | "exported" | "error">("idle");
+  const [bulkCopyState, setBulkCopyState] = useState<"idle" | "copied" | "error">("idle");
 
   const isAuthenticated = sessionStatus === "authenticated";
   const enteredUrlCount = useMemo(() => {
@@ -143,6 +192,8 @@ export function BulkPageClient() {
     setLoading(true);
     setError(null);
     setResults([]);
+    setBulkExportState("idle");
+    setBulkCopyState("idle");
 
     try {
       const settled = await Promise.allSettled(targets.map((target) => requestReport(target)));
@@ -181,6 +232,51 @@ export function BulkPageClient() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  function onDownloadCsv() {
+    if (results.length === 0) return;
+
+    try {
+      const headerRow = ["URL", "Grade", "Score", "Missing Headers", "Checked At"];
+      const dataRows = results.map((entry) => toExportRow(entry));
+      const csvContent = [headerRow, ...dataRows]
+        .map((row) => row.map((cell) => escapeCsvCell(cell)).join(","))
+        .join("\n");
+
+      const blob = new Blob(["\uFEFF", csvContent], { type: "text/csv;charset=utf-8;" });
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `bulk-scan-results-${Date.now()}.csv`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      setBulkExportState("exported");
+      notify({ tone: "success", message: "Bulk scan results downloaded as CSV." });
+    } catch {
+      setBulkExportState("error");
+      notify({ tone: "error", message: "Could not download CSV. Please try again." });
+    } finally {
+      window.setTimeout(() => setBulkExportState("idle"), 2500);
+    }
+  }
+
+  async function onCopyMarkdownTable() {
+    if (results.length === 0) return;
+
+    try {
+      await navigator.clipboard.writeText(buildMarkdownTable(results));
+      setBulkCopyState("copied");
+      notify({ tone: "success", message: "Bulk scan markdown table copied." });
+    } catch {
+      setBulkCopyState("error");
+      notify({ tone: "error", message: "Clipboard unavailable. Copy manually instead." });
+    } finally {
+      window.setTimeout(() => setBulkCopyState("idle"), 2500);
     }
   }
 
@@ -241,67 +337,95 @@ export function BulkPageClient() {
         )}
 
         {results.length > 0 && (
-          <section className="mt-6 overflow-x-auto rounded-xl border border-slate-800/90">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">URL</th>
-                  <th className="px-4 py-3">Grade</th>
-                  <th className="px-4 py-3">Missing headers</th>
-                  <th className="px-4 py-3">Full report</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((entry, index) => (
-                  <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
-                    <td className="px-4 py-3 align-top text-slate-200">
-                      <p className="max-w-[320px] break-all">{entry.inputUrl}</p>
-                      {entry.report && <p className="mt-1 max-w-[320px] break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      {entry.report ? (
-                        <span className={`text-lg font-semibold ${gradeColor(entry.report.grade)}`}>{entry.report.grade}</span>
-                      ) : (
-                        <span className="text-lg font-semibold text-rose-300">--</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 align-top text-slate-300">
-                      {entry.report ? (
-                        entry.missingHeaders.length > 0 ? (
-                          <ul className="space-y-1">
-                            {entry.missingHeaders.map((header) => (
-                              <li key={header} className="text-xs">
-                                {header}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span className="text-emerald-300">None</span>
-                        )
-                      ) : (
-                        "--"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      {entry.reportHref ? (
-                        <Link
-                          href={entry.reportHref}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sky-300 transition hover:text-sky-200"
-                        >
-                          Open full report
-                        </Link>
-                      ) : (
-                        <span className="text-slate-500">Unavailable</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 align-top text-slate-300">{entry.error ?? "OK"}</td>
+          <section className="mt-6 rounded-xl border border-slate-800/90">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">URL</th>
+                    <th className="px-4 py-3">Grade</th>
+                    <th className="px-4 py-3">Score</th>
+                    <th className="px-4 py-3">Missing headers</th>
+                    <th className="px-4 py-3">Checked at</th>
+                    <th className="px-4 py-3">Full report</th>
+                    <th className="px-4 py-3">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {results.map((entry, index) => (
+                    <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
+                      <td className="px-4 py-3 align-top text-slate-200">
+                        <p className="max-w-[320px] break-all">{entry.inputUrl}</p>
+                        {entry.report && <p className="mt-1 max-w-[320px] break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {entry.report ? (
+                          <span className={`text-lg font-semibold ${gradeColor(entry.report.grade)}`}>{entry.report.grade}</span>
+                        ) : (
+                          <span className="text-lg font-semibold text-rose-300">--</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top text-slate-300">
+                        {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                      </td>
+                      <td className="px-4 py-3 align-top text-slate-300">
+                        {entry.report ? (
+                          entry.missingHeaders.length > 0 ? (
+                            <ul className="space-y-1">
+                              {entry.missingHeaders.map((header) => (
+                                <li key={header} className="text-xs">
+                                  {header}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-emerald-300">None</span>
+                          )
+                        ) : (
+                          "--"
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top text-slate-400">
+                        {entry.report ? formatCheckedAt(entry.report.checkedAt) : "--"}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {entry.reportHref ? (
+                          <Link
+                            href={entry.reportHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sky-300 transition hover:text-sky-200"
+                          >
+                            Open full report
+                          </Link>
+                        ) : (
+                          <span className="text-slate-500">Unavailable</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top text-slate-300">{entry.error ?? "OK"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/90 px-4 py-3">
+              <button
+                type="button"
+                onClick={onDownloadCsv}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                {bulkExportState === "exported" ? "CSV downloaded" : "Download CSV"}
+              </button>
+              <button
+                type="button"
+                onClick={onCopyMarkdownTable}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                {bulkCopyState === "copied" ? "Copied markdown" : "Copy to Clipboard"}
+              </button>
+              {bulkExportState === "error" && <p className="text-xs text-rose-300">Could not download CSV. Try again.</p>}
+              {bulkCopyState === "error" && <p className="text-xs text-rose-300">Could not copy markdown table. Try again.</p>}
+            </div>
           </section>
         )}
       </section>
