@@ -266,7 +266,7 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
           {report.results.map((result, index) => (
             <View
               key={result.key}
-              style={[styles.tableRow, index === report.results.length - 1 ? styles.tableRowLast : null]}
+              style={index === report.results.length - 1 ? [styles.tableRow, styles.tableRowLast] : styles.tableRow}
             >
               <Text style={[styles.tableCell, styles.headerNameCol, styles.headerLabelText]}>{result.label}</Text>
               <Text style={[styles.tableCell, styles.statusCol]}>{result.status.toUpperCase()}</Text>
