@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
@@ -37,7 +38,13 @@ type HeaderDifference = {
   messages: string[];
 };
 
-type ScanMode = "single" | "compare";
+type BulkScanResult = {
+  inputUrl: string;
+  report: ReportResponse | null;
+  error: string | null;
+};
+
+type ScanMode = "single" | "compare" | "bulk";
 type MobileCompareView = "siteA" | "siteB";
 type ShareState = "idle" | "copied" | "shared" | "error";
 type ThemeMode = "dark" | "light";
@@ -63,11 +70,12 @@ const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_HISTORY_ITEMS = 10;
+const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
 const THEME_STORAGE_KEY = "security-header-checker:theme";
 const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
-  { keys: "Ctrl + Enter", action: "Run single scan or comparison" },
+  { keys: "Ctrl + Enter", action: "Run scan in active tab" },
   { keys: "Ctrl + K", action: "Clear current inputs and results" },
   { keys: "Ctrl + P", action: "Export visible report as PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
@@ -192,6 +200,13 @@ function extractDomainFromUrl(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+function escapeCsvCell(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, "\"\"")}"`;
+  }
+  return value;
 }
 
 function formatReportForClipboard(report: ReportResponse): string {
@@ -364,6 +379,9 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [compareUrlA, setCompareUrlA] = useState("");
   const [compareUrlB, setCompareUrlB] = useState("");
+  const [bulkUrlsInput, setBulkUrlsInput] = useState("");
+  const [bulkResults, setBulkResults] = useState<BulkScanResult[]>([]);
+  const [bulkExportState, setBulkExportState] = useState<"idle" | "exported" | "error">("idle");
   const [mobileCompareView, setMobileCompareView] = useState<MobileCompareView>("siteA");
   const [loading, setLoading] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
@@ -395,6 +413,13 @@ export default function Home() {
     if (!report) return "text-slate-200";
     return gradeColor(report.grade);
   }, [report]);
+
+  const bulkUrlCount = useMemo(() => {
+    return bulkUrlsInput
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean).length;
+  }, [bulkUrlsInput]);
 
   const badgeDomain = useMemo(() => {
     if (!report) return null;
@@ -480,6 +505,10 @@ export default function Home() {
     if (!loading && comparison) {
       return `Comparison complete. Site A grade ${comparison.siteA.grade}. Site B grade ${comparison.siteB.grade}.`;
     }
+    if (!loading && mode === "bulk" && bulkResults.length > 0) {
+      const successCount = bulkResults.filter((entry) => entry.report).length;
+      return `Bulk scan complete. ${successCount} of ${bulkResults.length} URLs scanned successfully.`;
+    }
     if (copyState === "copied") {
       return "Report copied to clipboard.";
     }
@@ -498,8 +527,11 @@ export default function Home() {
     if (pdfState === "error") {
       return "PDF export failed. Please try again.";
     }
+    if (bulkExportState === "exported") {
+      return "Bulk results exported as CSV.";
+    }
     return "";
-  }, [badgeCopyState, comparison, copyState, error, loading, pdfState, report, shareState]);
+  }, [badgeCopyState, bulkExportState, bulkResults, comparison, copyState, error, loading, mode, pdfState, report, shareState]);
 
   useEffect(() => {
     try {
@@ -634,6 +666,8 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setBulkResults([]);
+    setBulkExportState("idle");
     setCopyState("idle");
     setPdfState("idle");
     setShareState("idle");
@@ -641,9 +675,11 @@ export default function Home() {
 
     if (mode === "single") {
       setUrl("");
-    } else {
+    } else if (mode === "compare") {
       setCompareUrlA("");
       setCompareUrlB("");
+    } else {
+      setBulkUrlsInput("");
     }
 
     window.requestAnimationFrame(() => {
@@ -752,6 +788,64 @@ export default function Home() {
     }
   }, [addToHistory, requestReport]);
 
+  const runBulkCheck = useCallback(async (rawInput: string) => {
+    const targets = rawInput
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (targets.length === 0) {
+      setError("Please enter at least one URL for bulk scan.");
+      setBulkResults([]);
+      return;
+    }
+
+    if (targets.length > MAX_BULK_URLS) {
+      setError(`Bulk scan supports up to ${MAX_BULK_URLS} URLs per run.`);
+      setBulkResults([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setReport(null);
+    setComparison(null);
+    setBulkResults([]);
+    setBulkExportState("idle");
+    setCopyState("idle");
+    setShareState("idle");
+
+    try {
+      const settled = await Promise.allSettled(targets.map((target) => requestReport(target)));
+      const nextResults = settled.map((result, index): BulkScanResult => {
+        if (result.status === "fulfilled") {
+          addToHistory(result.value);
+          return {
+            inputUrl: targets[index],
+            report: result.value,
+            error: null
+          };
+        }
+
+        const message =
+          result.reason instanceof Error ? result.reason.message : "Unable to check headers.";
+        return {
+          inputUrl: targets[index],
+          report: null,
+          error: message
+        };
+      });
+
+      setBulkResults(nextResults);
+      const failedCount = nextResults.filter((entry) => entry.error).length;
+      if (failedCount > 0) {
+        setError(`${failedCount} of ${nextResults.length} URLs failed. Review the table for details.`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [addToHistory, requestReport]);
+
   function onSingleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void runSingleCheck(url);
@@ -760,6 +854,11 @@ export default function Home() {
   function onCompareSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void runComparisonCheck(compareUrlA, compareUrlB);
+  }
+
+  function onBulkSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void runBulkCheck(bulkUrlsInput);
   }
 
   function onSampleClick(sampleUrl: string) {
@@ -816,6 +915,57 @@ export default function Home() {
       setBadgeCopyState("error");
     } finally {
       window.setTimeout(() => setBadgeCopyState("idle"), 2500);
+    }
+  }
+
+  function onExportBulkCsv() {
+    if (bulkResults.length === 0) return;
+
+    try {
+      const headerRow = [
+        "Input URL",
+        "Checked URL",
+        "Final URL",
+        "HTTP Status",
+        "Grade",
+        "Score",
+        "Checked At",
+        "Error"
+      ];
+
+      const dataRows = bulkResults.map((entry) => {
+        const reportData = entry.report;
+        return [
+          entry.inputUrl,
+          reportData?.checkedUrl ?? "",
+          reportData?.finalUrl ?? "",
+          reportData ? String(reportData.statusCode) : "",
+          reportData?.grade ?? "",
+          reportData ? `${reportData.score}/${reportData.results.length * 2}` : "",
+          reportData?.checkedAt ?? "",
+          entry.error ?? ""
+        ];
+      });
+
+      const csvContent = [headerRow, ...dataRows]
+        .map((row) => row.map((cell) => escapeCsvCell(cell)).join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `security-bulk-scan-${Date.now()}.csv`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      setBulkExportState("exported");
+    } catch {
+      setBulkExportState("error");
+    } finally {
+      window.setTimeout(() => setBulkExportState("idle"), 2500);
     }
   }
 
@@ -1069,8 +1219,10 @@ export default function Home() {
           event.preventDefault();
           if (mode === "single") {
             void runSingleCheck(url);
-          } else {
+          } else if (mode === "compare") {
             void runComparisonCheck(compareUrlA, compareUrlB);
+          } else {
+            void runBulkCheck(bulkUrlsInput);
           }
           return;
         }
@@ -1091,12 +1243,17 @@ export default function Home() {
       if (loading || event.metaKey || event.ctrlKey || event.altKey) return;
 
       if (event.key === "Enter") {
+        if (event.target instanceof HTMLTextAreaElement) {
+          return;
+        }
         event.preventDefault();
         if (mode === "single") {
           void runSingleCheck(url);
-          return;
+        } else if (mode === "compare") {
+          void runComparisonCheck(compareUrlA, compareUrlB);
+        } else {
+          void runBulkCheck(bulkUrlsInput);
         }
-        void runComparisonCheck(compareUrlA, compareUrlB);
         return;
       }
 
@@ -1112,6 +1269,7 @@ export default function Home() {
     };
   }, [
     clearCurrentState,
+    bulkUrlsInput,
     closeShortcutsModal,
     compareUrlA,
     compareUrlB,
@@ -1121,6 +1279,7 @@ export default function Home() {
     onExportPdf,
     pdfState,
     report,
+    runBulkCheck,
     runComparisonCheck,
     runSingleCheck,
     shortcutsOpen,
@@ -1135,14 +1294,22 @@ export default function Home() {
       </p>
       <header className="mb-6 flex items-center justify-between gap-4">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">Security Header Checker</p>
-        <button
-          type="button"
-          onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-        >
-          {theme === "dark" ? "Light mode" : "Dark mode"}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/docs"
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+          >
+            Docs
+          </Link>
+          <button
+            type="button"
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+          >
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+        </div>
       </header>
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
@@ -1209,6 +1376,18 @@ export default function Home() {
           >
             Compare
           </button>
+          <button
+            type="button"
+            onClick={() => setMode("bulk")}
+            aria-pressed={mode === "bulk"}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+              mode === "bulk"
+                ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
+                : "text-slate-300 hover:text-sky-200"
+            }`}
+          >
+            Bulk Scan
+          </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <p>
@@ -1274,7 +1453,7 @@ export default function Home() {
               </div>
             </div>
           </>
-        ) : (
+        ) : mode === "compare" ? (
           <form onSubmit={onCompareSubmit} className="mt-6">
             <div className="grid gap-3 md:grid-cols-2">
               <label htmlFor="compare-site-a-url" className="sr-only">
@@ -1313,6 +1492,34 @@ export default function Home() {
             <p className="mt-2 text-xs text-slate-500">
               Tip: enter two domains, then use Ctrl+Enter to run comparison.
             </p>
+          </form>
+        ) : (
+          <form onSubmit={onBulkSubmit} className="mt-6 space-y-3">
+            <label htmlFor="bulk-scan-urls" className="sr-only">
+              Website URLs for bulk scan
+            </label>
+            <textarea
+              id="bulk-scan-urls"
+              value={bulkUrlsInput}
+              onChange={(event) => setBulkUrlsInput(event.target.value)}
+              placeholder={"example.com\nhttps://mozilla.org\ncloudflare.com"}
+              rows={8}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+              aria-describedby="bulk-scan-hint"
+              required
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p id="bulk-scan-hint" className="text-xs text-slate-500">
+                Enter one URL per line (up to {MAX_BULK_URLS}). {bulkUrlCount}/{MAX_BULK_URLS} URLs added.
+              </p>
+              <button
+                type="submit"
+                disabled={loading}
+                className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+              >
+                {loading ? "Scanning..." : "Run Bulk Scan"}
+              </button>
+            </div>
           </form>
         )}
 
@@ -1353,7 +1560,80 @@ export default function Home() {
           )}
         </div>
 
-        {!loading && !report && !comparison && !error && (
+        {mode === "bulk" && !loading && bulkResults.length > 0 && (
+          <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <h3 className="text-sm font-medium text-slate-100">Bulk Scan Results</h3>
+                <p className="text-xs text-slate-400">
+                  {bulkResults.filter((entry) => entry.report).length} successful ·{" "}
+                  {bulkResults.filter((entry) => entry.error).length} failed
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onExportBulkCsv}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                {bulkExportState === "exported" ? "CSV exported" : "Export CSV"}
+              </button>
+            </div>
+            <div className="overflow-x-auto border-t border-slate-800/90">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">URL</th>
+                    <th className="px-4 py-3">Grade</th>
+                    <th className="px-4 py-3">Score</th>
+                    <th className="px-4 py-3">HTTP</th>
+                    <th className="px-4 py-3">Checked</th>
+                    <th className="px-4 py-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkResults.map((entry, index) => (
+                    <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
+                      <td className="px-4 py-3 text-slate-200">
+                        <div className="max-w-[320px]">
+                          <p className="truncate">{entry.inputUrl}</p>
+                          {entry.report && (
+                            <p className="truncate text-xs text-slate-500">{entry.report.finalUrl}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {entry.report ? (
+                          <span className={`font-semibold ${gradeColor(entry.report.grade)}`}>
+                            {entry.report.grade}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-rose-300">--</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">
+                        {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">
+                        {entry.report ? entry.report.statusCode : "--"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">
+                        {entry.report ? new Date(entry.report.checkedAt).toLocaleString() : "--"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">{entry.error ?? "OK"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {bulkExportState === "error" && (
+              <p className="border-t border-slate-800/90 px-4 py-3 text-xs text-rose-300">
+                Could not export CSV. Please try again.
+              </p>
+            )}
+          </section>
+        )}
+
+        {!loading && !report && !comparison && !error && mode !== "bulk" && (
           <section className="mt-5 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
             <h3 className="text-sm font-semibold text-sky-100">Nothing scanned yet</h3>
             <p className="mt-1 text-sm text-slate-300">
@@ -1422,7 +1702,13 @@ export default function Home() {
             aria-atomic="true"
           >
             <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-              <span>{mode === "compare" ? "Comparing security headers..." : "Scanning site..."}</span>
+              <span>
+                {mode === "compare"
+                  ? "Comparing security headers..."
+                  : mode === "bulk"
+                    ? "Running bulk scan..."
+                    : "Scanning site..."}
+              </span>
               <span>{scanProgress}%</span>
             </div>
             <div
