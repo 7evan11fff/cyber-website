@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { FixSuggestionsPanel } from "@/app/components/FixSuggestionsPanel";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -1917,10 +1918,12 @@ export default function Home() {
                       </div>
 
                       <div className="mt-3 flex items-center justify-center rounded-md border border-slate-800 bg-slate-900/60 p-3">
-                        <img
+                        <Image
                           src={badgeUrl}
                           alt={`Security headers grade badge for ${badgeDomain}`}
-                          loading="lazy"
+                          width={120}
+                          height={20}
+                          unoptimized
                         />
                       </div>
 
