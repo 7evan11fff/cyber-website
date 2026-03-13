@@ -41,6 +41,8 @@ type ScanMode = "single" | "compare";
 type MobileCompareView = "siteA" | "siteB";
 type ShareState = "idle" | "copied" | "shared" | "error";
 type ThemeMode = "dark" | "light";
+type BadgeStyle = "flat" | "flat-square";
+type BadgeCopyState = "idle" | "markdown" | "html" | "error";
 
 type SharePayload =
   | {
@@ -178,6 +180,18 @@ function decodeSharePayload(value: string): SharePayload | null {
 
 function gradeColor(grade: string) {
   return gradeStyles[grade] ?? "text-slate-200";
+}
+
+function extractDomainFromUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.hostname || null;
+  } catch {
+    return null;
+  }
 }
 
 function formatReportForClipboard(report: ReportResponse): string {
@@ -359,6 +373,9 @@ export default function Home() {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
   const [shareState, setShareState] = useState<ShareState>("idle");
+  const [badgePanelOpen, setBadgePanelOpen] = useState(false);
+  const [badgeStyle, setBadgeStyle] = useState<BadgeStyle>("flat");
+  const [badgeCopyState, setBadgeCopyState] = useState<BadgeCopyState>("idle");
   const [scanHistory, setScanHistory] = useState<HistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
@@ -378,6 +395,30 @@ export default function Home() {
     if (!report) return "text-slate-200";
     return gradeColor(report.grade);
   }, [report]);
+
+  const badgeDomain = useMemo(() => {
+    if (!report) return null;
+    return extractDomainFromUrl(report.finalUrl) ?? extractDomainFromUrl(report.checkedUrl);
+  }, [report]);
+
+  const badgeUrl = useMemo(() => {
+    if (!badgeDomain) return "";
+    const badgePath = `/api/badge/${encodeURIComponent(badgeDomain)}?style=${badgeStyle}`;
+    if (typeof window === "undefined") {
+      return badgePath;
+    }
+    return `${window.location.origin}${badgePath}`;
+  }, [badgeDomain, badgeStyle]);
+
+  const badgeMarkdownCode = useMemo(() => {
+    if (!badgeDomain || !badgeUrl) return "";
+    return `![Security headers grade for ${badgeDomain}](${badgeUrl})`;
+  }, [badgeDomain, badgeUrl]);
+
+  const badgeHtmlCode = useMemo(() => {
+    if (!badgeDomain || !badgeUrl) return "";
+    return `<img src="${badgeUrl}" alt="Security headers grade badge for ${badgeDomain}" />`;
+  }, [badgeDomain, badgeUrl]);
 
   const comparisonDifferences = useMemo<HeaderDifference[]>(() => {
     if (!comparison) return [];
@@ -448,11 +489,17 @@ export default function Home() {
     if (shareState === "shared") {
       return "Report shared.";
     }
+    if (badgeCopyState === "markdown") {
+      return "Badge markdown copied.";
+    }
+    if (badgeCopyState === "html") {
+      return "Badge HTML copied.";
+    }
     if (pdfState === "error") {
       return "PDF export failed. Please try again.";
     }
     return "";
-  }, [comparison, copyState, error, loading, pdfState, report, shareState]);
+  }, [badgeCopyState, comparison, copyState, error, loading, pdfState, report, shareState]);
 
   useEffect(() => {
     try {
@@ -520,6 +567,12 @@ export default function Home() {
     setReport(null);
     setComparison(decoded.comparison);
   }, []);
+
+  useEffect(() => {
+    setBadgePanelOpen(false);
+    setBadgeStyle("flat");
+    setBadgeCopyState("idle");
+  }, [mode, report?.checkedAt]);
 
   const addToHistory = useCallback((nextReport: ReportResponse) => {
     const nextEntry: HistoryEntry = {
@@ -749,6 +802,20 @@ export default function Home() {
       setCopyState("error");
     } finally {
       window.setTimeout(() => setCopyState("idle"), 2500);
+    }
+  }
+
+  async function onCopyBadgeCode(format: "markdown" | "html") {
+    if (!badgeDomain || !badgeUrl) return;
+
+    try {
+      const content = format === "markdown" ? badgeMarkdownCode : badgeHtmlCode;
+      await navigator.clipboard.writeText(content);
+      setBadgeCopyState(format);
+    } catch {
+      setBadgeCopyState("error");
+    } finally {
+      window.setTimeout(() => setBadgeCopyState("idle"), 2500);
     }
   }
 
@@ -1500,17 +1567,119 @@ export default function Home() {
               <p className="mt-1 text-sm text-slate-300">
                 Score: {report.score}/{report.results.length * 2}
               </p>
-              <button
-                type="button"
-                onClick={onCopyReport}
-                className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-              >
-                {copyState === "copied" ? "Copied report" : "Copy Report"}
-              </button>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={onCopyReport}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                >
+                  {copyState === "copied" ? "Copied report" : "Copy Report"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBadgePanelOpen((current) => !current)}
+                  disabled={!badgeDomain}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {badgePanelOpen ? "Hide Badge" : "Get Badge"}
+                </button>
+              </div>
               {copyState === "error" && (
                 <p className="mt-2 text-xs text-rose-300">
                   Clipboard unavailable. Please copy manually.
                 </p>
+              )}
+              {badgePanelOpen && (
+                <section className="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Embeddable badge</p>
+                  {badgeDomain ? (
+                    <>
+                      <div className="mt-2 inline-flex rounded-md border border-slate-700 bg-slate-900 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setBadgeStyle("flat")}
+                          className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                            badgeStyle === "flat"
+                              ? "bg-sky-500 text-slate-950"
+                              : "text-slate-300 hover:text-sky-200"
+                          }`}
+                        >
+                          Flat
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBadgeStyle("flat-square")}
+                          className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                            badgeStyle === "flat-square"
+                              ? "bg-sky-500 text-slate-950"
+                              : "text-slate-300 hover:text-sky-200"
+                          }`}
+                        >
+                          Flat-square
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-center rounded-md border border-slate-800 bg-slate-900/60 p-3">
+                        <img
+                          src={badgeUrl}
+                          alt={`Security headers grade badge for ${badgeDomain}`}
+                          loading="lazy"
+                        />
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        <div>
+                          <p className="text-xs text-slate-400">Markdown</p>
+                          <div className="mt-1 flex gap-2">
+                            <input
+                              type="text"
+                              value={badgeMarkdownCode}
+                              readOnly
+                              className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void onCopyBadgeCode("markdown")}
+                              className="rounded-md border border-slate-700 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-400">HTML</p>
+                          <div className="mt-1 flex gap-2">
+                            <input
+                              type="text"
+                              value={badgeHtmlCode}
+                              readOnly
+                              className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void onCopyBadgeCode("html")}
+                              className="rounded-md border border-slate-700 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {badgeCopyState === "markdown" && (
+                        <p className="mt-2 text-xs text-emerald-300">Markdown copied.</p>
+                      )}
+                      {badgeCopyState === "html" && (
+                        <p className="mt-2 text-xs text-emerald-300">HTML copied.</p>
+                      )}
+                      {badgeCopyState === "error" && (
+                        <p className="mt-2 text-xs text-rose-300">Clipboard unavailable. Copy manually.</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs text-rose-300">Unable to detect a valid domain for badge links.</p>
+                  )}
+                </section>
               )}
               <div className="mt-4 space-y-1 text-sm text-slate-300">
                 <p className="break-all">
