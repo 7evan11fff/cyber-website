@@ -55,6 +55,7 @@ type SharePayload =
     };
 
 const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
+const EMPTY_STATE_SUGGESTIONS = ["owasp.org", "mozilla.org", "cloudflare.com", "wikipedia.org"];
 const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
 const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
@@ -62,6 +63,14 @@ const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_HISTORY_ITEMS = 10;
 const SHARE_QUERY_PARAM = "share";
 const THEME_STORAGE_KEY = "security-header-checker:theme";
+const SHORTCUT_ROWS = [
+  { keys: "?", action: "Open/close keyboard shortcuts help" },
+  { keys: "Ctrl + Enter", action: "Run single scan or comparison" },
+  { keys: "Ctrl + K", action: "Clear current inputs and results" },
+  { keys: "Ctrl + P", action: "Export visible report as PDF" },
+  { keys: "Enter", action: "Run scan (no modifiers)" },
+  { keys: "Esc", action: "Clear current inputs and results" }
+];
 
 const statusStyles: Record<HeaderResult["status"], string> = {
   good: "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30",
@@ -229,15 +238,15 @@ function HeroShieldIcon() {
 
 function LoadingSkeleton() {
   return (
-    <section className="mt-6 grid animate-pulse gap-6 lg:grid-cols-[280px_1fr]">
+    <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]" aria-hidden="true">
       <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <div className="h-3 w-24 rounded bg-slate-700/70" />
-        <div className="mt-4 h-16 w-20 rounded bg-slate-700/70" />
-        <div className="mt-3 h-3 w-36 rounded bg-slate-700/70" />
+        <div className="skeleton-shimmer h-3 w-24 rounded" />
+        <div className="skeleton-shimmer mt-4 h-16 w-20 rounded" />
+        <div className="skeleton-shimmer mt-3 h-3 w-36 rounded" />
         <div className="mt-6 space-y-2">
-          <div className="h-3 rounded bg-slate-800/80" />
-          <div className="h-3 rounded bg-slate-800/80" />
-          <div className="h-3 rounded bg-slate-800/80" />
+          <div className="skeleton-shimmer h-3 rounded" />
+          <div className="skeleton-shimmer h-3 rounded" />
+          <div className="skeleton-shimmer h-3 rounded" />
         </div>
       </article>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -246,11 +255,11 @@ function LoadingSkeleton() {
             key={index}
             className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50"
           >
-            <div className="h-5 w-2/3 rounded bg-slate-700/70" />
-            <div className="mt-3 h-3 rounded bg-slate-800/80" />
-            <div className="mt-2 h-3 w-11/12 rounded bg-slate-800/80" />
-            <div className="mt-5 h-3 rounded bg-slate-800/80" />
-            <div className="mt-2 h-3 w-5/6 rounded bg-slate-800/80" />
+            <div className="skeleton-shimmer h-5 w-2/3 rounded" />
+            <div className="skeleton-shimmer mt-3 h-3 rounded" />
+            <div className="skeleton-shimmer mt-2 h-3 w-11/12 rounded" />
+            <div className="skeleton-shimmer mt-5 h-3 rounded" />
+            <div className="skeleton-shimmer mt-2 h-3 w-5/6 rounded" />
           </article>
         ))}
       </div>
@@ -355,8 +364,15 @@ export default function Home() {
   const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
   const exportTargetRef = useRef<HTMLDivElement | null>(null);
   const compareTouchStartXRef = useRef<number | null>(null);
+  const singleUrlInputRef = useRef<HTMLInputElement | null>(null);
+  const compareUrlAInputRef = useRef<HTMLInputElement | null>(null);
+  const shortcutsDialogRef = useRef<HTMLDivElement | null>(null);
+  const shortcutCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   const singleGradeColor = useMemo(() => {
     if (!report) return "text-slate-200";
@@ -412,6 +428,31 @@ export default function Home() {
   const popularCacheByUrl = useMemo(() => {
     return new Map(popularSitesCache.map((entry) => [entry.url, entry]));
   }, [popularSitesCache]);
+
+  const liveRegionMessage = useMemo(() => {
+    if (error) {
+      return `Scan error: ${error}`;
+    }
+    if (!loading && report) {
+      return `Scan complete. ${report.checkedUrl} received grade ${report.grade}.`;
+    }
+    if (!loading && comparison) {
+      return `Comparison complete. Site A grade ${comparison.siteA.grade}. Site B grade ${comparison.siteB.grade}.`;
+    }
+    if (copyState === "copied") {
+      return "Report copied to clipboard.";
+    }
+    if (shareState === "copied") {
+      return "Share link copied to clipboard.";
+    }
+    if (shareState === "shared") {
+      return "Report shared.";
+    }
+    if (pdfState === "error") {
+      return "PDF export failed. Please try again.";
+    }
+    return "";
+  }, [comparison, copyState, error, loading, pdfState, report, shareState]);
 
   useEffect(() => {
     try {
@@ -551,7 +592,33 @@ export default function Home() {
       setCompareUrlA("");
       setCompareUrlB("");
     }
+
+    window.requestAnimationFrame(() => {
+      if (mode === "single") {
+        singleUrlInputRef.current?.focus();
+      } else {
+        compareUrlAInputRef.current?.focus();
+      }
+    });
   }, [mode]);
+
+  const openShortcutsModal = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      lastFocusedElementRef.current = document.activeElement;
+    }
+    setShortcutsOpen(true);
+  }, []);
+
+  const closeShortcutsModal = useCallback(() => {
+    setShortcutsOpen(false);
+  }, []);
+
+  const toggleShortcutsModal = useCallback(() => {
+    if (!shortcutsOpen && document.activeElement instanceof HTMLElement) {
+      lastFocusedElementRef.current = document.activeElement;
+    }
+    setShortcutsOpen((current) => !current);
+  }, [shortcutsOpen]);
 
   async function refreshPopularSite(site: string, openReport = false) {
     setActivePopularRefresh(site);
@@ -872,8 +939,89 @@ export default function Home() {
   }, [loading, scanProgress]);
 
   useEffect(() => {
+    if (!shortcutsOpen) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    window.setTimeout(() => {
+      shortcutCloseButtonRef.current?.focus();
+    }, 0);
+
+    const onModalKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const dialog = shortcutsDialogRef.current;
+      if (!dialog) return;
+
+      const focusableElements = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onModalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onModalKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      lastFocusedElementRef.current?.focus();
+    };
+  }, [shortcutsOpen]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (loading || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.repeat) return;
+
+      if (event.key === "?") {
+        event.preventDefault();
+        toggleShortcutsModal();
+        return;
+      }
+
+      if (shortcutsOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeShortcutsModal();
+        }
+        return;
+      }
+
+      const hasPrimaryModifier = event.ctrlKey || event.metaKey;
+      if (hasPrimaryModifier && !event.altKey) {
+        const normalizedKey = event.key.toLowerCase();
+        if (normalizedKey === "enter") {
+          event.preventDefault();
+          if (mode === "single") {
+            void runSingleCheck(url);
+          } else {
+            void runComparisonCheck(compareUrlA, compareUrlB);
+          }
+          return;
+        }
+
+        if (normalizedKey === "k") {
+          event.preventDefault();
+          clearCurrentState();
+          return;
+        }
+
+        if (normalizedKey === "p" && !loading && pdfState !== "generating" && (report || comparison)) {
+          event.preventDefault();
+          void onExportPdf();
+          return;
+        }
+      }
+
+      if (loading || event.metaKey || event.ctrlKey || event.altKey) return;
 
       if (event.key === "Enter") {
         event.preventDefault();
@@ -895,15 +1043,34 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [clearCurrentState, compareUrlA, compareUrlB, loading, mode, runComparisonCheck, runSingleCheck, url]);
+  }, [
+    clearCurrentState,
+    closeShortcutsModal,
+    compareUrlA,
+    compareUrlB,
+    comparison,
+    loading,
+    mode,
+    onExportPdf,
+    pdfState,
+    report,
+    runComparisonCheck,
+    runSingleCheck,
+    toggleShortcutsModal,
+    url
+  ]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {liveRegionMessage}
+      </p>
       <header className="mb-6 flex items-center justify-between gap-4">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">Security Header Checker</p>
         <button
           type="button"
           onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
         >
           {theme === "dark" ? "Light mode" : "Dark mode"}
@@ -937,7 +1104,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+      <section
+        className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur"
+        aria-busy={loading}
+      >
         <h2 className="text-2xl font-semibold text-slate-100 sm:text-3xl">Run a Security Header Scan</h2>
         <p className="mt-2 max-w-2xl text-slate-300">
           Scan one site for a detailed report, or compare two sites side by side to spot header gaps.
@@ -947,6 +1117,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setMode("single")}
+            aria-pressed={mode === "single"}
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "single"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
@@ -961,6 +1132,7 @@ export default function Home() {
               setMode("compare");
               setMobileCompareView("siteA");
             }}
+            aria-pressed={mode === "compare"}
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "compare"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
@@ -970,20 +1142,39 @@ export default function Home() {
             Compare
           </button>
         </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Shortcuts: <span className="text-slate-300">Enter</span> to run scan,{" "}
-          <span className="text-slate-300">Esc</span> to clear.
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <p>
+            Shortcuts: <span className="text-slate-300">Ctrl+Enter</span> scan,{" "}
+            <span className="text-slate-300">Ctrl+K</span> clear,{" "}
+            <span className="text-slate-300">Ctrl+P</span> PDF.
+          </p>
+          <button
+            type="button"
+            onClick={openShortcutsModal}
+            aria-haspopup="dialog"
+            aria-expanded={shortcutsOpen}
+            aria-controls="keyboard-shortcuts-modal"
+            className="rounded-md border border-slate-700 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+          >
+            Keyboard help (?)
+          </button>
+        </div>
 
         {mode === "single" ? (
           <>
             <form onSubmit={onSingleSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <label htmlFor="single-site-url" className="sr-only">
+                Website URL to scan
+              </label>
               <input
+                id="single-site-url"
+                ref={singleUrlInputRef}
                 type="text"
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
                 placeholder="example.com or https://example.com"
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                aria-describedby="single-scan-hint"
                 required
               />
               <button
@@ -994,6 +1185,9 @@ export default function Home() {
                 {loading ? "Scanning..." : "Check"}
               </button>
             </form>
+            <p id="single-scan-hint" className="mt-2 text-xs text-slate-500">
+              Enter a domain or full URL and press Ctrl+Enter to scan.
+            </p>
 
             <div className="mt-4">
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Try sample sites</p>
@@ -1015,7 +1209,12 @@ export default function Home() {
         ) : (
           <form onSubmit={onCompareSubmit} className="mt-6">
             <div className="grid gap-3 md:grid-cols-2">
+              <label htmlFor="compare-site-a-url" className="sr-only">
+                Site A URL
+              </label>
               <input
+                id="compare-site-a-url"
+                ref={compareUrlAInputRef}
                 type="text"
                 value={compareUrlA}
                 onChange={(event) => setCompareUrlA(event.target.value)}
@@ -1023,7 +1222,11 @@ export default function Home() {
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 required
               />
+              <label htmlFor="compare-site-b-url" className="sr-only">
+                Site B URL
+              </label>
               <input
+                id="compare-site-b-url"
                 type="text"
                 value={compareUrlB}
                 onChange={(event) => setCompareUrlB(event.target.value)}
@@ -1039,6 +1242,9 @@ export default function Home() {
             >
               {loading ? "Comparing..." : "Compare Headers"}
             </button>
+            <p className="mt-2 text-xs text-slate-500">
+              Tip: enter two domains, then use Ctrl+Enter to run comparison.
+            </p>
           </form>
         )}
 
@@ -1079,15 +1285,88 @@ export default function Home() {
           )}
         </div>
 
+        {!loading && !report && !comparison && !error && (
+          <section className="mt-5 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+            <h3 className="text-sm font-semibold text-sky-100">Nothing scanned yet</h3>
+            <p className="mt-1 text-sm text-slate-300">
+              Start with one of these suggested sites, or paste your own domain above.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {EMPTY_STATE_SUGGESTIONS.map((site) => (
+                <button
+                  key={site}
+                  type="button"
+                  onClick={() => onSampleClick(site)}
+                  className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                >
+                  Scan {site}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+          <button
+            type="button"
+            onClick={() => setFaqOpen((open) => !open)}
+            aria-expanded={faqOpen}
+            aria-controls="security-header-faq-content"
+            className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-900/60"
+          >
+            <span className="text-sm font-medium text-slate-100">What are security headers?</span>
+            <span className="text-xs uppercase tracking-[0.14em] text-slate-400">
+              {faqOpen ? "Hide" : "Show"}
+            </span>
+          </button>
+          {faqOpen && (
+            <div id="security-header-faq-content" className="border-t border-slate-800/90 px-4 py-3">
+              <p className="text-sm text-slate-300">
+                Security headers are HTTP response headers that instruct browsers how to safely handle your site.
+                They reduce the risk of attacks like XSS, clickjacking, and unsafe data exposure.
+              </p>
+              <ul className="mt-3 space-y-2 text-sm text-slate-300">
+                <li>
+                  <span className="font-medium text-slate-100">Content-Security-Policy:</span> limits trusted
+                  scripts, styles, and frames.
+                </li>
+                <li>
+                  <span className="font-medium text-slate-100">Strict-Transport-Security:</span> forces HTTPS.
+                </li>
+                <li>
+                  <span className="font-medium text-slate-100">X-Frame-Options:</span> helps prevent clickjacking.
+                </li>
+                <li>
+                  <span className="font-medium text-slate-100">Referrer-Policy:</span> controls referrer leakage.
+                </li>
+                <li>
+                  <span className="font-medium text-slate-100">Permissions-Policy:</span> restricts browser features.
+                </li>
+              </ul>
+            </div>
+          )}
+        </section>
+
         {scanProgress > 0 && (
-          <section className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3">
+          <section
+            className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
               <span>{mode === "compare" ? "Comparing security headers..." : "Scanning site..."}</span>
               <span>{scanProgress}%</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-2 overflow-hidden rounded-full bg-slate-800"
+              role="progressbar"
+              aria-label="Scan progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={scanProgress}
+            >
               <div
-                className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-200"
+                className="progress-pulse h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-200"
                 style={{ width: `${scanProgress}%` }}
               />
             </div>
@@ -1099,6 +1378,8 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setHistoryOpen((open) => !open)}
+              aria-expanded={historyOpen}
+              aria-controls="recent-scans-list"
               className="text-sm font-medium text-slate-200 transition hover:text-sky-200"
             >
               Recent Scans ({scanHistory.length}) {historyOpen ? "−" : "+"}
@@ -1113,7 +1394,7 @@ export default function Home() {
             </button>
           </div>
           {historyOpen && (
-            <div className="border-t border-slate-800/90 px-4 py-3">
+            <div id="recent-scans-list" className="border-t border-slate-800/90 px-4 py-3">
               {scanHistory.length === 0 ? (
                 <p className="text-sm text-slate-400">No scans yet. Run a check to build your history.</p>
               ) : (
@@ -1197,7 +1478,11 @@ export default function Home() {
         </section>
 
         {error && (
-          <p className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <p
+            role="alert"
+            aria-live="assertive"
+            className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+          >
             {error}
           </p>
         )}
@@ -1364,7 +1649,66 @@ export default function Home() {
             Security headers are browser rules that reduce XSS, clickjacking, and data exposure risks.
           </p>
         </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Privacy note: scans are performed server-side to evaluate headers, and we do not store your scan
+          results.
+        </p>
       </footer>
+
+      {shortcutsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close keyboard shortcuts modal"
+            onClick={closeShortcutsModal}
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          />
+          <div
+            id="keyboard-shortcuts-modal"
+            ref={shortcutsDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="keyboard-shortcuts-title"
+            aria-describedby="keyboard-shortcuts-description"
+            className="relative z-10 w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900/95 p-6 shadow-2xl shadow-slate-950/80"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="keyboard-shortcuts-title" className="text-xl font-semibold text-slate-100">
+                  Keyboard shortcuts
+                </h2>
+                <p id="keyboard-shortcuts-description" className="mt-1 text-sm text-slate-300">
+                  Use these shortcuts to navigate and operate the checker faster.
+                </p>
+              </div>
+              <button
+                ref={shortcutCloseButtonRef}
+                type="button"
+                onClick={closeShortcutsModal}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Close
+              </button>
+            </div>
+            <ul className="mt-4 space-y-2">
+              {SHORTCUT_ROWS.map((shortcut) => (
+                <li
+                  key={shortcut.keys}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2"
+                >
+                  <kbd className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs font-semibold text-sky-200">
+                    {shortcut.keys}
+                  </kbd>
+                  <span className="text-sm text-slate-300">{shortcut.action}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-slate-500">
+              On macOS, Command (⌘) also works for Ctrl-based shortcuts.
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
