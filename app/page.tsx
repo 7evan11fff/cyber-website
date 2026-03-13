@@ -1746,7 +1746,9 @@ export default function Home() {
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           {TESTIMONIALS.map((item) => (
             <article key={item.name} className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
-              <p className="text-sm text-slate-200">"{item.quote}"</p>
+              <p className="text-sm text-slate-200">
+                &ldquo;{item.quote}&rdquo;
+              </p>
               <p className="mt-4 text-sm font-semibold text-slate-100">{item.name}</p>
               <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{item.role}</p>
             </article>
