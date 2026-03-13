@@ -2,7 +2,23 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 
+const FALLBACK_SITE_URL = "https://security-header-checker.vercel.app";
+
+function resolveMetadataBase(): URL {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!configuredUrl) {
+    return new URL(FALLBACK_SITE_URL);
+  }
+
+  try {
+    return new URL(configuredUrl);
+  } catch {
+    return new URL(FALLBACK_SITE_URL);
+  }
+}
+
 export const metadata: Metadata = {
+  metadataBase: resolveMetadataBase(),
   title: {
     default: "Security Header Checker",
     template: "%s | Security Header Checker"
