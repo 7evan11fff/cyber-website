@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 220 20% 5%;
+  --foreground: 150 50% 95%;
+  --card: 220 22% 8%;
+  --card-foreground: 150 40% 93%;
+  --border: 150 28% 22%;
+  --input: 150 24% 20%;
+  --primary: 155 88% 40%;
+  --primary-foreground: 140 100% 98%;
+  --muted: 220 15% 12%;
+  --muted-foreground: 145 17% 68%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.35);
+  color: hsl(var(--primary-foreground));
+}
