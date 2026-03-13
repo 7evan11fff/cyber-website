@@ -1,19 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { signIn, useSession } from "next-auth/react";
+import {
+  MAX_WATCHLIST_ITEMS,
+  WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
+  WATCHLIST_STORAGE_KEY,
+  isWatchlistEntry,
+  mergeWatchlists,
+  type WatchlistEntry
+} from "@/lib/userData";
 
 type LatestReportSummary = {
   checkedUrl: string;
   grade: string;
   checkedAt: string;
-};
-
-type WatchlistEntry = {
-  id: string;
-  url: string;
-  lastGrade: string;
-  previousGrade: string | null;
-  lastCheckedAt: string;
 };
 
 type CheckApiResponse = {
@@ -24,9 +25,6 @@ type CheckApiResponse = {
 
 type RefreshState = "idle" | "running" | "error";
 
-const WATCHLIST_STORAGE_KEY = "security-header-checker:watchlist";
-const WATCHLIST_ALERT_EMAIL_STORAGE_KEY = "security-header-checker:watchlist-alert-email";
-const MAX_WATCHLIST_ITEMS = 20;
 const WATCHLIST_AUTO_REFRESH_MS = 1000 * 60 * 30;
 
 const GRADE_RANK: Record<string, number> = {
@@ -36,18 +34,6 @@ const GRADE_RANK: Record<string, number> = {
   D: 2,
   F: 1
 };
-
-function isWatchlistEntry(value: unknown): value is WatchlistEntry {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<WatchlistEntry>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.url === "string" &&
-    typeof candidate.lastGrade === "string" &&
-    typeof candidate.lastCheckedAt === "string" &&
-    (candidate.previousGrade === null || typeof candidate.previousGrade === "string")
-  );
-}
 
 function isCheckApiResponse(value: unknown): value is CheckApiResponse {
   if (!value || typeof value !== "object") return false;
@@ -95,6 +81,50 @@ export function WatchlistPanel({
   const [alertEmailInput, setAlertEmailInput] = useState("");
   const [savedAlertEmail, setSavedAlertEmail] = useState<string | null>(null);
   const [alertSaveState, setAlertSaveState] = useState<"idle" | "saved" | "error">("idle");
+  const [localWatchlistLoaded, setLocalWatchlistLoaded] = useState(false);
+  const [localEmailLoaded, setLocalEmailLoaded] = useState(false);
+  const [serverSyncReady, setServerSyncReady] = useState(false);
+  const [syncedUserKey, setSyncedUserKey] = useState<string | null>(null);
+  const { data: session, status: sessionStatus } = useSession();
+
+  const isAuthenticated = sessionStatus === "authenticated";
+  const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
+
+  const persistWatchlistLocal = useCallback((entries: WatchlistEntry[]) => {
+    try {
+      localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(entries));
+    } catch {
+      // Ignore persistence failures in private mode.
+    }
+  }, []);
+
+  const persistAlertEmailLocal = useCallback((email: string | null) => {
+    try {
+      if (email) {
+        localStorage.setItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY, email);
+      } else {
+        localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
+  const syncServerData = useCallback(
+    async (patch: { watchlist?: WatchlistEntry[]; alertEmail?: string | null }) => {
+      if (!isAuthenticated) return;
+      try {
+        await fetch("/api/user-data", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch)
+        });
+      } catch {
+        // Best-effort sync keeps local state available even offline.
+      }
+    },
+    [isAuthenticated]
+  );
 
   useEffect(() => {
     try {
@@ -105,6 +135,8 @@ export function WatchlistPanel({
       setWatchlist(parsed.filter(isWatchlistEntry).slice(0, MAX_WATCHLIST_ITEMS));
     } catch {
       setWatchlist([]);
+    } finally {
+      setLocalWatchlistLoaded(true);
     }
   }, []);
 
@@ -117,20 +149,90 @@ export function WatchlistPanel({
     } catch {
       setAlertEmailInput("");
       setSavedAlertEmail(null);
+    } finally {
+      setLocalEmailLoaded(true);
     }
   }, []);
 
-  const persistWatchlist = useCallback((updater: (previous: WatchlistEntry[]) => WatchlistEntry[]) => {
-    setWatchlist((previous) => {
-      const next = updater(previous).slice(0, MAX_WATCHLIST_ITEMS);
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setServerSyncReady(false);
+    setSyncedUserKey(null);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !localWatchlistLoaded || !localEmailLoaded) return;
+    if (syncedUserKey === currentUserKey) return;
+
+    let cancelled = false;
+    const localWatchlist = watchlist;
+    const localAlertEmail = savedAlertEmail;
+
+    async function mergeLocalAndRemoteData() {
       try {
-        localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Ignore persistence failures in private mode.
+        const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
+        const payload = response.ok ? ((await response.json()) as { watchlist?: unknown; alertEmail?: unknown }) : null;
+
+        const serverWatchlist =
+          payload && Array.isArray(payload.watchlist)
+            ? payload.watchlist.filter(isWatchlistEntry)
+            : [];
+        const mergedWatchlist = mergeWatchlists(localWatchlist, serverWatchlist);
+        const serverEmail = payload && typeof payload.alertEmail === "string" ? payload.alertEmail : null;
+        const mergedAlertEmail = serverEmail ?? localAlertEmail;
+
+        if (cancelled) return;
+        setWatchlist(mergedWatchlist);
+        persistWatchlistLocal(mergedWatchlist);
+
+        if (mergedAlertEmail) {
+          setSavedAlertEmail(mergedAlertEmail);
+          setAlertEmailInput(mergedAlertEmail);
+          persistAlertEmailLocal(mergedAlertEmail);
+        }
+
+        await syncServerData({
+          watchlist: mergedWatchlist,
+          alertEmail: mergedAlertEmail ?? null
+        });
+      } finally {
+        if (!cancelled) {
+          setServerSyncReady(true);
+          setSyncedUserKey(currentUserKey);
+        }
       }
-      return next;
-    });
-  }, []);
+    }
+
+    void mergeLocalAndRemoteData();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUserKey,
+    isAuthenticated,
+    localEmailLoaded,
+    localWatchlistLoaded,
+    persistAlertEmailLocal,
+    persistWatchlistLocal,
+    savedAlertEmail,
+    syncServerData,
+    syncedUserKey,
+    watchlist
+  ]);
+
+  const persistWatchlist = useCallback(
+    (updater: (previous: WatchlistEntry[]) => WatchlistEntry[]) => {
+      setWatchlist((previous) => {
+        const next = updater(previous).slice(0, MAX_WATCHLIST_ITEMS);
+        persistWatchlistLocal(next);
+        if (isAuthenticated && serverSyncReady) {
+          void syncServerData({ watchlist: next });
+        }
+        return next;
+      });
+    },
+    [isAuthenticated, persistWatchlistLocal, serverSyncReady, syncServerData]
+  );
 
   const currentReportWatched = useMemo(() => {
     if (!latestReport) return false;
@@ -221,6 +323,12 @@ export function WatchlistPanel({
   }, [refreshAll, watchlist.length]);
 
   function addLatestReport() {
+    if (!isAuthenticated) {
+      const callbackUrl = typeof window === "undefined" ? "/" : window.location.pathname;
+      void signIn(undefined, { callbackUrl });
+      return;
+    }
+
     if (!latestReport) return;
 
     persistWatchlist((previous) => {
@@ -260,10 +368,13 @@ export function WatchlistPanel({
     }
 
     try {
-      localStorage.setItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY, normalized);
+      persistAlertEmailLocal(normalized);
       setSavedAlertEmail(normalized);
       setAlertEmailInput(normalized);
       setAlertSaveState("saved");
+      if (isAuthenticated && serverSyncReady) {
+        void syncServerData({ alertEmail: normalized });
+      }
     } catch {
       setAlertSaveState("error");
     } finally {
@@ -277,6 +388,9 @@ export function WatchlistPanel({
         <div>
           <p className="text-sm font-medium text-slate-200">Scheduled Watchlist Monitoring</p>
           <p className="text-xs text-slate-500">Auto-refreshes every 30 minutes while this tab is open.</p>
+          {!isAuthenticated && (
+            <p className="mt-1 text-xs text-amber-300">Sign in to save scans to your watchlist and dashboard.</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -285,7 +399,11 @@ export function WatchlistPanel({
             disabled={!latestReport || disabled}
             className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {currentReportWatched ? "Update saved URL" : "Save current scan"}
+            {!isAuthenticated
+              ? "Sign in to save scan"
+              : currentReportWatched
+                ? "Update saved URL"
+                : "Save current scan"}
           </button>
           <button
             type="button"
@@ -332,7 +450,11 @@ export function WatchlistPanel({
             Alerts configured for <span className="text-slate-200">{savedAlertEmail}</span>.
           </p>
         )}
-        {alertSaveState === "saved" && <p className="mt-1 text-xs text-emerald-300">Alert email saved locally.</p>}
+        {alertSaveState === "saved" && (
+          <p className="mt-1 text-xs text-emerald-300">
+            Alert email saved {isAuthenticated ? "to your account." : "locally."}
+          </p>
+        )}
         {alertSaveState === "error" && (
           <p className="mt-1 text-xs text-rose-300">Enter a valid email to enable alerts.</p>
         )}

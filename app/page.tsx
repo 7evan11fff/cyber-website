@@ -2,11 +2,20 @@
 
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { FixSuggestionsPanel } from "@/app/components/FixSuggestionsPanel";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { WatchlistPanel } from "@/app/components/WatchlistPanel";
+import {
+  HISTORY_STORAGE_KEY,
+  MAX_HISTORY_ITEMS,
+  isScanHistoryEntry,
+  mergeScanHistories,
+  normalizeScanHistoryEntries,
+  type ScanHistoryEntry
+} from "@/lib/userData";
 
 type ReportResponse = {
   checkedUrl: string;
@@ -23,12 +32,7 @@ type ComparisonReport = {
   siteB: ReportResponse;
 };
 
-type HistoryEntry = {
-  id: string;
-  url: string;
-  grade: string;
-  checkedAt: string;
-};
+type HistoryEntry = ScanHistoryEntry;
 
 type PopularSiteCacheEntry = {
   url: string;
@@ -70,10 +74,8 @@ type SharePayload =
 const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
 const EMPTY_STATE_SUGGESTIONS = ["owasp.org", "mozilla.org", "cloudflare.com", "wikipedia.org"];
 const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
-const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
-const MAX_HISTORY_ITEMS = 10;
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
 const THEME_STORAGE_KEY = "security-header-checker:theme";
@@ -99,17 +101,6 @@ const gradeStyles: Record<string, string> = {
   D: "text-orange-300",
   F: "text-rose-300"
 };
-
-function isHistoryEntry(value: unknown): value is HistoryEntry {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<HistoryEntry>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.url === "string" &&
-    typeof candidate.grade === "string" &&
-    typeof candidate.checkedAt === "string"
-  );
-}
 
 function isReportResponse(value: unknown): value is ReportResponse {
   if (!value || typeof value !== "object") return false;
@@ -493,12 +484,16 @@ export default function Home() {
   const [badgeStyle, setBadgeStyle] = useState<BadgeStyle>("flat");
   const [badgeCopyState, setBadgeCopyState] = useState<BadgeCopyState>("idle");
   const [scanHistory, setScanHistory] = useState<HistoryEntry[]>([]);
+  const [historyBootstrapped, setHistoryBootstrapped] = useState(false);
+  const [historyServerReady, setHistoryServerReady] = useState(false);
+  const [syncedHistoryUserKey, setSyncedHistoryUserKey] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
+  const { data: session, status: sessionStatus } = useSession();
   const exportTargetRef = useRef<HTMLDivElement | null>(null);
   const compareTouchStartXRef = useRef<number | null>(null);
   const singleUrlInputRef = useRef<HTMLInputElement | null>(null);
@@ -507,6 +502,8 @@ export default function Home() {
   const shortcutCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const celebratedScanRef = useRef<string | null>(null);
+  const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
+  const isAuthenticated = sessionStatus === "authenticated";
 
   const singleGradeColor = useMemo(() => {
     if (!report) return "text-slate-200";
@@ -655,15 +652,94 @@ export default function Home() {
   useEffect(() => {
     try {
       const rawHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (!rawHistory) return;
+      if (!rawHistory) {
+        setScanHistory([]);
+        return;
+      }
       const parsed = JSON.parse(rawHistory);
-      if (!Array.isArray(parsed)) return;
-      const loadedEntries = parsed.filter(isHistoryEntry).slice(0, MAX_HISTORY_ITEMS);
+      if (!Array.isArray(parsed)) {
+        setScanHistory([]);
+        return;
+      }
+      const loadedEntries = parsed.filter(isScanHistoryEntry).slice(0, MAX_HISTORY_ITEMS);
       setScanHistory(loadedEntries);
     } catch {
       setScanHistory([]);
+    } finally {
+      setHistoryBootstrapped(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!historyBootstrapped) return;
+    try {
+      if (scanHistory.length === 0) {
+        localStorage.removeItem(HISTORY_STORAGE_KEY);
+      } else {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(scanHistory));
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [historyBootstrapped, scanHistory]);
+
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setHistoryServerReady(false);
+    setSyncedHistoryUserKey(null);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !historyBootstrapped) return;
+    if (syncedHistoryUserKey === currentUserKey) return;
+
+    let cancelled = false;
+    const localHistory = scanHistory;
+
+    async function syncLocalAndRemoteHistory() {
+      try {
+        const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
+        const payload = response.ok ? ((await response.json()) as { scanHistory?: unknown }) : null;
+        const serverHistory =
+          payload && Array.isArray(payload.scanHistory)
+            ? payload.scanHistory.filter(isScanHistoryEntry)
+            : [];
+        const mergedHistory = mergeScanHistories(localHistory, serverHistory);
+
+        if (cancelled) return;
+        setScanHistory(mergedHistory);
+
+        await fetch("/api/user-data", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scanHistory: mergedHistory })
+        });
+      } finally {
+        if (!cancelled) {
+          setHistoryServerReady(true);
+          setSyncedHistoryUserKey(currentUserKey);
+        }
+      }
+    }
+
+    void syncLocalAndRemoteHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserKey, historyBootstrapped, isAuthenticated, scanHistory, syncedHistoryUserKey]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !historyServerReady) return;
+    if (syncedHistoryUserKey !== currentUserKey) return;
+
+    void fetch("/api/user-data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scanHistory })
+    }).catch(() => {
+      // Ignore sync failures; local state remains source-of-truth until retry.
+    });
+  }, [currentUserKey, historyServerReady, isAuthenticated, scanHistory, syncedHistoryUserKey]);
 
   useEffect(() => {
     const currentUrl = new URL(window.location.href);
@@ -713,15 +789,10 @@ export default function Home() {
       checkedAt: nextReport.checkedAt
     };
 
-    setScanHistory((previous) => {
-      const updated = [nextEntry, ...previous].slice(0, MAX_HISTORY_ITEMS);
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+    setScanHistory((previous) => normalizeScanHistoryEntries([nextEntry, ...previous]));
   }, []);
 
   function clearHistory() {
-    localStorage.removeItem(HISTORY_STORAGE_KEY);
     setScanHistory([]);
   }
 
