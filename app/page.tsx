@@ -752,7 +752,7 @@ export default function Home() {
     }
   }
 
-  async function onExportPdf() {
+  const onExportPdf = useCallback(async () => {
     if (!exportTargetRef.current || (!report && !comparison)) return;
 
     setPdfState("generating");
@@ -786,7 +786,7 @@ export default function Home() {
       setPdfState("error");
       window.setTimeout(() => setPdfState("idle"), 3000);
     }
-  }
+  }, [comparison, mode, report]);
 
   async function onShareResults() {
     if (!report && !comparison) return;
