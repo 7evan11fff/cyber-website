@@ -16,9 +16,13 @@ const REQUIRED_HEADERS = {
   csp: "content-security-policy",
   hsts: "strict-transport-security",
   xfo: "x-frame-options",
+  xxp: "x-xss-protection",
   xcto: "x-content-type-options",
   referrerPolicy: "referrer-policy",
-  permissionsPolicy: "permissions-policy"
+  permissionsPolicy: "permissions-policy",
+  coop: "cross-origin-opener-policy",
+  coep: "cross-origin-embedder-policy",
+  corp: "cross-origin-resource-policy"
 } as const;
 
 function checkContentSecurityPolicy(value: string | null): HeaderResult {
@@ -114,6 +118,42 @@ function checkXFrameOptions(value: string | null): HeaderResult {
   };
 }
 
+function checkXXssProtection(value: string | null): HeaderResult {
+  if (!value) {
+    return {
+      key: REQUIRED_HEADERS.xxp,
+      label: "X-XSS-Protection",
+      value,
+      present: false,
+      status: "missing",
+      riskLevel: "medium",
+      whyItMatters:
+        "Legacy browser XSS filter control. Deprecated in modern browsers but still useful to document.",
+      guidance: "Use 1; mode=block for older browser support, and rely primarily on CSP."
+    };
+  }
+
+  const normalized = value.replace(/\s+/g, "").toLowerCase();
+  const disabled = normalized === "0";
+  const strong = normalized === "1;mode=block" || normalized === "1";
+
+  return {
+    key: REQUIRED_HEADERS.xxp,
+    label: "X-XSS-Protection",
+    value,
+    present: true,
+    status: disabled || !strong ? "weak" : "good",
+    riskLevel: disabled || !strong ? "medium" : "low",
+    whyItMatters:
+      "Legacy browser XSS filter control. Deprecated in modern browsers but still useful to document.",
+    guidance: disabled
+      ? "Avoid disabling it when supporting legacy browsers; use 1; mode=block if needed."
+      : strong
+        ? "Legacy XSS filter is enabled. Keep CSP as the primary protection."
+        : "Prefer 1; mode=block for legacy compatibility."
+  };
+}
+
 function checkXContentTypeOptions(value: string | null): HeaderResult {
   if (!value) {
     return {
@@ -204,14 +244,117 @@ function checkPermissionsPolicy(value: string | null): HeaderResult {
   };
 }
 
+function checkCrossOriginOpenerPolicy(value: string | null): HeaderResult {
+  if (!value) {
+    return {
+      key: REQUIRED_HEADERS.coop,
+      label: "Cross-Origin-Opener-Policy",
+      value,
+      present: false,
+      status: "missing",
+      riskLevel: "medium",
+      whyItMatters:
+        "Isolates browsing context from cross-origin windows to reduce XS-Leaks and process sharing risks.",
+      guidance: "Set to same-origin (or same-origin-allow-popups when required)."
+    };
+  }
+
+  const normalized = value.trim().toLowerCase();
+  const good = normalized === "same-origin" || normalized === "same-origin-allow-popups";
+
+  return {
+    key: REQUIRED_HEADERS.coop,
+    label: "Cross-Origin-Opener-Policy",
+    value,
+    present: true,
+    status: good ? "good" : "weak",
+    riskLevel: good ? "low" : "medium",
+    whyItMatters:
+      "Isolates browsing context from cross-origin windows to reduce XS-Leaks and process sharing risks.",
+    guidance: good
+      ? "COOP policy supports cross-origin isolation goals."
+      : "Use same-origin unless your app requires looser opener behavior."
+  };
+}
+
+function checkCrossOriginEmbedderPolicy(value: string | null): HeaderResult {
+  if (!value) {
+    return {
+      key: REQUIRED_HEADERS.coep,
+      label: "Cross-Origin-Embedder-Policy",
+      value,
+      present: false,
+      status: "missing",
+      riskLevel: "medium",
+      whyItMatters:
+        "Controls which cross-origin resources can be embedded and enables safer high-privilege browser features.",
+      guidance: "Prefer require-corp (or credentialless where appropriate)."
+    };
+  }
+
+  const normalized = value.trim().toLowerCase();
+  const good = normalized === "require-corp" || normalized === "credentialless";
+
+  return {
+    key: REQUIRED_HEADERS.coep,
+    label: "Cross-Origin-Embedder-Policy",
+    value,
+    present: true,
+    status: good ? "good" : "weak",
+    riskLevel: good ? "low" : "medium",
+    whyItMatters:
+      "Controls which cross-origin resources can be embedded and enables safer high-privilege browser features.",
+    guidance: good
+      ? "COEP setting is suitable for cross-origin isolation."
+      : "Use require-corp or credentialless to tighten embedder boundaries."
+  };
+}
+
+function checkCrossOriginResourcePolicy(value: string | null): HeaderResult {
+  if (!value) {
+    return {
+      key: REQUIRED_HEADERS.corp,
+      label: "Cross-Origin-Resource-Policy",
+      value,
+      present: false,
+      status: "missing",
+      riskLevel: "medium",
+      whyItMatters:
+        "Restricts which origins can load your resources, reducing cross-origin data exposure.",
+      guidance: "Set same-origin or same-site for sensitive assets."
+    };
+  }
+
+  const normalized = value.trim().toLowerCase();
+  const good = normalized === "same-origin" || normalized === "same-site";
+
+  return {
+    key: REQUIRED_HEADERS.corp,
+    label: "Cross-Origin-Resource-Policy",
+    value,
+    present: true,
+    status: good ? "good" : "weak",
+    riskLevel: good ? "low" : "medium",
+    whyItMatters:
+      "Restricts which origins can load your resources, reducing cross-origin data exposure.",
+    guidance: good
+      ? "CORP restricts resource sharing appropriately."
+      : "Prefer same-origin or same-site unless public cross-origin loading is required."
+  };
+}
+
 export function analyzeSecurityHeaders(headers: Headers): HeaderResult[] {
   return [
     checkContentSecurityPolicy(headers.get(REQUIRED_HEADERS.csp)),
     checkHsts(headers.get(REQUIRED_HEADERS.hsts)),
     checkXFrameOptions(headers.get(REQUIRED_HEADERS.xfo)),
+    checkXXssProtection(headers.get(REQUIRED_HEADERS.xxp)),
     checkXContentTypeOptions(headers.get(REQUIRED_HEADERS.xcto)),
     checkReferrerPolicy(headers.get(REQUIRED_HEADERS.referrerPolicy)),
-    checkPermissionsPolicy(headers.get(REQUIRED_HEADERS.permissionsPolicy))
+    checkPermissionsPolicy(headers.get(REQUIRED_HEADERS.permissionsPolicy)),
+    checkCrossOriginOpenerPolicy(headers.get(REQUIRED_HEADERS.coop)),
+    checkCrossOriginEmbedderPolicy(headers.get(REQUIRED_HEADERS.coep)),
+    checkCrossOriginResourcePolicy(headers.get(REQUIRED_HEADERS.corp))
   ];
 }
 
