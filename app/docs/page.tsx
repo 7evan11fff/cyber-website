@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SiteFooter } from "@/app/components/SiteFooter";
+import { SiteNav } from "@/app/components/SiteNav";
 
 export const metadata: Metadata = {
   title: "API Docs",
@@ -37,15 +39,7 @@ console.log(report.grade, report.score, report.results);`;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <header className="mb-6 flex items-center justify-between gap-4">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">Security Header Checker</p>
-        <Link
-          href="/"
-          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-        >
-          Back to scanner
-        </Link>
-      </header>
+      <SiteNav />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <h1 className="text-3xl font-semibold text-slate-100 sm:text-4xl">API Documentation</h1>
@@ -121,6 +115,16 @@ console.log(report.grade, report.score, report.results);`;
           <CodeBlock code={checkFetchExample} />
         </article>
       </section>
+
+      <p className="mt-6 text-sm text-slate-300">
+        Need context on the headers first?{" "}
+        <Link href="/about" className="text-sky-300 transition hover:text-sky-200">
+          Visit the About page
+        </Link>
+        .
+      </p>
+
+      <SiteFooter className="mt-10" />
     </main>
   );
 }

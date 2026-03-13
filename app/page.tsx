@@ -1,8 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HeaderResult } from "@/lib/securityHeaders";
+import { FixSuggestionsPanel } from "@/app/components/FixSuggestionsPanel";
+import { SiteFooter } from "@/app/components/SiteFooter";
+import { SiteNav } from "@/app/components/SiteNav";
+import { WatchlistPanel } from "@/app/components/WatchlistPanel";
 
 type ReportResponse = {
   checkedUrl: string;
@@ -1292,15 +1295,8 @@ export default function Home() {
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {liveRegionMessage}
       </p>
-      <header className="mb-6 flex items-center justify-between gap-4">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">Security Header Checker</p>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/docs"
-            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-          >
-            Docs
-          </Link>
+      <SiteNav
+        trailing={
           <button
             type="button"
             onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
@@ -1309,8 +1305,8 @@ export default function Home() {
           >
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </button>
-        </div>
-      </header>
+        }
+      />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
@@ -1779,6 +1775,20 @@ export default function Home() {
           )}
         </section>
 
+        <WatchlistPanel
+          latestReport={
+            report
+              ? {
+                  checkedUrl: report.checkedUrl,
+                  grade: report.grade,
+                  checkedAt: report.checkedAt
+                }
+              : null
+          }
+          onOpenReport={onHistoryEntryClick}
+          disabled={loading}
+        />
+
         <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <p className="text-sm font-medium text-slate-200">Recent Popular Sites</p>
@@ -1846,8 +1856,9 @@ export default function Home() {
 
       <div ref={exportTargetRef}>
         {!loading && report && (
-          <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-            <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+          <>
+            <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+              <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
               <p className={`mt-2 text-7xl font-bold ${singleGradeColor}`}>{report.grade}</p>
               <p className="mt-1 text-sm text-slate-300">
@@ -1981,14 +1992,16 @@ export default function Home() {
                   <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
                 </p>
               </div>
-            </article>
+              </article>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {report.results.map((header) => (
-                <HeaderCard key={header.key} header={header} />
-              ))}
-            </div>
-          </section>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {report.results.map((header) => (
+                  <HeaderCard key={header.key} header={header} />
+                ))}
+              </div>
+            </section>
+            <FixSuggestionsPanel results={report.results} />
+          </>
         )}
 
         {!loading && comparison && (
@@ -2088,28 +2101,7 @@ export default function Home() {
         )}
       </div>
 
-      <footer className="mt-10 rounded-2xl border border-slate-800/80 bg-slate-900/50 p-5 text-sm text-slate-400">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            Built by Evan Klein ·{" "}
-            <a
-              className="text-sky-300 transition hover:text-sky-200"
-              href="https://github.com/7evan11fff/cyber-website"
-              target="_blank"
-              rel="noreferrer"
-            >
-              View source on GitHub
-            </a>
-          </p>
-          <p className="text-xs text-slate-500">
-            Security headers are browser rules that reduce XSS, clickjacking, and data exposure risks.
-          </p>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Privacy note: scans are performed server-side to evaluate headers, and we do not store your scan
-          results.
-        </p>
-      </footer>
+      <SiteFooter className="mt-10" />
 
       {shortcutsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
