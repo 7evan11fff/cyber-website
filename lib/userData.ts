@@ -13,17 +13,24 @@ export type WatchlistEntry = {
   lastCheckedAt: string;
 };
 
+export const NOTIFICATION_FREQUENCIES = ["instant", "daily", "weekly"] as const;
+export type NotificationFrequency = (typeof NOTIFICATION_FREQUENCIES)[number];
+
 export type UserDataRecord = {
   watchlist: WatchlistEntry[];
   scanHistory: ScanHistoryEntry[];
   alertEmail: string | null;
   notificationOnGradeChange: boolean;
+  notificationFrequency: NotificationFrequency;
+  watchlistNotificationLog: Record<string, string>;
   updatedAt: string;
 };
 
 export const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
 export const WATCHLIST_STORAGE_KEY = "security-header-checker:watchlist";
 export const WATCHLIST_ALERT_EMAIL_STORAGE_KEY = "security-header-checker:watchlist-alert-email";
+export const WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY =
+  "security-header-checker:watchlist-notification-frequency";
 export const MAX_HISTORY_ITEMS = 10;
 export const MAX_WATCHLIST_ITEMS = 20;
 
@@ -50,12 +57,36 @@ export function isWatchlistEntry(value: unknown): value is WatchlistEntry {
   );
 }
 
+export function isNotificationFrequency(value: unknown): value is NotificationFrequency {
+  return (
+    typeof value === "string" &&
+    (NOTIFICATION_FREQUENCIES as readonly string[]).includes(value)
+  );
+}
+
+export function normalizeWatchlistNotificationLog(
+  value: unknown
+): Record<string, string> {
+  if (!value || typeof value !== "object") return {};
+  const entries = Object.entries(value);
+  const normalized: Record<string, string> = {};
+  for (const [key, timestamp] of entries) {
+    if (typeof key !== "string" || typeof timestamp !== "string") continue;
+    const parsed = new Date(timestamp);
+    if (!Number.isFinite(parsed.getTime())) continue;
+    normalized[key.toLowerCase()] = parsed.toISOString();
+  }
+  return normalized;
+}
+
 export function createEmptyUserDataRecord(): UserDataRecord {
   return {
     watchlist: [],
     scanHistory: [],
     alertEmail: null,
     notificationOnGradeChange: false,
+    notificationFrequency: "instant",
+    watchlistNotificationLog: {},
     updatedAt: new Date(0).toISOString()
   };
 }

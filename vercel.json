@@ -4,6 +4,29 @@
   "functions": {
     "app/api/check/route.ts": {
       "maxDuration": 15
+    },
+    "app/api/watchlist-notifications/route.ts": {
+      "maxDuration": 10
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*\\.(?:css|js|mjs|ico|png|jpg|jpeg|gif|svg|webp|avif|woff2))",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    }
+  ]
 }

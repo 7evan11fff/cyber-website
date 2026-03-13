@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -72,10 +73,11 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5">
                 {session.user?.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={session.user.image}
                     alt={session.user.name ? `${session.user.name} avatar` : "User avatar"}
+                    width={28}
+                    height={28}
                     className="h-7 w-7 rounded-full border border-slate-700 object-cover"
                   />
                 ) : (
@@ -159,10 +161,11 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               <>
                 <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5">
                   {session.user?.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <Image
                       src={session.user.image}
                       alt={session.user.name ? `${session.user.name} avatar` : "User avatar"}
+                      width={28}
+                      height={28}
                       className="h-7 w-7 rounded-full border border-slate-700 object-cover"
                     />
                   ) : (

@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
 import {
   HISTORY_STORAGE_KEY,
+  type NotificationFrequency,
   WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
+  WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY,
   WATCHLIST_STORAGE_KEY
 } from "@/lib/userData";
 import { useToast } from "@/app/components/ToastProvider";
@@ -14,6 +17,7 @@ type SettingsFormProps = {
   accountImage: string | null;
   initialAlertEmail: string | null;
   initialNotificationOnGradeChange: boolean;
+  initialNotificationFrequency: NotificationFrequency;
   lastUpdatedAt: string;
 };
 
@@ -23,12 +27,16 @@ export function SettingsForm({
   accountImage,
   initialAlertEmail,
   initialNotificationOnGradeChange,
+  initialNotificationFrequency,
   lastUpdatedAt
 }: SettingsFormProps) {
   const { notify } = useToast();
   const [alertEmail, setAlertEmail] = useState(initialAlertEmail ?? "");
   const [notificationOnGradeChange, setNotificationOnGradeChange] = useState(
     initialNotificationOnGradeChange
+  );
+  const [notificationFrequency, setNotificationFrequency] = useState<NotificationFrequency>(
+    initialNotificationFrequency
   );
   const [saveInFlight, setSaveInFlight] = useState(false);
   const [deleteInFlight, setDeleteInFlight] = useState(false);
@@ -45,8 +53,9 @@ export function SettingsForm({
   async function onSavePreferences(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedEmail = alertEmail.trim();
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
 
-    if (notificationOnGradeChange && (!trimmedEmail || !trimmedEmail.includes("@"))) {
+    if (notificationOnGradeChange && (!trimmedEmail || !looksLikeEmail)) {
       notify({
         tone: "error",
         message: "Enter a valid email to enable grade change notifications."
@@ -61,7 +70,8 @@ export function SettingsForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           alertEmail: trimmedEmail || null,
-          notificationOnGradeChange
+          notificationOnGradeChange,
+          notificationFrequency
         })
       });
 
@@ -70,6 +80,17 @@ export function SettingsForm({
         throw new Error(
           payload && typeof payload.error === "string" ? payload.error : "Unable to save preferences."
         );
+      }
+
+      try {
+        if (trimmedEmail) {
+          localStorage.setItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY, trimmedEmail);
+        } else {
+          localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
+        }
+        localStorage.setItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY, notificationFrequency);
+      } catch {
+        // Ignore storage write failures.
       }
 
       notify({ tone: "success", message: "Notification preferences saved." });
@@ -105,12 +126,14 @@ export function SettingsForm({
         localStorage.removeItem(HISTORY_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
+        localStorage.removeItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY);
       } catch {
         // Ignore browser storage failures.
       }
 
       setAlertEmail("");
       setNotificationOnGradeChange(false);
+      setNotificationFrequency("instant");
       setDeleteConfirmText("");
       notify({
         tone: "success",
@@ -133,10 +156,11 @@ export function SettingsForm({
         <p className="mt-1 text-xs text-slate-500">Signed in account details</p>
         <div className="mt-4 flex items-center gap-3">
           {accountImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={accountImage}
               alt={accountName ? `${accountName} avatar` : "Account avatar"}
+              width={44}
+              height={44}
               className="h-11 w-11 rounded-full border border-slate-700 object-cover"
             />
           ) : (
@@ -188,6 +212,25 @@ export function SettingsForm({
               placeholder="you@company.com"
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="settings-notification-frequency"
+              className="text-xs uppercase tracking-[0.14em] text-slate-500"
+            >
+              Notification frequency
+            </label>
+            <select
+              id="settings-notification-frequency"
+              value={notificationFrequency}
+              onChange={(event) => setNotificationFrequency(event.target.value as NotificationFrequency)}
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+            >
+              <option value="instant">Instant (send as soon as grade changes)</option>
+              <option value="daily">Daily digest cadence</option>
+              <option value="weekly">Weekly digest cadence</option>
+            </select>
           </div>
 
           <button

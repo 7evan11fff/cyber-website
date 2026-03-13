@@ -32,6 +32,7 @@ export default async function SettingsPage() {
         accountImage={session.user.image ?? null}
         initialAlertEmail={userData.alertEmail}
         initialNotificationOnGradeChange={userData.notificationOnGradeChange}
+        initialNotificationFrequency={userData.notificationFrequency}
         lastUpdatedAt={userData.updatedAt}
       />
     </main>

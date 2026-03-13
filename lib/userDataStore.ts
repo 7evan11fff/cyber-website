@@ -5,6 +5,8 @@ import path from "node:path";
 import {
   createEmptyUserDataRecord,
   type UserDataRecord,
+  isNotificationFrequency,
+  normalizeWatchlistNotificationLog,
   normalizeScanHistoryEntries,
   normalizeWatchlistEntries
 } from "@/lib/userData";
@@ -49,11 +51,17 @@ async function writeDataFile(data: UserDataFile): Promise<void> {
 }
 
 function normalizeRecord(record: UserDataRecord): UserDataRecord {
+  const normalizedFrequency = isNotificationFrequency(record.notificationFrequency)
+    ? record.notificationFrequency
+    : "instant";
+
   return {
-    watchlist: normalizeWatchlistEntries(record.watchlist),
-    scanHistory: normalizeScanHistoryEntries(record.scanHistory),
+    watchlist: normalizeWatchlistEntries(Array.isArray(record.watchlist) ? record.watchlist : []),
+    scanHistory: normalizeScanHistoryEntries(Array.isArray(record.scanHistory) ? record.scanHistory : []),
     alertEmail: typeof record.alertEmail === "string" ? record.alertEmail : null,
     notificationOnGradeChange: Boolean(record.notificationOnGradeChange),
+    notificationFrequency: normalizedFrequency,
+    watchlistNotificationLog: normalizeWatchlistNotificationLog(record.watchlistNotificationLog),
     updatedAt: record.updatedAt
   };
 }
@@ -77,7 +85,15 @@ export async function getUserDataForUser(userKey: string): Promise<UserDataRecor
 export async function updateUserDataForUser(
   userKey: string,
   patch: Partial<
-    Pick<UserDataRecord, "watchlist" | "scanHistory" | "alertEmail" | "notificationOnGradeChange">
+    Pick<
+      UserDataRecord,
+      | "watchlist"
+      | "scanHistory"
+      | "alertEmail"
+      | "notificationOnGradeChange"
+      | "notificationFrequency"
+      | "watchlistNotificationLog"
+    >
   >
 ): Promise<UserDataRecord> {
   const normalizedKey = normalizeUserKey(userKey);
@@ -95,6 +111,13 @@ export async function updateUserDataForUser(
       typeof patch.notificationOnGradeChange === "boolean"
         ? patch.notificationOnGradeChange
         : current.notificationOnGradeChange,
+    notificationFrequency: isNotificationFrequency(patch.notificationFrequency)
+      ? patch.notificationFrequency
+      : current.notificationFrequency,
+    watchlistNotificationLog:
+      patch.watchlistNotificationLog && typeof patch.watchlistNotificationLog === "object"
+        ? normalizeWatchlistNotificationLog(patch.watchlistNotificationLog)
+        : current.watchlistNotificationLog,
     updatedAt: new Date().toISOString()
   });
 

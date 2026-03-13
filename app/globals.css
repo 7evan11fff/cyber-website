@@ -10,6 +10,10 @@ html[data-theme="light"] {
   color-scheme: light;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
   background-image:
@@ -150,4 +154,34 @@ html[data-theme="light"] .scan-pulse-skeleton {
 
 .progress-pulse {
   animation: progress-pulse 1.4s ease-in-out infinite;
+}
+
+.reveal-section {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-section {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+
+  .reveal-section.reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal-section {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

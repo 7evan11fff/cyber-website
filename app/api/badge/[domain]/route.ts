@@ -3,6 +3,8 @@ import { getOrCreateDomainReport, normalizeDomain } from "@/lib/securityReport";
 
 type BadgeStyle = "flat" | "flat-square";
 
+export const runtime = "edge";
+
 const LEFT_LABEL = "security headers";
 const FALLBACK_COLOR = "#9f9f9f";
 const GRADE_COLORS: Record<string, string> = {

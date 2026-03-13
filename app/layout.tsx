@@ -21,12 +21,41 @@ function resolveMetadataBase(): URL {
 
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
+  applicationName: "Security Header Checker",
   title: {
     default: "Security Header Checker",
     template: "%s | Security Header Checker"
   },
   description:
     "Check website security headers, review recent scan history, and compare two sites side by side.",
+  keywords: [
+    "security headers",
+    "http headers",
+    "website security scanner",
+    "content-security-policy",
+    "hsts",
+    "x-frame-options"
+  ],
+  category: "technology",
+  alternates: {
+    canonical: "/"
+  },
+  authors: [{ name: "Security Header Checker" }],
+  creator: "Security Header Checker",
+  publisher: "Security Header Checker",
+  robots: {
+    index: true,
+    follow: true
+  },
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false
+  },
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" }
+  ],
   openGraph: {
     title: "Security Header Checker",
     description:

@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import {
   MAX_WATCHLIST_ITEMS,
+  type NotificationFrequency,
   WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
+  WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY,
   WATCHLIST_STORAGE_KEY,
+  isNotificationFrequency,
   isWatchlistEntry,
   mergeWatchlists,
   type WatchlistEntry
@@ -81,9 +84,12 @@ export function WatchlistPanel({
   const [activeRefreshId, setActiveRefreshId] = useState<string | null>(null);
   const [alertEmailInput, setAlertEmailInput] = useState("");
   const [savedAlertEmail, setSavedAlertEmail] = useState<string | null>(null);
+  const [notificationOnGradeChange, setNotificationOnGradeChange] = useState(false);
+  const [notificationFrequency, setNotificationFrequency] = useState<NotificationFrequency>("instant");
   const [alertSaveState, setAlertSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [localWatchlistLoaded, setLocalWatchlistLoaded] = useState(false);
   const [localEmailLoaded, setLocalEmailLoaded] = useState(false);
+  const [localFrequencyLoaded, setLocalFrequencyLoaded] = useState(false);
   const [serverSyncReady, setServerSyncReady] = useState(false);
   const [syncedUserKey, setSyncedUserKey] = useState<string | null>(null);
   const { data: session, status: sessionStatus } = useSession();
@@ -112,8 +118,22 @@ export function WatchlistPanel({
     }
   }, []);
 
+  const persistNotificationFrequencyLocal = useCallback((frequency: NotificationFrequency) => {
+    try {
+      localStorage.setItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY, frequency);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
   const syncServerData = useCallback(
-    async (patch: { watchlist?: WatchlistEntry[]; alertEmail?: string | null }) => {
+    async (patch: {
+      watchlist?: WatchlistEntry[];
+      alertEmail?: string | null;
+      notificationOnGradeChange?: boolean;
+      notificationFrequency?: NotificationFrequency;
+      watchlistNotificationLog?: Record<string, string>;
+    }) => {
       if (!isAuthenticated) return;
       try {
         await fetch("/api/user-data", {
@@ -157,13 +177,31 @@ export function WatchlistPanel({
   }, []);
 
   useEffect(() => {
+    try {
+      const rawFrequency = localStorage.getItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY);
+      if (!rawFrequency || !isNotificationFrequency(rawFrequency)) return;
+      setNotificationFrequency(rawFrequency);
+    } finally {
+      setLocalFrequencyLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) return;
     setServerSyncReady(false);
     setSyncedUserKey(null);
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated || !currentUserKey || !localWatchlistLoaded || !localEmailLoaded) return;
+    if (
+      !isAuthenticated ||
+      !currentUserKey ||
+      !localWatchlistLoaded ||
+      !localEmailLoaded ||
+      !localFrequencyLoaded
+    ) {
+      return;
+    }
     if (syncedUserKey === currentUserKey) return;
 
     let cancelled = false;
@@ -173,7 +211,14 @@ export function WatchlistPanel({
     async function mergeLocalAndRemoteData() {
       try {
         const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
-        const payload = response.ok ? ((await response.json()) as { watchlist?: unknown; alertEmail?: unknown }) : null;
+        const payload = response.ok
+          ? ((await response.json()) as {
+              watchlist?: unknown;
+              alertEmail?: unknown;
+              notificationOnGradeChange?: unknown;
+              notificationFrequency?: unknown;
+            })
+          : null;
 
         const serverWatchlist =
           payload && Array.isArray(payload.watchlist)
@@ -182,6 +227,16 @@ export function WatchlistPanel({
         const mergedWatchlist = mergeWatchlists(localWatchlist, serverWatchlist);
         const serverEmail = payload && typeof payload.alertEmail === "string" ? payload.alertEmail : null;
         const mergedAlertEmail = serverEmail ?? localAlertEmail;
+        const serverNotificationEnabled =
+          payload && typeof payload.notificationOnGradeChange === "boolean"
+            ? payload.notificationOnGradeChange
+            : null;
+        const mergedNotificationEnabled = serverNotificationEnabled ?? Boolean(mergedAlertEmail);
+        const serverFrequency =
+          payload && isNotificationFrequency(payload.notificationFrequency)
+            ? payload.notificationFrequency
+            : null;
+        const mergedFrequency = serverFrequency ?? notificationFrequency;
 
         if (cancelled) return;
         setWatchlist(mergedWatchlist);
@@ -191,11 +246,20 @@ export function WatchlistPanel({
           setSavedAlertEmail(mergedAlertEmail);
           setAlertEmailInput(mergedAlertEmail);
           persistAlertEmailLocal(mergedAlertEmail);
+        } else {
+          setSavedAlertEmail(null);
+          setAlertEmailInput("");
+          persistAlertEmailLocal(null);
         }
+        setNotificationOnGradeChange(mergedNotificationEnabled);
+        setNotificationFrequency(mergedFrequency);
+        persistNotificationFrequencyLocal(mergedFrequency);
 
         await syncServerData({
           watchlist: mergedWatchlist,
-          alertEmail: mergedAlertEmail ?? null
+          alertEmail: mergedAlertEmail ?? null,
+          notificationOnGradeChange: mergedNotificationEnabled,
+          notificationFrequency: mergedFrequency
         });
       } finally {
         if (!cancelled) {
@@ -213,9 +277,12 @@ export function WatchlistPanel({
     currentUserKey,
     isAuthenticated,
     localEmailLoaded,
+    localFrequencyLoaded,
     localWatchlistLoaded,
     persistAlertEmailLocal,
+    persistNotificationFrequencyLocal,
     persistWatchlistLocal,
+    notificationFrequency,
     savedAlertEmail,
     syncServerData,
     syncedUserKey,
@@ -242,7 +309,7 @@ export function WatchlistPanel({
   }, [latestReport, watchlist]);
 
   const scanAndUpdateEntry = useCallback(
-    async (entryId: string, entryUrl: string) => {
+    async (entryId: string, entryUrl: string, options?: { silent?: boolean }) => {
       const response = await fetch("/api/check", {
         method: "POST",
         headers: {
@@ -251,10 +318,20 @@ export function WatchlistPanel({
         body: JSON.stringify({ url: entryUrl })
       });
 
-      const payload = await response.json();
+      const payload = (await response.json().catch(() => null)) as
+        | CheckApiResponse
+        | { error?: unknown }
+        | null;
       if (!response.ok || !isCheckApiResponse(payload)) {
-        throw new Error("Could not refresh watchlist entry.");
+        const apiError =
+          payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+            ? payload.error
+            : "Could not refresh watchlist entry.";
+        throw new Error(apiError);
       }
+
+      const previousEntry = watchlist.find((entry) => entry.id === entryId);
+      const gradeChanged = Boolean(previousEntry && previousEntry.lastGrade !== payload.grade);
 
       persistWatchlist((previous) =>
         previous.map((entry) => {
@@ -269,19 +346,78 @@ export function WatchlistPanel({
           };
         })
       );
+
+      if (
+        isAuthenticated &&
+        savedAlertEmail &&
+        notificationOnGradeChange &&
+        previousEntry &&
+        gradeChanged
+      ) {
+        const notifyResponse = await fetch("/api/watchlist-notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            url: payload.checkedUrl,
+            previousGrade: previousEntry.lastGrade,
+            currentGrade: payload.grade,
+            checkedAt: payload.checkedAt
+          })
+        });
+
+        if (notifyResponse.ok) {
+          const notificationPayload = (await notifyResponse.json().catch(() => null)) as
+            | { sent?: boolean; reason?: string; nextEligibleAt?: string | null }
+            | null;
+          if (notificationPayload?.sent && !options?.silent) {
+            notify({
+              tone: "success",
+              message: `Email alert sent to ${savedAlertEmail}.`
+            });
+          } else if (
+            notificationPayload?.reason === "frequency_throttled" &&
+            !options?.silent &&
+            notificationPayload.nextEligibleAt
+          ) {
+            notify({
+              tone: "info",
+              message: `Grade changed, but email is throttled until ${new Date(
+                notificationPayload.nextEligibleAt
+              ).toLocaleString()}.`
+            });
+          }
+        } else if (!options?.silent) {
+          notify({
+            tone: "error",
+            message: "Grade changed, but email notification could not be sent."
+          });
+        }
+      }
     },
-    [persistWatchlist]
+    [
+      isAuthenticated,
+      notificationOnGradeChange,
+      notify,
+      persistWatchlist,
+      savedAlertEmail,
+      watchlist
+    ]
   );
 
   const refreshEntry = useCallback(
     async (entryId: string, entryUrl: string) => {
       setActiveRefreshId(entryId);
       try {
-        await scanAndUpdateEntry(entryId, entryUrl);
+        await scanAndUpdateEntry(entryId, entryUrl, { silent: false });
         notify({ tone: "success", message: "Watchlist entry refreshed." });
-      } catch {
+      } catch (error) {
         setRefreshState("error");
-        notify({ tone: "error", message: "Could not refresh this watchlist entry." });
+        notify({
+          tone: "error",
+          message: error instanceof Error ? error.message : "Could not refresh this watchlist entry."
+        });
         window.setTimeout(() => setRefreshState("idle"), 2500);
       } finally {
         setActiveRefreshId((current) => (current === entryId ? null : current));
@@ -300,7 +436,7 @@ export function WatchlistPanel({
       let hadError = false;
       for (const entry of watchlist) {
         try {
-          await scanAndUpdateEntry(entry.id, entry.url);
+          await scanAndUpdateEntry(entry.id, entry.url, { silent: silent });
         } catch {
           hadError = true;
         }
@@ -374,7 +510,8 @@ export function WatchlistPanel({
 
   function onEnableAlerts() {
     const normalized = alertEmailInput.trim();
-    if (!normalized || !normalized.includes("@")) {
+    const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    if (!normalized || !validEmail) {
       setAlertSaveState("error");
       notify({ tone: "error", message: "Enter a valid email to enable alerts." });
       window.setTimeout(() => setAlertSaveState("idle"), 2500);
@@ -383,11 +520,17 @@ export function WatchlistPanel({
 
     try {
       persistAlertEmailLocal(normalized);
+      persistNotificationFrequencyLocal(notificationFrequency);
       setSavedAlertEmail(normalized);
       setAlertEmailInput(normalized);
+      setNotificationOnGradeChange(true);
       setAlertSaveState("saved");
       if (isAuthenticated && serverSyncReady) {
-        void syncServerData({ alertEmail: normalized });
+        void syncServerData({
+          alertEmail: normalized,
+          notificationOnGradeChange: true,
+          notificationFrequency
+        });
       }
       notify({
         tone: "success",
@@ -399,6 +542,20 @@ export function WatchlistPanel({
     } finally {
       window.setTimeout(() => setAlertSaveState("idle"), 2500);
     }
+  }
+
+  function onDisableAlerts() {
+    persistAlertEmailLocal(null);
+    setSavedAlertEmail(null);
+    setAlertEmailInput("");
+    setNotificationOnGradeChange(false);
+    if (isAuthenticated && serverSyncReady) {
+      void syncServerData({
+        alertEmail: null,
+        notificationOnGradeChange: false
+      });
+    }
+    notify({ tone: "info", message: "Email alerts disabled for watchlist changes." });
   }
 
   return (
@@ -435,7 +592,7 @@ export function WatchlistPanel({
         </div>
       </div>
       <div className="border-t border-slate-800/90 px-4 py-3">
-        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Email alerts (preview)</p>
+        <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Email alerts</p>
         <form
           className="mt-2 flex flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
@@ -456,17 +613,37 @@ export function WatchlistPanel({
             placeholder="you@company.com"
             className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
           />
+          <select
+            value={notificationFrequency}
+            onChange={(event) => setNotificationFrequency(event.target.value as NotificationFrequency)}
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+          >
+            <option value="instant">Instant</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
           <button
             type="submit"
             disabled={disabled}
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Enable alerts
+            Save alerts
           </button>
+          {savedAlertEmail && (
+            <button
+              type="button"
+              onClick={onDisableAlerts}
+              disabled={disabled}
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Disable
+            </button>
+          )}
         </form>
         {savedAlertEmail && (
           <p className="mt-2 text-xs text-slate-400">
-            Alerts configured for <span className="text-slate-200">{savedAlertEmail}</span>.
+            Alerts {notificationOnGradeChange ? "enabled" : "paused"} for{" "}
+            <span className="text-slate-200">{savedAlertEmail}</span> ({notificationFrequency}).
           </p>
         )}
         {alertSaveState === "saved" && (
