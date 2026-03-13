@@ -55,13 +55,17 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
   const normalizedFrequency = isNotificationFrequency(record.notificationFrequency)
     ? record.notificationFrequency
     : "instant";
+  const normalizedNotificationOnGradeChange =
+    typeof record.notificationOnGradeChange === "boolean"
+      ? record.notificationOnGradeChange
+      : createEmptyUserDataRecord().notificationOnGradeChange;
 
   return {
     watchlist: normalizeWatchlistEntries(Array.isArray(record.watchlist) ? record.watchlist : []),
     scanHistory: normalizeScanHistoryEntries(Array.isArray(record.scanHistory) ? record.scanHistory : []),
     history: normalizeDomainGradeHistory(record.history),
     alertEmail: typeof record.alertEmail === "string" ? record.alertEmail : null,
-    notificationOnGradeChange: Boolean(record.notificationOnGradeChange),
+    notificationOnGradeChange: normalizedNotificationOnGradeChange,
     notificationFrequency: normalizedFrequency,
     watchlistNotificationLog: normalizeWatchlistNotificationLog(record.watchlistNotificationLog),
     updatedAt: record.updatedAt
@@ -138,4 +142,20 @@ export async function deleteUserDataForUser(userKey: string): Promise<void> {
   }
   delete data.users[normalizedKey];
   await writeDataFile(data);
+}
+
+export async function getUsersWithWatchlistData(): Promise<
+  Array<{ userKey: string; data: UserDataRecord }>
+> {
+  const data = await readDataFile();
+  const result: Array<{ userKey: string; data: UserDataRecord }> = [];
+
+  for (const [userKey, record] of Object.entries(data.users)) {
+    if (!userKey) continue;
+    const normalized = normalizeRecord(record);
+    if (normalized.watchlist.length === 0) continue;
+    result.push({ userKey, data: normalized });
+  }
+
+  return result;
 }

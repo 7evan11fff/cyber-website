@@ -90,7 +90,7 @@ export function WatchlistPanel({
   const [activeRefreshId, setActiveRefreshId] = useState<string | null>(null);
   const [alertEmailInput, setAlertEmailInput] = useState("");
   const [savedAlertEmail, setSavedAlertEmail] = useState<string | null>(null);
-  const [notificationOnGradeChange, setNotificationOnGradeChange] = useState(false);
+  const [notificationOnGradeChange, setNotificationOnGradeChange] = useState(true);
   const [notificationFrequency, setNotificationFrequency] = useState<NotificationFrequency>("instant");
   const [alertSaveState, setAlertSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [localWatchlistLoaded, setLocalWatchlistLoaded] = useState(false);
@@ -269,7 +269,7 @@ export function WatchlistPanel({
           payload && typeof payload.notificationOnGradeChange === "boolean"
             ? payload.notificationOnGradeChange
             : null;
-        const mergedNotificationEnabled = serverNotificationEnabled ?? Boolean(mergedAlertEmail);
+        const mergedNotificationEnabled = serverNotificationEnabled ?? true;
         const serverFrequency =
           payload && isNotificationFrequency(payload.notificationFrequency)
             ? payload.notificationFrequency

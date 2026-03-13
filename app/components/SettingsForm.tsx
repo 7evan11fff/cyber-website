@@ -134,7 +134,7 @@ export function SettingsForm({
       }
 
       setAlertEmail("");
-      setNotificationOnGradeChange(false);
+      setNotificationOnGradeChange(true);
       setNotificationFrequency("instant");
       setDeleteConfirmText("");
       notify({

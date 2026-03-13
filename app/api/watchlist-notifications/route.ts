@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { sendWatchlistGradeChangeEmail } from "@/lib/emailNotifications";
+import { getNotificationThrottleMs, sendGradeChangeEmail } from "@/lib/email";
 import { normalizeTargetUrl } from "@/lib/securityReport";
 import { getUserDataForUser, getUserKeyFromSessionUser, updateUserDataForUser } from "@/lib/userDataStore";
 
@@ -14,12 +14,6 @@ const WATCHLIST_ALERT_SCHEMA = z.object({
   currentGrade: z.string().regex(/^[A-F]$/i, "Current grade must be between A and F."),
   checkedAt: z.string().datetime({ message: "checkedAt must be an ISO timestamp." })
 });
-
-const THROTTLE_BY_FREQUENCY_MS = {
-  instant: 0,
-  daily: 1000 * 60 * 60 * 24,
-  weekly: 1000 * 60 * 60 * 24 * 7
-} as const;
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -59,7 +53,7 @@ export async function POST(request: Request) {
   }
 
   const frequency = userData.notificationFrequency;
-  const throttleMs = THROTTLE_BY_FREQUENCY_MS[frequency] ?? 0;
+  const throttleMs = getNotificationThrottleMs(frequency);
   const key = normalizedUrl.toLowerCase();
   const lastSentAt = userData.watchlistNotificationLog[key];
 
@@ -85,7 +79,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await sendWatchlistGradeChangeEmail({
+    await sendGradeChangeEmail({
       toEmail: userData.alertEmail,
       url: normalizedUrl,
       previousGrade: parsed.data.previousGrade.toUpperCase(),

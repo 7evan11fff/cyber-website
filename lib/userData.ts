@@ -102,7 +102,7 @@ export function createEmptyUserDataRecord(): UserDataRecord {
     scanHistory: [],
     history: {},
     alertEmail: null,
-    notificationOnGradeChange: false,
+    notificationOnGradeChange: true,
     notificationFrequency: "instant",
     watchlistNotificationLog: {},
     updatedAt: new Date(0).toISOString()
