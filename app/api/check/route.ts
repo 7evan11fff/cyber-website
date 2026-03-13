@@ -9,10 +9,7 @@ import { getUserKeyFromSessionUser } from "@/lib/userDataStore";
 export const runtime = "nodejs";
 
 const CHECK_REQUEST_SCHEMA = z.object({
-  url: z
-    .string({ required_error: "URL is required." })
-    .min(1, "URL is required.")
-    .max(2048, "URL is too long.")
+  url: z.string().trim().min(1, "URL is required.").max(2048, "URL is too long.")
 });
 
 export async function POST(request: Request) {

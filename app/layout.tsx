@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
@@ -52,10 +52,6 @@ export const metadata: Metadata = {
     address: false,
     telephone: false
   },
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#020617" },
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" }
-  ],
   openGraph: {
     title: "Security Header Checker",
     description:
@@ -82,6 +78,13 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/favicon.ico"
   }
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" }
+  ]
 };
 
 export default function RootLayout({
