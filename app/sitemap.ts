@@ -3,6 +3,7 @@ import { absoluteUrl } from "@/lib/seo";
 
 const STATIC_ROUTES = [
   { path: "/", changeFrequency: "daily", priority: 1 },
+  { path: "/compare", changeFrequency: "daily", priority: 0.95 },
   { path: "/pricing", changeFrequency: "weekly", priority: 0.9 },
   { path: "/docs", changeFrequency: "weekly", priority: 0.9 },
   { path: "/security-headers-guide", changeFrequency: "weekly", priority: 0.85 },

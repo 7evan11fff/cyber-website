@@ -138,7 +138,7 @@ const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
   { keys: "Ctrl + Enter", action: "Run scan in active tab" },
   { keys: "Ctrl + K", action: "Clear current inputs and results" },
-  { keys: "Ctrl + P", action: "Export visible report as PDF" },
+  { keys: "Ctrl + P", action: "Download current scan report PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
   { keys: "Esc", action: "Clear current inputs and results" }
 ];
@@ -605,7 +605,6 @@ export default function Home() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [revealedSections, setRevealedSections] = useState<Record<string, boolean>>({});
   const { data: session, status: sessionStatus } = useSession();
-  const exportTargetRef = useRef<HTMLDivElement | null>(null);
   const compareTouchStartXRef = useRef<number | null>(null);
   const singleUrlInputRef = useRef<HTMLInputElement | null>(null);
   const compareUrlAInputRef = useRef<HTMLInputElement | null>(null);
@@ -1338,40 +1337,32 @@ export default function Home() {
   }
 
   const onExportPdf = useCallback(async () => {
-    if (!exportTargetRef.current || (!report && !comparison)) return;
+    if (!report) return;
 
     setPdfState("generating");
     try {
-      const html2pdfModule = await import("html2pdf.js");
-      const html2pdfFactory = (html2pdfModule.default ??
-        html2pdfModule) as unknown as () => {
-        from: (source: HTMLElement) => {
-          set: (options: Record<string, unknown>) => { save: () => Promise<void> };
-        };
-      };
+      const { buildSecurityReportPdfBlob } = await import("@/lib/pdfReport");
+      const blob = await buildSecurityReportPdfBlob(report);
+      const objectUrl = URL.createObjectURL(blob);
+      const domain = extractDomainFromUrl(report.finalUrl) ?? extractDomainFromUrl(report.checkedUrl) ?? "scan";
+      const safeDomain = domain.replace(/[^a-z0-9.-]/gi, "-");
 
-      const filename =
-        mode === "compare"
-          ? `security-compare-report-${Date.now()}.pdf`
-          : `security-report-${Date.now()}.pdf`;
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `security-report-${safeDomain}-${Date.now()}.pdf`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
 
-      await html2pdfFactory()
-        .from(exportTargetRef.current)
-        .set({
-          filename,
-          margin: 8,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#020617" },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-          pagebreak: { mode: ["avoid-all", "css", "legacy"] }
-        })
-        .save();
       setPdfState("idle");
+      notify({ tone: "success", message: "Report downloaded." });
     } catch {
       setPdfState("error");
+      notify({ tone: "error", message: "Could not generate report PDF." });
       window.setTimeout(() => setPdfState("idle"), 3000);
     }
-  }, [comparison, mode, report]);
+  }, [notify, report]);
 
   async function onShareResults() {
     if (!report && !comparison) return;
@@ -1649,7 +1640,7 @@ export default function Home() {
           return;
         }
 
-        if (normalizedKey === "p" && !loading && pdfState !== "generating" && (report || comparison)) {
+        if (normalizedKey === "p" && !loading && pdfState !== "generating" && report) {
           event.preventDefault();
           void onExportPdf();
           return;
@@ -2024,10 +2015,10 @@ export default function Home() {
           <button
             type="button"
             onClick={onExportPdf}
-            disabled={loading || pdfState === "generating" || (!report && !comparison)}
+            disabled={loading || pdfState === "generating" || !report}
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {pdfState === "generating" ? "Generating PDF..." : "Export PDF"}
+            {pdfState === "generating" ? "Preparing report..." : "Download Report"}
           </button>
           <button
             type="button"
@@ -2341,7 +2332,7 @@ export default function Home() {
       {loading && mode === "bulk" && <LoadingSkeleton />}
       {loading && mode !== "bulk" && <ScanResultsLoadingSkeleton mode={mode} />}
 
-      <div ref={exportTargetRef}>
+      <div>
         {!loading && report && (
           <>
             <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">

@@ -21,9 +21,8 @@
   },
   "homepage": "https://github.com/7evan11fff/cyber-website#readme",
   "dependencies": {
-    "@types/html2pdf.js": "^0.10.0",
+    "@react-pdf/renderer": "^4.3.2",
     "canvas-confetti": "^1.9.4",
-    "html2pdf.js": "^0.14.0",
     "next": "^14.2.35",
     "next-auth": "^4.24.13",
     "react": "^18.3.1",
