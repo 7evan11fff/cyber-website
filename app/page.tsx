@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
 type ReportResponse = {
@@ -38,6 +38,21 @@ type HeaderDifference = {
 };
 
 type ScanMode = "single" | "compare";
+type MobileCompareView = "siteA" | "siteB";
+type ShareState = "idle" | "copied" | "shared" | "error";
+type ThemeMode = "dark" | "light";
+
+type SharePayload =
+  | {
+      version: 1;
+      mode: "single";
+      report: ReportResponse;
+    }
+  | {
+      version: 1;
+      mode: "compare";
+      comparison: ComparisonReport;
+    };
 
 const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
 const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
@@ -45,6 +60,8 @@ const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_HISTORY_ITEMS = 10;
+const SHARE_QUERY_PARAM = "share";
+const THEME_STORAGE_KEY = "security-header-checker:theme";
 
 const statusStyles: Record<HeaderResult["status"], string> = {
   good: "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30",
@@ -96,6 +113,60 @@ function isPopularSiteCacheEntry(value: unknown): value is PopularSiteCacheEntry
   );
 }
 
+function isComparisonReport(value: unknown): value is ComparisonReport {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ComparisonReport>;
+  return isReportResponse(candidate.siteA) && isReportResponse(candidate.siteB);
+}
+
+function isSharePayload(value: unknown): value is SharePayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SharePayload>;
+  if (candidate.version !== 1) return false;
+
+  if (candidate.mode === "single") {
+    return isReportResponse((candidate as { report?: unknown }).report);
+  }
+
+  if (candidate.mode === "compare") {
+    return isComparisonReport((candidate as { comparison?: unknown }).comparison);
+  }
+
+  return false;
+}
+
+function toBase64Url(value: string) {
+  if (typeof window === "undefined") return "";
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function fromBase64Url(value: string) {
+  if (typeof window === "undefined") return "";
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  const normalized = padded + "=".repeat((4 - (padded.length % 4)) % 4);
+  const binary = atob(normalized);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function encodeSharePayload(payload: SharePayload) {
+  return toBase64Url(JSON.stringify(payload));
+}
+
+function decodeSharePayload(value: string): SharePayload | null {
+  try {
+    const parsed = JSON.parse(fromBase64Url(value));
+    return isSharePayload(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function gradeColor(grade: string) {
   return gradeStyles[grade] ?? "text-slate-200";
 }
@@ -125,6 +196,35 @@ function formatReportForClipboard(report: ReportResponse): string {
   }
 
   return lines.join("\n").trim();
+}
+
+function HeroShieldIcon() {
+  return (
+    <div className="relative mx-auto flex h-28 w-28 items-center justify-center rounded-3xl border border-sky-400/30 bg-slate-950/80 shadow-2xl shadow-sky-950/40 sm:h-36 sm:w-36">
+      <div className="absolute inset-3 rounded-2xl border border-sky-400/20 bg-gradient-to-b from-sky-400/15 to-cyan-300/5 blur-[1px]" />
+      <svg
+        viewBox="0 0 64 64"
+        aria-hidden="true"
+        className="shield-float relative h-16 w-16 text-sky-300 sm:h-20 sm:w-20"
+      >
+        <path
+          d="M32 6 50 13v18c0 14-9.6 23.6-18 27-8.4-3.4-18-13-18-27V13L32 6Z"
+          fill="currentColor"
+          fillOpacity="0.18"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <rect x="24" y="29" width="16" height="12" rx="2.5" fill="currentColor" />
+        <path
+          d="M27 29v-3.5a5 5 0 1 1 10 0V29"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="2.5"
+        />
+      </svg>
+    </div>
+  );
 }
 
 function LoadingSkeleton() {
@@ -236,11 +336,12 @@ function SiteSummary({ title, report }: { title: string; report: ReportResponse 
 }
 
 export default function Home() {
+  const [theme, setTheme] = useState<ThemeMode>("dark");
   const [mode, setMode] = useState<ScanMode>("single");
   const [url, setUrl] = useState("");
   const [compareUrlA, setCompareUrlA] = useState("");
   const [compareUrlB, setCompareUrlB] = useState("");
-  const [mobileCompareView, setMobileCompareView] = useState<"siteA" | "siteB">("siteA");
+  const [mobileCompareView, setMobileCompareView] = useState<MobileCompareView>("siteA");
   const [loading, setLoading] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -248,12 +349,14 @@ export default function Home() {
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
+  const [shareState, setShareState] = useState<ShareState>("idle");
   const [scanHistory, setScanHistory] = useState<HistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
   const exportTargetRef = useRef<HTMLDivElement | null>(null);
+  const compareTouchStartXRef = useRef<number | null>(null);
 
   const singleGradeColor = useMemo(() => {
     if (!report) return "text-slate-200";
@@ -312,6 +415,26 @@ export default function Home() {
 
   useEffect(() => {
     try {
+      const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      if (storedTheme === "light" || storedTheme === "dark") {
+        setTheme(storedTheme);
+      }
+    } catch {
+      setTheme("dark");
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage failures (private mode or blocked access).
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    try {
       const rawHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
       if (!rawHistory) return;
       const parsed = JSON.parse(rawHistory);
@@ -321,6 +444,40 @@ export default function Home() {
     } catch {
       setScanHistory([]);
     }
+  }, []);
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    const shared = currentUrl.searchParams.get(SHARE_QUERY_PARAM);
+    if (!shared) return;
+
+    const decoded = decodeSharePayload(shared);
+    if (!decoded) {
+      setError("Unable to load the shared report from this link.");
+      return;
+    }
+
+    setError(null);
+    setCopyState("idle");
+    setPdfState("idle");
+    setShareState("idle");
+    setLoading(false);
+    setScanProgress(0);
+
+    if (decoded.mode === "single") {
+      setMode("single");
+      setUrl(decoded.report.checkedUrl);
+      setReport(decoded.report);
+      setComparison(null);
+      return;
+    }
+
+    setMode("compare");
+    setMobileCompareView("siteA");
+    setCompareUrlA(decoded.comparison.siteA.checkedUrl);
+    setCompareUrlB(decoded.comparison.siteB.checkedUrl);
+    setReport(null);
+    setComparison(decoded.comparison);
   }, []);
 
   const addToHistory = useCallback((nextReport: ReportResponse) => {
@@ -385,6 +542,7 @@ export default function Home() {
     setComparison(null);
     setCopyState("idle");
     setPdfState("idle");
+    setShareState("idle");
     setScanProgress(0);
 
     if (mode === "single") {
@@ -413,6 +571,7 @@ export default function Home() {
         setComparison(null);
         setError(null);
         setCopyState("idle");
+        setShareState("idle");
         addToHistory(nextReport);
       }
     } catch {
@@ -430,6 +589,7 @@ export default function Home() {
     setReport(null);
     setComparison(null);
     setCopyState("idle");
+    setShareState("idle");
 
     try {
       const payload = await requestReport(targetUrl);
@@ -456,6 +616,7 @@ export default function Home() {
     setReport(null);
     setComparison(null);
     setCopyState("idle");
+    setShareState("idle");
 
     try {
       const [siteA, siteB] = await Promise.all([requestReport(siteAUrl), requestReport(siteBUrl)]);
@@ -503,6 +664,7 @@ export default function Home() {
       setComparison(null);
       setError(null);
       setCopyState("idle");
+      setShareState("idle");
       addToHistory(cached.report);
       return;
     }
@@ -557,6 +719,66 @@ export default function Home() {
       setPdfState("error");
       window.setTimeout(() => setPdfState("idle"), 3000);
     }
+  }
+
+  async function onShareResults() {
+    if (!report && !comparison) return;
+
+    let payload: SharePayload;
+    if (report) {
+      payload = { version: 1, mode: "single", report };
+    } else {
+      if (!comparison) return;
+      payload = { version: 1, mode: "compare", comparison };
+    }
+
+    try {
+      const shareToken = encodeSharePayload(payload);
+      const shareUrl = new URL(window.location.href);
+      shareUrl.searchParams.set(SHARE_QUERY_PARAM, shareToken);
+
+      if (shareUrl.toString().length > 7800) {
+        throw new Error("Shared report is too large for a URL.");
+      }
+
+      const text = "Security Header Checker report";
+      if (navigator.share) {
+        await navigator.share({
+          title: "Security Header Checker Report",
+          text,
+          url: shareUrl.toString()
+        });
+        setShareState("shared");
+      } else {
+        await navigator.clipboard.writeText(shareUrl.toString());
+        setShareState("copied");
+      }
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === "AbortError") {
+        setShareState("idle");
+        return;
+      }
+      setShareState("error");
+    } finally {
+      window.setTimeout(() => setShareState("idle"), 3000);
+    }
+  }
+
+  function onCompareTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (window.innerWidth >= 1024) return;
+    compareTouchStartXRef.current = event.changedTouches[0]?.clientX ?? null;
+  }
+
+  function onCompareTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (window.innerWidth >= 1024) return;
+    const start = compareTouchStartXRef.current;
+    compareTouchStartXRef.current = null;
+    if (start === null) return;
+    const end = event.changedTouches[0]?.clientX;
+    if (typeof end !== "number") return;
+    const deltaX = end - start;
+    if (Math.abs(deltaX) < 45) return;
+    setMobileCompareView(deltaX < 0 ? "siteB" : "siteA");
   }
 
   useEffect(() => {
@@ -677,20 +899,55 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <header className="mb-6 flex items-center justify-between gap-4">
+        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-300">Security Header Checker</p>
+        <button
+          type="button"
+          onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+        >
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
+      </header>
+
+      <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+        <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-100 sm:text-5xl">
+              Know Your Security Headers in Seconds
+            </h1>
+            <p className="mt-4 max-w-2xl text-slate-300">
+              Security headers tell browsers how to protect your users from attacks like XSS, clickjacking,
+              and data leaks. Scan one URL or compare two sites to instantly see where defenses are strong or
+              missing.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
+                Fast scans
+              </span>
+              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
+                Side-by-side compare
+              </span>
+              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
+                Shareable reports
+              </span>
+            </div>
+          </div>
+          <HeroShieldIcon />
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
-        <p className="text-sm uppercase tracking-[0.2em] text-sky-300">Security Header Checker</p>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-4xl">
-          Instant Website Security Report Card
-        </h1>
-        <p className="mt-3 max-w-2xl text-slate-300">
+        <h2 className="text-2xl font-semibold text-slate-100 sm:text-3xl">Run a Security Header Scan</h2>
+        <p className="mt-2 max-w-2xl text-slate-300">
           Scan one site for a detailed report, or compare two sites side by side to spot header gaps.
         </p>
 
-        <div className="mt-6 inline-flex rounded-xl border border-slate-700 bg-slate-950/80 p-1">
+        <div className="mt-6 inline-flex w-full rounded-xl border border-slate-700 bg-slate-950/80 p-1 sm:w-auto">
           <button
             type="button"
             onClick={() => setMode("single")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "single"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -704,7 +961,7 @@ export default function Home() {
               setMode("compare");
               setMobileCompareView("siteA");
             }}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "compare"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -726,13 +983,13 @@ export default function Home() {
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
                 placeholder="example.com or https://example.com"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 required
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-xl bg-sky-500 px-5 py-3 font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                className="w-full rounded-xl bg-sky-500 px-5 py-4 font-medium text-slate-950 transition hover:bg-sky-400 sm:w-auto disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {loading ? "Scanning..." : "Check"}
               </button>
@@ -763,7 +1020,7 @@ export default function Home() {
                 value={compareUrlA}
                 onChange={(event) => setCompareUrlA(event.target.value)}
                 placeholder="Site A (example.com)"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 required
               />
               <input
@@ -771,14 +1028,14 @@ export default function Home() {
                 value={compareUrlB}
                 onChange={(event) => setCompareUrlB(event.target.value)}
                 placeholder="Site B (example.org)"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 required
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="mt-3 rounded-xl bg-sky-500 px-5 py-3 font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+              className="mt-3 w-full rounded-xl bg-sky-500 px-5 py-4 font-medium text-slate-950 transition hover:bg-sky-400 sm:w-auto disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
               {loading ? "Comparing..." : "Compare Headers"}
             </button>
@@ -802,8 +1059,23 @@ export default function Home() {
           >
             {pdfState === "generating" ? "Generating PDF..." : "Export PDF"}
           </button>
+          <button
+            type="button"
+            onClick={onShareResults}
+            disabled={loading || (!report && !comparison)}
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {shareState === "copied"
+              ? "Link copied"
+              : shareState === "shared"
+                ? "Shared"
+                : "Share results"}
+          </button>
           {pdfState === "error" && (
             <span className="text-xs text-rose-300">Could not export PDF. Try again.</span>
+          )}
+          {shareState === "error" && (
+            <span className="text-xs text-rose-300">Could not share right now. Try again.</span>
           )}
         </div>
 
@@ -1038,9 +1310,14 @@ export default function Home() {
                   Site B Headers
                 </button>
               </div>
+              <p className="mt-2 text-xs text-slate-500">Tip: swipe left or right to switch between sites.</p>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div
+              className="grid gap-6 lg:grid-cols-2"
+              onTouchStart={onCompareTouchStart}
+              onTouchEnd={onCompareTouchEnd}
+            >
               <section className={mobileCompareView === "siteA" ? "block" : "hidden lg:block"}>
                 <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site A Headers</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1070,27 +1347,23 @@ export default function Home() {
         )}
       </div>
 
-      <footer className="mt-10 border-t border-slate-800/80 pt-6 text-sm text-slate-400">
-        <p>
-          Built by Evan Klein ·{" "}
-          <a
-            className="text-sky-300 transition hover:text-sky-200"
-            href="https://github.com/7evan11fff"
-            target="_blank"
-            rel="noreferrer"
-          >
-            GitHub
-          </a>{" "}
-          ·{" "}
-          <a
-            className="text-sky-300 transition hover:text-sky-200"
-            href="https://x.com"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Twitter
-          </a>
-        </p>
+      <footer className="mt-10 rounded-2xl border border-slate-800/80 bg-slate-900/50 p-5 text-sm text-slate-400">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Built by Evan Klein ·{" "}
+            <a
+              className="text-sky-300 transition hover:text-sky-200"
+              href="https://github.com/7evan11fff/cyber-website"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View source on GitHub
+            </a>
+          </p>
+          <p className="text-xs text-slate-500">
+            Security headers are browser rules that reduce XSS, clickjacking, and data exposure risks.
+          </p>
+        </div>
       </footer>
     </main>
   );
