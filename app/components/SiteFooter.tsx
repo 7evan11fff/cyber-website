@@ -7,7 +7,8 @@ type SiteFooterProps = {
 
 export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
   const currentYear = new Date().getFullYear();
-  const linkClassName = "text-slate-300 transition hover:text-sky-200";
+  const linkClassName =
+    "pressable inline-flex min-h-11 items-center rounded-md px-1 text-slate-300 transition hover:text-sky-200";
   const sectionTitleClassName = "text-xs font-semibold uppercase tracking-[0.14em] text-slate-500";
 
   return (
@@ -27,16 +28,16 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
           <div>
             <p className={sectionTitleClassName}>Product</p>
             <div className="mt-2 grid gap-1 text-sm">
-              <Link href="/" className={linkClassName}>
+              <Link href="/" aria-label="Navigate to Scanner" className={linkClassName}>
                 Scanner
               </Link>
-              <Link href="/pricing" className={linkClassName}>
+              <Link href="/pricing" aria-label="Navigate to Pricing" className={linkClassName}>
                 Pricing
               </Link>
-              <Link href="/api-docs" className={linkClassName}>
+              <Link href="/api-docs" aria-label="Navigate to API Docs" className={linkClassName}>
                 API Docs
               </Link>
-              <Link href="/docs" className={linkClassName}>
+              <Link href="/docs" aria-label="Navigate to Guides" className={linkClassName}>
                 Guides
               </Link>
             </div>
@@ -45,16 +46,16 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
           <div>
             <p className={sectionTitleClassName}>Company</p>
             <div className="mt-2 grid gap-1 text-sm">
-              <Link href="/about" className={linkClassName}>
+              <Link href="/about" aria-label="Navigate to About" className={linkClassName}>
                 About
               </Link>
-              <Link href="/blog" className={linkClassName}>
+              <Link href="/blog" aria-label="Navigate to Blog" className={linkClassName}>
                 Blog
               </Link>
-              <Link href="/changelog" className={linkClassName}>
+              <Link href="/changelog" aria-label="Navigate to Changelog" className={linkClassName}>
                 Changelog
               </Link>
-              <Link href="/contact" className={linkClassName}>
+              <Link href="/contact" aria-label="Navigate to Contact" className={linkClassName}>
                 Contact
               </Link>
             </div>
@@ -63,13 +64,13 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
           <div>
             <p className={sectionTitleClassName}>Legal</p>
             <div className="mt-2 grid gap-1 text-sm">
-              <Link href="/privacy" className={linkClassName}>
+              <Link href="/privacy" aria-label="Navigate to Privacy policy" className={linkClassName}>
                 Privacy
               </Link>
-              <Link href="/terms" className={linkClassName}>
+              <Link href="/terms" aria-label="Navigate to Terms of service" className={linkClassName}>
                 Terms
               </Link>
-              <Link href="/contact" className={linkClassName}>
+              <Link href="/contact" aria-label="Navigate to Contact" className={linkClassName}>
                 Contact
               </Link>
             </div>
@@ -78,13 +79,20 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
           <div>
             <p className={sectionTitleClassName}>Social</p>
             <div className="mt-2 grid gap-1 text-sm">
-              <a href="https://x.com/" target="_blank" rel="noreferrer" className={linkClassName}>
+              <a
+                href="https://x.com/"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open Twitter or X in a new tab"
+                className={linkClassName}
+              >
                 Twitter / X
               </a>
               <a
                 href="https://github.com/7evan11fff/cyber-website"
                 target="_blank"
                 rel="noreferrer"
+                aria-label="Open GitHub repository in a new tab"
                 className={linkClassName}
               >
                 GitHub

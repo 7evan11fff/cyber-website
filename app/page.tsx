@@ -1,17 +1,15 @@
 "use client";
 
-import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Suspense, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
-import { FixSuggestionsPanel } from "@/app/components/FixSuggestionsPanel";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { SecurityCard } from "@/app/components/SecurityCard";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
-import { WatchlistPanel } from "@/app/components/WatchlistPanel";
 import { trackEvent } from "@/lib/analytics";
 import {
   DOMAIN_HISTORY_STORAGE_KEY,
@@ -31,6 +29,14 @@ const ConfettiLauncher = dynamic(
   () => import("@/app/components/ConfettiLauncher").then((module) => module.ConfettiLauncher),
   { ssr: false }
 );
+const WatchlistPanel = dynamic(
+  () => import("@/app/components/WatchlistPanel").then((module) => module.WatchlistPanel),
+  { suspense: true }
+);
+const FixSuggestionsPanel = dynamic(
+  () => import("@/app/components/FixSuggestionsPanel").then((module) => module.FixSuggestionsPanel),
+  { suspense: true }
+);
 const PdfDownloadButton = dynamic(
   () => import("@/app/components/PdfDownloadButton").then((module) => module.PdfDownloadButton),
   {
@@ -46,6 +52,19 @@ const PdfDownloadButton = dynamic(
     )
   }
 );
+
+function SuspensePanelFallback({ label }: { label: string }) {
+  return (
+    <section
+      aria-label={`${label} loading`}
+      className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60 p-4"
+    >
+      <div className="skeleton-shimmer h-4 w-40 rounded" />
+      <div className="skeleton-shimmer mt-3 h-10 rounded-lg" />
+      <div className="skeleton-shimmer mt-2 h-10 rounded-lg" />
+    </section>
+  );
+}
 
 type ReportResponse = {
   checkedUrl: string;
@@ -1731,7 +1750,9 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
-      <ConfettiLauncher triggerKey={gradeConfettiTrigger} preset="grade" />
+      <Suspense fallback={null}>
+        <ConfettiLauncher triggerKey={gradeConfettiTrigger} preset="grade" />
+      </Suspense>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
@@ -2044,14 +2065,26 @@ export default function Home() {
           >
             Clear current
           </button>
-          <PdfDownloadButton
-            report={report}
-            busy={loading}
-            requestKey={pdfExportRequestKey}
-            onStateChange={setPdfState}
-            onSuccess={() => notify({ tone: "success", message: "Report downloaded." })}
-            onError={() => notify({ tone: "error", message: "Could not generate report PDF." })}
-          />
+          <Suspense
+            fallback={
+              <button
+                type="button"
+                disabled
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-400"
+              >
+                Loading PDF tools...
+              </button>
+            }
+          >
+            <PdfDownloadButton
+              report={report}
+              busy={loading}
+              requestKey={pdfExportRequestKey}
+              onStateChange={setPdfState}
+              onSuccess={() => notify({ tone: "success", message: "Report downloaded." })}
+              onError={() => notify({ tone: "error", message: "Could not generate report PDF." })}
+            />
+          </Suspense>
           <button
             type="button"
             onClick={onShareResults}
@@ -2343,19 +2376,21 @@ export default function Home() {
           )}
         </section>
 
-        <WatchlistPanel
-          latestReport={
-            report
-              ? {
-                  checkedUrl: report.checkedUrl,
-                  grade: report.grade,
-                  checkedAt: report.checkedAt
-                }
-              : null
-          }
-          onOpenReport={onHistoryEntryClick}
-          disabled={loading}
-        />
+        <Suspense fallback={<SuspensePanelFallback label="Watchlist panel" />}>
+          <WatchlistPanel
+            latestReport={
+              report
+                ? {
+                    checkedUrl: report.checkedUrl,
+                    grade: report.grade,
+                    checkedAt: report.checkedAt
+                  }
+                : null
+            }
+            onOpenReport={onHistoryEntryClick}
+            disabled={loading}
+          />
+        </Suspense>
 
         <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -2580,7 +2615,9 @@ export default function Home() {
                 ))}
               </div>
             </section>
-            <FixSuggestionsPanel results={report.results} />
+            <Suspense fallback={<SuspensePanelFallback label="Fix suggestions panel" />}>
+              <FixSuggestionsPanel results={report.results} />
+            </Suspense>
           </>
         )}
 

@@ -94,6 +94,12 @@ export function buildPageMetadata(options: PageMetadataOptions): Metadata {
           width: 1200,
           height: 630,
           alt: pageTitle
+        },
+        {
+          url: absoluteUrl("/opengraph-image"),
+          width: 1200,
+          height: 630,
+          alt: `${pageTitle} Open Graph image fallback`
         }
       ]
     },

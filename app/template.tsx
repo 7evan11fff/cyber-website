@@ -7,7 +7,7 @@ export default function RootTemplate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div key={pathname} className="page-transition-shell">
+    <div key={pathname} id="main-content" tabIndex={-1} className="page-transition-shell">
       {children}
     </div>
   );

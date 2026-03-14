@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import dynamic from "next/dynamic";
 
 const ConfettiLauncher = dynamic(
@@ -139,7 +139,9 @@ export function ContactForm() {
 
   return (
     <form noValidate onSubmit={onSubmit} className="space-y-4">
-      <ConfettiLauncher triggerKey={confettiTrigger} preset="contact" />
+      <Suspense fallback={null}>
+        <ConfettiLauncher triggerKey={confettiTrigger} preset="contact" />
+      </Suspense>
       {submitted && (
         <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
           Message sent successfully. Thanks for reaching out — we usually respond within one business day.
@@ -259,7 +261,8 @@ export function ContactForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={isSubmitting ? "Sending contact form message" : "Send contact form message"}
+        className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSubmitting ? "Sending..." : "Send message"}
       </button>

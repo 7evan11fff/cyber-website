@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { AnalyticsProvider } from "@/app/components/AnalyticsProvider";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
@@ -11,6 +12,10 @@ import { SITE_DESCRIPTION, SITE_NAME, buildOgImageUrl, resolveSiteUrl } from "@/
 
 const HOME_PAGE_TITLE = "Security Header Checker - Scan HTTP Security Headers";
 const TWITTER_HANDLE = process.env.NEXT_PUBLIC_TWITTER_HANDLE?.trim() || undefined;
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   metadataBase: resolveSiteUrl(),
@@ -59,6 +64,12 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         alt: SITE_NAME
+      },
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: `${SITE_NAME} Open Graph image fallback`
       }
     ]
   },
@@ -107,7 +118,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://plausible.io" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://plausible.io" />
       </head>
-      <body>
+      <body className={inter.className}>
+        <a
+          href="#main-content"
+          className="sr-only fixed left-3 top-3 z-[100] rounded-md border border-sky-400 bg-slate-950 px-4 py-2 text-sm font-semibold text-sky-100 shadow-lg shadow-slate-950 focus:not-sr-only focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+        >
+          Skip to main content
+        </a>
         <ThemeProvider>
           <AnalyticsProvider>
             <AuthSessionProvider>

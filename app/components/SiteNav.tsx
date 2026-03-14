@@ -76,7 +76,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           aria-controls="mobile-nav-menu"
           aria-expanded={mobileMenuOpen}
           aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 lg:hidden"
+          className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 lg:hidden"
         >
           {mobileMenuOpen ? "Close" : "Menu"}
         </button>
@@ -94,7 +94,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                aria-label={`Navigate to ${link.label}`}
+                className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                   active
                     ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
                     : "border-slate-700 bg-slate-950/80 text-slate-200 hover:border-sky-500/60 hover:text-sky-200"
@@ -134,7 +135,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 type="button"
                 onClick={() => void signOut({ callbackUrl: "/" })}
                 aria-label="Sign out of your account"
-                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 Sign out
               </button>
@@ -151,7 +152,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 aria-expanded={providerMenuOpen}
                 aria-controls="provider-sign-in-menu"
                 aria-label="Open sign in options"
-                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 Sign in
               </button>
@@ -164,7 +165,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                     type="button"
                     onClick={() => void signIn("github", { callbackUrl: pathname || "/" })}
                     aria-label="Sign in with GitHub"
-                    className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:bg-slate-900 hover:text-sky-200"
+                    className="pressable min-h-11 w-full rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:bg-slate-900 hover:text-sky-200"
                   >
                     GitHub
                   </button>
@@ -172,7 +173,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                     type="button"
                     onClick={() => void signIn("google", { callbackUrl: pathname || "/" })}
                     aria-label="Sign in with Google"
-                    className="mt-1 w-full rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:bg-slate-900 hover:text-sky-200"
+                    className="pressable mt-1 min-h-11 w-full rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:bg-slate-900 hover:text-sky-200"
                   >
                     Google
                   </button>
@@ -199,7 +200,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 <Link
                   key={`mobile-${link.href}`}
                   href={link.href}
-                  className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                  aria-label={`Navigate to ${link.label}`}
+                  className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     active
                       ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
                       : "border-slate-700 bg-slate-900/80 text-slate-200 hover:border-sky-500/60 hover:text-sky-200"
@@ -240,7 +242,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                   type="button"
                   onClick={() => void signOut({ callbackUrl: "/" })}
                   aria-label="Sign out of your account"
-                  className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  className="pressable mt-2 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Sign out
                 </button>
@@ -251,7 +253,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                   type="button"
                   onClick={() => void signIn("github", { callbackUrl: pathname || "/" })}
                   aria-label="Sign in with GitHub"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Sign in with GitHub
                 </button>
@@ -259,7 +261,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                   type="button"
                   onClick={() => void signIn("google", { callbackUrl: pathname || "/" })}
                   aria-label="Sign in with Google"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Sign in with Google
                 </button>
