@@ -42,6 +42,7 @@ type ComparisonReport = {
 };
 
 type ComparisonRowTone = "good" | "missing" | "weak" | "neutral";
+const CLIENT_SCAN_REQUEST_TIMEOUT_MS = 20000;
 
 const statusClassNames: Record<HeaderResult["status"], string> = {
   good: "bg-emerald-500/20 text-emerald-200 ring-emerald-500/40",
@@ -82,6 +83,14 @@ function normalizeCheckError(status: number, payload: unknown): string {
     return "API key not recognized. Verify your key and try again.";
   }
 
+  if (status === 408 || status === 504 || normalized.includes("timed out") || normalized.includes("timeout")) {
+    return "The comparison timed out while waiting for a response. Please retry in a moment.";
+  }
+
+  if (status >= 500) {
+    return "The scanner service is temporarily unavailable. Please try again shortly.";
+  }
+
   if (
     normalized.includes("fetch failed") ||
     normalized.includes("enotfound") ||
@@ -93,6 +102,22 @@ function normalizeCheckError(status: number, payload: unknown): string {
   }
 
   return apiError ?? "Unable to compare headers right now.";
+}
+
+function normalizeClientRequestError(error: unknown): Error {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return new Error("The comparison request timed out. Please check your connection and try again.");
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return new Error("The comparison request timed out. Please check your connection and try again.");
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return new Error("You appear to be offline. Reconnect to the internet and try again.");
+  }
+  if (error instanceof TypeError || (error instanceof Error && /network|failed to fetch/i.test(error.message))) {
+    return new Error("Network error while contacting the scanner service. Please retry.");
+  }
+  return error instanceof Error ? error : new Error("Unable to compare headers right now.");
 }
 
 function buildHeaderStatusSnapshot(results: HeaderResult[]): Record<string, HeaderResult["status"]> {
@@ -228,11 +253,22 @@ function ComparisonResultsSkeleton() {
 }
 
 async function requestReport(targetUrl: string): Promise<ReportResponse> {
-  const response = await fetch("/api/check", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: normalizeUrl(targetUrl) })
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), CLIENT_SCAN_REQUEST_TIMEOUT_MS);
+  let response: Response;
+
+  try {
+    response = await fetch("/api/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({ url: normalizeUrl(targetUrl) })
+    });
+  } catch (error) {
+    throw normalizeClientRequestError(error);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   const payload = (await response.json().catch(() => null)) as { error?: unknown } | ReportResponse | null;
   if (!response.ok) {
@@ -256,6 +292,7 @@ export function ComparePageClient() {
   const [historyServerReady, setHistoryServerReady] = useState(false);
   const [syncedHistoryUserKey, setSyncedHistoryUserKey] = useState<string | null>(null);
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
+  const [activeHistoryEntryId, setActiveHistoryEntryId] = useState<string | null>(null);
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -527,44 +564,50 @@ export function ComparePageClient() {
     return "";
   }, [comparison, error, loading, siteALabel, siteBLabel]);
 
-  const runComparisonCheck = useCallback(async (siteAUrl: string, siteBUrl: string) => {
-    if (!normalizeUrl(siteAUrl) || !normalizeUrl(siteBUrl)) {
-      setError("Please enter both URLs before comparing.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setComparison(null);
-
-    try {
-      const [siteA, siteB] = await Promise.all([requestReport(siteAUrl), requestReport(siteBUrl)]);
-      const nextComparison = { siteA, siteB };
-      setComparison(nextComparison);
-      await saveReportsToHistory([siteA, siteB]);
-      addComparisonToHistory(nextComparison);
-      trackEvent("scan_complete", {
-        mode: "compare",
-        gradeA: siteA.grade,
-        gradeB: siteB.grade,
-        domainA: extractHost(siteA.finalUrl || siteA.checkedUrl),
-        domainB: extractHost(siteB.finalUrl || siteB.checkedUrl)
-      });
-      notify({ tone: "success", message: "Comparison complete." });
-
-      if (browserNotificationsEnabled) {
-        sendBrowserNotification("Comparison complete", {
-          body: `${extractHost(siteA.checkedUrl)} (${siteA.grade}) vs ${extractHost(siteB.checkedUrl)} (${siteB.grade})`,
-          tag: "comparison-complete"
-        });
+  const runComparisonCheck = useCallback(
+    async (siteAUrl: string, siteBUrl: string, options?: { historyEntryId?: string }) => {
+      if (!normalizeUrl(siteAUrl) || !normalizeUrl(siteBUrl)) {
+        setActiveHistoryEntryId(null);
+        setError("Please enter both URLs before comparing.");
+        return;
       }
-    } catch (comparisonError) {
-      const message = comparisonError instanceof Error ? comparisonError.message : "Comparison failed.";
-      setError(message);
-      notify({ tone: "error", message });
-    } finally {
-      setLoading(false);
-    }
-  }, [addComparisonToHistory, browserNotificationsEnabled, notify, saveReportsToHistory]);
+      setActiveHistoryEntryId(options?.historyEntryId ?? null);
+      setLoading(true);
+      setError(null);
+      setComparison(null);
+
+      try {
+        const [siteA, siteB] = await Promise.all([requestReport(siteAUrl), requestReport(siteBUrl)]);
+        const nextComparison = { siteA, siteB };
+        setComparison(nextComparison);
+        await saveReportsToHistory([siteA, siteB]);
+        addComparisonToHistory(nextComparison);
+        trackEvent("scan_complete", {
+          mode: "compare",
+          gradeA: siteA.grade,
+          gradeB: siteB.grade,
+          domainA: extractHost(siteA.finalUrl || siteA.checkedUrl),
+          domainB: extractHost(siteB.finalUrl || siteB.checkedUrl)
+        });
+        notify({ tone: "success", message: "Comparison complete." });
+
+        if (browserNotificationsEnabled) {
+          sendBrowserNotification("Comparison complete", {
+            body: `${extractHost(siteA.checkedUrl)} (${siteA.grade}) vs ${extractHost(siteB.checkedUrl)} (${siteB.grade})`,
+            tag: "comparison-complete"
+          });
+        }
+      } catch (comparisonError) {
+        const message = comparisonError instanceof Error ? comparisonError.message : "Comparison failed.";
+        setError(message);
+        notify({ tone: "error", message });
+      } finally {
+        setLoading(false);
+        setActiveHistoryEntryId(null);
+      }
+    },
+    [addComparisonToHistory, browserNotificationsEnabled, notify, saveReportsToHistory]
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -574,7 +617,7 @@ export function ComparePageClient() {
   function onHistoryEntryClick(entry: ComparisonHistoryEntry) {
     setUrlA(entry.siteAUrl);
     setUrlB(entry.siteBUrl);
-    void runComparisonCheck(entry.siteAUrl, entry.siteBUrl);
+    void runComparisonCheck(entry.siteAUrl, entry.siteBUrl, { historyEntryId: entry.id });
   }
 
   return (
@@ -596,7 +639,7 @@ export function ComparePageClient() {
       </section>
 
       <section className="motion-card rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4" aria-busy={loading}>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label htmlFor="compare-page-site-a" className="mb-1 block text-xs uppercase tracking-[0.14em] text-slate-400">
@@ -659,7 +702,7 @@ export function ComparePageClient() {
           </p>
         )}
 
-        <section className="lazy-section mt-6 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-6 rounded-xl border border-slate-800/90 bg-slate-950/60" aria-busy={loading}>
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <button
               type="button"
@@ -709,36 +752,44 @@ export function ComparePageClient() {
                 </div>
               ) : (
                 <ul className="space-y-2">
-                  {comparisonHistory.map((entry) => (
-                    <li key={entry.id}>
-                      <button
-                        type="button"
-                        onClick={() => onHistoryEntryClick(entry)}
-                        disabled={loading}
-                        aria-label={`Run comparison again for ${entry.siteAUrl} and ${entry.siteBUrl}`}
-                        className="motion-card w-full rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm text-slate-100">{entry.siteAUrl}</p>
-                            <p className="truncate text-xs text-slate-500">{entry.siteBUrl}</p>
-                            <p className="mt-1 text-xs text-slate-400">
-                              {new Date(entry.checkedAt).toLocaleString()}
-                            </p>
+                  {comparisonHistory.map((entry) => {
+                    const isReplaying = loading && activeHistoryEntryId === entry.id;
+                    return (
+                      <li key={entry.id}>
+                        <button
+                          type="button"
+                          onClick={() => onHistoryEntryClick(entry)}
+                          disabled={loading}
+                          aria-label={`Run comparison again for ${entry.siteAUrl} and ${entry.siteBUrl}`}
+                          className="motion-card w-full rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-slate-100">{entry.siteAUrl}</p>
+                              <p className="truncate text-xs text-slate-500">{entry.siteBUrl}</p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                {new Date(entry.checkedAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {isReplaying ? (
+                                <span className="rounded-md border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-sky-200">
+                                  Running...
+                                </span>
+                              ) : null}
+                              <span className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.siteAGrade)}`}>
+                                {entry.siteAGrade}
+                              </span>
+                              <span className="text-slate-500">vs</span>
+                              <span className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.siteBGrade)}`}>
+                                {entry.siteBGrade}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.siteAGrade)}`}>
-                              {entry.siteAGrade}
-                            </span>
-                            <span className="text-slate-500">vs</span>
-                            <span className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.siteBGrade)}`}>
-                              {entry.siteBGrade}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

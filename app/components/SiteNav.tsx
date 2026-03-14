@@ -37,6 +37,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
   const providerMenuRef = useRef<HTMLDivElement | null>(null);
   const quickSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const quickSearchDialogRef = useRef<HTMLDivElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
@@ -147,6 +148,35 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
     return () => {
       document.body.style.overflow = previousBodyOverflow;
     };
+  }, [quickSearchOpen]);
+
+  useEffect(() => {
+    if (!quickSearchOpen) return;
+    const dialog = quickSearchDialogRef.current;
+    if (!dialog) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [quickSearchOpen]);
 
   useEffect(() => {
@@ -413,9 +443,18 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
             onClick={closeQuickSearch}
             className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
           />
-          <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl shadow-slate-950/80">
+          <div
+            ref={quickSearchDialogRef}
+            className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl shadow-slate-950/80"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quick-search-title"
+            aria-describedby="quick-search-shortcut"
+          >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-300">Quick search</h2>
+              <h2 id="quick-search-title" className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-300">
+                Quick search
+              </h2>
               <button
                 type="button"
                 onClick={closeQuickSearch}
@@ -467,7 +506,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 ))
               )}
             </ul>
-            <p className="mt-3 text-xs text-slate-500">
+            <p id="quick-search-shortcut" className="mt-3 text-xs text-slate-500">
               Shortcut: press <span className="text-slate-300">Cmd/Ctrl+K</span> from any page.
             </p>
           </div>

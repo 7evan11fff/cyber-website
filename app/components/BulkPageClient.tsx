@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -40,6 +40,7 @@ type BulkSortField = "grade" | "score" | "checkedAt";
 type SortDirection = "asc" | "desc";
 
 const MAX_BULK_URLS = 10;
+const CLIENT_SCAN_REQUEST_TIMEOUT_MS = 20000;
 const GRADE_RANK: Record<string, number> = {
   A: 5,
   B: 4,
@@ -82,6 +83,14 @@ function normalizeCheckError(status: number, payload: unknown): string {
     return "API key not recognized. Verify your key and try again.";
   }
 
+  if (status === 408 || status === 504 || normalized.includes("timed out") || normalized.includes("timeout")) {
+    return "The scan timed out while waiting for a response. Please retry in a moment.";
+  }
+
+  if (status >= 500) {
+    return "The scanner service is temporarily unavailable. Please try again shortly.";
+  }
+
   if (
     normalized.includes("fetch failed") ||
     normalized.includes("enotfound") ||
@@ -93,6 +102,22 @@ function normalizeCheckError(status: number, payload: unknown): string {
   }
 
   return apiError ?? "Unable to check headers right now.";
+}
+
+function normalizeClientRequestError(error: unknown): Error {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return new Error("The scan request timed out. Please check your connection and try again.");
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return new Error("The scan request timed out. Please check your connection and try again.");
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return new Error("You appear to be offline. Reconnect to the internet and try again.");
+  }
+  if (error instanceof TypeError || (error instanceof Error && /network|failed to fetch/i.test(error.message))) {
+    return new Error("Network error while contacting the scanner service. Please retry.");
+  }
+  return error instanceof Error ? error : new Error("Unable to check headers right now.");
 }
 
 function extractDomain(value: string) {
@@ -286,13 +311,24 @@ function BulkResultsSkeleton({ rows = 5 }: { rows?: number }) {
 }
 
 async function requestReport(targetUrl: string): Promise<ReportResponse> {
-  const response = await fetch("/api/check", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ url: normalizeUrl(targetUrl) })
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), CLIENT_SCAN_REQUEST_TIMEOUT_MS);
+  let response: Response;
+
+  try {
+    response = await fetch("/api/check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({ url: normalizeUrl(targetUrl) })
+    });
+  } catch (error) {
+    throw normalizeClientRequestError(error);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   const payload = (await response.json().catch(() => null)) as { error?: unknown } | ReportResponse | null;
   if (!response.ok) {
@@ -318,6 +354,8 @@ export function BulkPageClient() {
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
   const [bulkTargetCount, setBulkTargetCount] = useState(0);
   const [bulkCompletedCount, setBulkCompletedCount] = useState(0);
+  const detailsDialogRef = useRef<HTMLDivElement | null>(null);
+  const detailsLastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -598,14 +636,43 @@ export function BulkPageClient() {
 
   useEffect(() => {
     if (!detailsTarget) return;
+    detailsLastFocusedElementRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    window.setTimeout(() => {
+      detailsDialogRef.current?.querySelector<HTMLElement>("[data-dialog-close]")?.focus();
+    }, 0);
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setDetailsTarget(null);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const dialog = detailsDialogRef.current;
+      if (!dialog) return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      detailsLastFocusedElementRef.current?.focus();
+    };
   }, [detailsTarget]);
 
   return (
@@ -625,7 +692,7 @@ export function BulkPageClient() {
       </section>
 
       <section className="motion-card rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4" aria-busy={loading}>
           <div>
             <label htmlFor="bulk-page-urls" className="mb-1 block text-xs uppercase tracking-[0.14em] text-slate-400">
               URLs (one per line)
@@ -752,7 +819,7 @@ export function BulkPageClient() {
                     <p className="mt-2 break-all text-xs text-slate-400">
                       {entry.error ? entry.error : entry.missingHeaders.length > 0 ? entry.missingHeaders.join(", ") : "No missing headers"}
                     </p>
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       {entry.reportHref ? (
                         <Link
                           href={entry.reportHref}
@@ -964,24 +1031,30 @@ export function BulkPageClient() {
               onClick={() => setDetailsTarget(null)}
               className="absolute inset-0 bg-slate-950/80"
               aria-label="Close full scan details"
+              tabIndex={-1}
             />
             <div
+              ref={detailsDialogRef}
               className="relative z-10 max-h-[90dvh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70"
               role="dialog"
               aria-modal="true"
               aria-labelledby="bulk-scan-details-title"
+              aria-describedby="bulk-scan-details-description"
             >
               <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
                 <div>
                   <h2 id="bulk-scan-details-title" className="text-lg font-semibold text-slate-100">
                     Full scan details
                   </h2>
-                  <p className="mt-1 break-all text-xs text-slate-400">{detailsTarget.report.checkedUrl}</p>
+                  <p id="bulk-scan-details-description" className="mt-1 break-all text-xs text-slate-400">
+                    {detailsTarget.report.checkedUrl}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setDetailsTarget(null)}
                   aria-label="Close full scan details"
+                  data-dialog-close
                   className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Close
