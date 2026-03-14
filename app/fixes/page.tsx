@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { QuickFixesPageClient } from "@/app/components/QuickFixesPageClient";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
@@ -31,7 +32,15 @@ export default function FixesPage() {
         </p>
       </section>
 
-      <QuickFixesPageClient />
+      <Suspense
+        fallback={
+          <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 text-sm text-slate-300">
+            Loading quick fixes...
+          </section>
+        }
+      >
+        <QuickFixesPageClient />
+      </Suspense>
 
       <p className="mt-6 text-sm text-slate-300">
         Need a full walkthrough?{" "}
