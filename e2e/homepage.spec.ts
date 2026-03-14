@@ -18,6 +18,18 @@ test("homepage scan flow displays report results", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Content-Security-Policy" })).toBeVisible();
 });
 
+test("single scan can jump into compare flow", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("textbox", { name: "Website URL to scan", exact: true }).fill("example.com");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await page.getByRole("link", { name: "Compare this site with another site" }).click();
+
+  await expect(page).toHaveURL(/\/compare\?sites=example\.com%2C/);
+  await expect(page.getByLabel("Site A URL")).toHaveValue("example.com");
+  await expect(page.getByLabel("Site B URL")).toHaveValue("");
+});
+
 test("header deep-dive modal and keyboard shortcuts work", async ({ page }) => {
   await page.goto("/");
 

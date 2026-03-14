@@ -1,12 +1,20 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { trackEvent } from "@/lib/analytics";
 import type { HeaderResult } from "@/lib/securityHeaders";
+import {
+  buildComparisonRows,
+  buildComparisonSummary,
+  buildHeaderPresenceDiff,
+  type ComparisonAdvantage,
+  type ComparisonRowTone
+} from "@/lib/comparison";
 import {
   BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
   COMPARISON_HISTORY_STORAGE_KEY,
@@ -41,7 +49,6 @@ type ComparisonReport = {
   siteB: ReportResponse;
 };
 
-type ComparisonRowTone = "good" | "missing" | "weak" | "neutral";
 const CLIENT_SCAN_REQUEST_TIMEOUT_MS = 20000;
 
 const statusClassNames: Record<HeaderResult["status"], string> = {
@@ -59,11 +66,28 @@ const gradeClassNames: Record<string, string> = {
 };
 
 function gradeColor(grade: string) {
-  return gradeClassNames[grade] ?? "text-slate-200";
+  return gradeClassNames[grade[0]?.toUpperCase() ?? ""] ?? "text-slate-200";
 }
 
 function normalizeUrl(value: string) {
   return value.trim();
+}
+
+function parseSitesQueryParam(value: string | null): { siteA: string; siteB: string } | null {
+  if (!value) return null;
+  const [siteA = "", siteB = ""] = value.split(",", 2).map((part) => part.trim());
+  if (!siteA && !siteB) return null;
+  return { siteA, siteB };
+}
+
+function buildCompareSharePath(siteA: string, siteB: string): string | null {
+  const normalizedSiteA = normalizeUrl(siteA);
+  const normalizedSiteB = normalizeUrl(siteB);
+  if (!normalizedSiteA && !normalizedSiteB) return null;
+
+  const params = new URLSearchParams();
+  params.set("sites", `${normalizedSiteA},${normalizedSiteB}`);
+  return `/compare?${params.toString()}`;
 }
 
 function parseApiError(payload: unknown): string | null {
@@ -136,13 +160,6 @@ function extractHost(value: string) {
   }
 }
 
-function comparisonTone(a: HeaderResult, b: HeaderResult): ComparisonRowTone {
-  if (a.status === "good" && b.status === "good") return "good";
-  if (a.status === "missing" || b.status === "missing") return "missing";
-  if (a.status === "weak" || b.status === "weak") return "weak";
-  return "neutral";
-}
-
 function rowClasses(tone: ComparisonRowTone) {
   if (tone === "good") {
     return "border-emerald-500/30 bg-emerald-500/10";
@@ -156,16 +173,10 @@ function rowClasses(tone: ComparisonRowTone) {
   return "border-slate-800/70 bg-slate-900/40";
 }
 
-function getGradeNarrative(comparison: ComparisonReport) {
-  const scoreDifference = comparison.siteA.score - comparison.siteB.score;
-  if (scoreDifference > 0) {
-    return `Site A is stronger by ${scoreDifference} point${scoreDifference === 1 ? "" : "s"}.`;
-  }
-  if (scoreDifference < 0) {
-    const magnitude = Math.abs(scoreDifference);
-    return `Site B is stronger by ${magnitude} point${magnitude === 1 ? "" : "s"}.`;
-  }
-  return "Both sites have the same overall score.";
+function rowCellClasses(advantage: ComparisonAdvantage, side: "siteA" | "siteB") {
+  if (advantage === "tie") return "border-slate-800 bg-slate-900/70";
+  if (advantage === side) return "border-emerald-500/40 bg-emerald-500/10";
+  return "border-rose-500/40 bg-rose-500/10";
 }
 
 function selectComparisonCheckedAt(comparison: ComparisonReport) {
@@ -181,37 +192,6 @@ function selectComparisonCheckedAt(comparison: ComparisonReport) {
     return new Date(siteATime).toISOString();
   }
   return new Date(Math.max(siteATime, siteBTime)).toISOString();
-}
-
-function buildRecommendation(
-  siteAHeader: HeaderResult,
-  siteBHeader: HeaderResult,
-  siteALabel: string,
-  siteBLabel: string
-) {
-  if (siteAHeader.status === "good" && siteBHeader.status === "good") {
-    return "Both sites are configured well for this header.";
-  }
-
-  if (siteAHeader.status === "missing" && siteBHeader.status !== "missing") {
-    return `${siteALabel}: ${siteAHeader.guidance}`;
-  }
-  if (siteBHeader.status === "missing" && siteAHeader.status !== "missing") {
-    return `${siteBLabel}: ${siteBHeader.guidance}`;
-  }
-
-  if (siteAHeader.status !== "good" && siteBHeader.status === "good") {
-    return `${siteALabel}: ${siteAHeader.guidance}`;
-  }
-  if (siteBHeader.status !== "good" && siteAHeader.status === "good") {
-    return `${siteBLabel}: ${siteBHeader.guidance}`;
-  }
-
-  if (siteAHeader.status !== "good" && siteBHeader.status !== "good") {
-    return `${siteALabel}: ${siteAHeader.guidance} ${siteBLabel}: ${siteBHeader.guidance}`;
-  }
-
-  return "Review values to align both sites.";
 }
 
 function ComparisonResultsSkeleton() {
@@ -279,6 +259,8 @@ async function requestReport(targetUrl: string): Promise<ReportResponse> {
 }
 
 export function ComparePageClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { notify } = useToast();
   const { data: session, status: sessionStatus } = useSession();
   const [urlA, setUrlA] = useState("");
@@ -293,11 +275,25 @@ export function ComparePageClient() {
   const [syncedHistoryUserKey, setSyncedHistoryUserKey] = useState<string | null>(null);
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
   const [activeHistoryEntryId, setActiveHistoryEntryId] = useState<string | null>(null);
+  const [shareLinkState, setShareLinkState] = useState<"idle" | "copied" | "error">("idle");
+  const querySyncRef = useRef<string | null>(null);
+  const autoRunHandledRef = useRef<string | null>(null);
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const siteALabel = useMemo(() => extractHost(urlA || comparison?.siteA.checkedUrl || "Site A"), [comparison, urlA]);
   const siteBLabel = useMemo(() => extractHost(urlB || comparison?.siteB.checkedUrl || "Site B"), [comparison, urlB]);
+
+  useEffect(() => {
+    const parsed = parseSitesQueryParam(searchParams.get("sites"));
+    if (!parsed) return;
+    const queryKey = `${parsed.siteA}|${parsed.siteB}`;
+    if (querySyncRef.current === queryKey) return;
+    querySyncRef.current = queryKey;
+
+    setUrlA(parsed.siteA);
+    setUrlB(parsed.siteB);
+  }, [searchParams]);
 
   useEffect(() => {
     try {
@@ -335,6 +331,10 @@ export function ComparePageClient() {
       // Ignore storage failures in private mode.
     }
   }, [comparisonHistory, historyBootstrapped]);
+
+  useEffect(() => {
+    setShareLinkState("idle");
+  }, [urlA, urlB]);
 
   useEffect(() => {
     if (isAuthenticated) return;
@@ -520,36 +520,24 @@ export function ComparePageClient() {
 
   const tableRows = useMemo(() => {
     if (!comparison) return [];
-    const siteBByKey = new Map(comparison.siteB.results.map((result) => [result.key, result]));
-
-    return comparison.siteA.results
-      .map((siteAHeader) => {
-        const siteBHeader = siteBByKey.get(siteAHeader.key);
-        if (!siteBHeader) return null;
-
-        const tone = comparisonTone(siteAHeader, siteBHeader);
-        return {
-          key: siteAHeader.key,
-          label: siteAHeader.label,
-          siteA: siteAHeader,
-          siteB: siteBHeader,
-          tone,
-          recommendation: buildRecommendation(siteAHeader, siteBHeader, siteALabel, siteBLabel)
-        };
-      })
-      .filter(
-        (
-          row
-        ): row is {
-          key: string;
-          label: string;
-          siteA: HeaderResult;
-          siteB: HeaderResult;
-          tone: ComparisonRowTone;
-          recommendation: string;
-        } => Boolean(row)
-      );
+    return buildComparisonRows(comparison, { siteALabel, siteBLabel });
   }, [comparison, siteALabel, siteBLabel]);
+
+  const comparisonSummary = useMemo(() => {
+    if (!comparison) return null;
+    return buildComparisonSummary(comparison, { siteALabel, siteBLabel });
+  }, [comparison, siteALabel, siteBLabel]);
+
+  const headerPresenceDiff = useMemo(() => {
+    if (!comparison) return { siteAOnly: [], siteBOnly: [] };
+    return buildHeaderPresenceDiff(comparison);
+  }, [comparison]);
+
+  const comparisonSharePath = useMemo(() => {
+    const shareSiteA = normalizeUrl(urlA || comparison?.siteA.checkedUrl || "");
+    const shareSiteB = normalizeUrl(urlB || comparison?.siteB.checkedUrl || "");
+    return buildCompareSharePath(shareSiteA, shareSiteB);
+  }, [comparison, urlA, urlB]);
 
   const comparisonLiveMessage = useMemo(() => {
     if (error) {
@@ -566,18 +554,29 @@ export function ComparePageClient() {
 
   const runComparisonCheck = useCallback(
     async (siteAUrl: string, siteBUrl: string, options?: { historyEntryId?: string }) => {
-      if (!normalizeUrl(siteAUrl) || !normalizeUrl(siteBUrl)) {
+      const normalizedSiteA = normalizeUrl(siteAUrl);
+      const normalizedSiteB = normalizeUrl(siteBUrl);
+
+      if (!normalizedSiteA || !normalizedSiteB) {
         setActiveHistoryEntryId(null);
         setError("Please enter both URLs before comparing.");
         return;
       }
+
+      const sharePath = buildCompareSharePath(normalizedSiteA, normalizedSiteB);
+      if (sharePath) {
+        querySyncRef.current = `${normalizedSiteA}|${normalizedSiteB}`;
+        router.replace(sharePath, { scroll: false });
+      }
+
       setActiveHistoryEntryId(options?.historyEntryId ?? null);
       setLoading(true);
       setError(null);
       setComparison(null);
+      setShareLinkState("idle");
 
       try {
-        const [siteA, siteB] = await Promise.all([requestReport(siteAUrl), requestReport(siteBUrl)]);
+        const [siteA, siteB] = await Promise.all([requestReport(normalizedSiteA), requestReport(normalizedSiteB)]);
         const nextComparison = { siteA, siteB };
         setComparison(nextComparison);
         await saveReportsToHistory([siteA, siteB]);
@@ -606,7 +605,7 @@ export function ComparePageClient() {
         setActiveHistoryEntryId(null);
       }
     },
-    [addComparisonToHistory, browserNotificationsEnabled, notify, saveReportsToHistory]
+    [addComparisonToHistory, browserNotificationsEnabled, notify, router, saveReportsToHistory]
   );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -619,6 +618,33 @@ export function ComparePageClient() {
     setUrlB(entry.siteBUrl);
     void runComparisonCheck(entry.siteAUrl, entry.siteBUrl, { historyEntryId: entry.id });
   }
+
+  useEffect(() => {
+    const parsed = parseSitesQueryParam(searchParams.get("sites"));
+    if (!parsed?.siteA || !parsed.siteB) return;
+    const queryKey = `${parsed.siteA}|${parsed.siteB}`;
+    if (autoRunHandledRef.current === queryKey) return;
+    autoRunHandledRef.current = queryKey;
+    void runComparisonCheck(parsed.siteA, parsed.siteB);
+  }, [runComparisonCheck, searchParams]);
+
+  const onCopyComparisonLink = useCallback(async () => {
+    if (!comparisonSharePath) {
+      setShareLinkState("error");
+      notify({ tone: "error", message: "Add at least one URL before copying a comparison link." });
+      return;
+    }
+
+    try {
+      const shareUrl = `${window.location.origin}${comparisonSharePath}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setShareLinkState("copied");
+      notify({ tone: "success", message: "Comparison link copied." });
+    } catch {
+      setShareLinkState("error");
+      notify({ tone: "error", message: "Could not copy comparison link." });
+    }
+  }, [comparisonSharePath, notify]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -678,6 +704,19 @@ export function ComparePageClient() {
               className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
               {loading ? "Comparing..." : "Compare Headers"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void onCopyComparisonLink()}
+              disabled={loading || !comparisonSharePath}
+              aria-label="Copy shareable comparison link"
+              className="rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
+            >
+              {shareLinkState === "copied"
+                ? "Comparison link copied"
+                : shareLinkState === "error"
+                  ? "Copy comparison link (retry)"
+                  : "Copy comparison link"}
             </button>
             {loading && (
               <span className="inline-flex items-center gap-2 text-xs text-slate-300" aria-live="polite">
@@ -800,12 +839,40 @@ export function ComparePageClient() {
 
         {comparison && (
           <div className="lazy-section mt-6 space-y-5">
+            <article className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-sky-100">Comparison summary</p>
+                {comparisonSummary?.hasClearWinner && comparisonSummary.winnerLabel && (
+                  <span className="rounded-full border border-emerald-500/50 bg-emerald-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-200">
+                    Winner: {comparisonSummary.winnerLabel}
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-sm text-sky-100/95">
+                Site A:{" "}
+                <span className={`font-semibold ${gradeColor(comparisonSummary?.siteAGradeLabel ?? comparison.siteA.grade)}`}>
+                  {comparisonSummary?.siteAGradeLabel ?? comparison.siteA.grade}
+                </span>{" "}
+                · Site B:{" "}
+                <span className={`font-semibold ${gradeColor(comparisonSummary?.siteBGradeLabel ?? comparison.siteB.grade)}`}>
+                  {comparisonSummary?.siteBGradeLabel ?? comparison.siteB.grade}
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-sky-200/90">
+                {comparisonSummary?.narrative ?? "Both sites are equally secure based on current checks."}
+              </p>
+            </article>
+
             <div className="grid gap-4 md:grid-cols-2">
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteA.checkedUrl}</p>
-                <p className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(comparison.siteA.grade)}`}>
-                  {comparison.siteA.grade}
+                <p
+                  className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(
+                    comparisonSummary?.siteAGradeLabel ?? comparison.siteA.grade
+                  )}`}
+                >
+                  {comparisonSummary?.siteAGradeLabel ?? comparison.siteA.grade}
                 </p>
                 <p className="text-sm text-slate-300">
                   Score {comparison.siteA.score}/{comparison.siteA.results.length * 2}
@@ -814,8 +881,12 @@ export function ComparePageClient() {
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteB.checkedUrl}</p>
-                <p className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(comparison.siteB.grade)}`}>
-                  {comparison.siteB.grade}
+                <p
+                  className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(
+                    comparisonSummary?.siteBGradeLabel ?? comparison.siteB.grade
+                  )}`}
+                >
+                  {comparisonSummary?.siteBGradeLabel ?? comparison.siteB.grade}
                 </p>
                 <p className="text-sm text-slate-300">
                   Score {comparison.siteB.score}/{comparison.siteB.results.length * 2}
@@ -823,17 +894,39 @@ export function ComparePageClient() {
               </article>
             </div>
 
-            <article className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3">
-              <p className="text-sm font-semibold text-sky-100">Overall grade comparison</p>
-              <p className="mt-1 text-sm text-sky-200/90">{getGradeNarrative(comparison)}</p>
-            </article>
+            <div className="grid gap-4 md:grid-cols-2">
+              <article className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-100">{siteALabel} only headers</p>
+                {headerPresenceDiff.siteAOnly.length === 0 ? (
+                  <p className="mt-1 text-sm text-emerald-200/85">No extra headers over Site B.</p>
+                ) : (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-100/90">
+                    {headerPresenceDiff.siteAOnly.map((headerLabel) => (
+                      <li key={`site-a-only-${headerLabel}`}>{headerLabel}</li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+              <article className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3">
+                <p className="text-sm font-semibold text-rose-100">{siteBLabel} only headers</p>
+                {headerPresenceDiff.siteBOnly.length === 0 ? (
+                  <p className="mt-1 text-sm text-rose-200/85">No extra headers over Site A.</p>
+                ) : (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-100/90">
+                    {headerPresenceDiff.siteBOnly.map((headerLabel) => (
+                      <li key={`site-b-only-${headerLabel}`}>{headerLabel}</li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            </div>
 
             <section className="space-y-3 sm:hidden">
               {tableRows.map((row) => (
                 <article key={row.key} className={`rounded-xl border p-4 ${rowClasses(row.tone)}`}>
                   <p className="font-semibold text-slate-100">{row.label}</p>
                   <div className="mt-3 space-y-2">
-                    <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                    <div className={`rounded-lg border p-2.5 ${rowCellClasses(row.advantage, "siteA")}`}>
                       <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{siteALabel}</p>
                       <span
                         className={`mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteA.status]}`}
@@ -842,7 +935,7 @@ export function ComparePageClient() {
                       </span>
                       <p className="mt-2 break-all text-xs text-slate-400">{row.siteA.value ?? "Missing header"}</p>
                     </div>
-                    <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                    <div className={`rounded-lg border p-2.5 ${rowCellClasses(row.advantage, "siteB")}`}>
                       <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{siteBLabel}</p>
                       <span
                         className={`mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteB.status]}`}
@@ -877,24 +970,28 @@ export function ComparePageClient() {
                         <p className="font-semibold text-slate-100">{row.label}</p>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteA.status]}`}
-                        >
-                          {row.siteA.status}
-                        </span>
-                        <p className="mt-2 max-w-[220px] break-all text-xs text-slate-400">
-                          {row.siteA.value ?? "Missing header"}
-                        </p>
+                        <div className={`rounded-lg border p-2.5 ${rowCellClasses(row.advantage, "siteA")}`}>
+                          <span
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteA.status]}`}
+                          >
+                            {row.siteA.status}
+                          </span>
+                          <p className="mt-2 max-w-[220px] break-all text-xs text-slate-400">
+                            {row.siteA.value ?? "Missing header"}
+                          </p>
+                        </div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteB.status]}`}
-                        >
-                          {row.siteB.status}
-                        </span>
-                        <p className="mt-2 max-w-[220px] break-all text-xs text-slate-400">
-                          {row.siteB.value ?? "Missing header"}
-                        </p>
+                        <div className={`rounded-lg border p-2.5 ${rowCellClasses(row.advantage, "siteB")}`}>
+                          <span
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteB.status]}`}
+                          >
+                            {row.siteB.status}
+                          </span>
+                          <p className="mt-2 max-w-[220px] break-all text-xs text-slate-400">
+                            {row.siteB.value ?? "Missing header"}
+                          </p>
+                        </div>
                       </td>
                       <td className="max-w-[280px] px-4 py-3 align-top text-xs text-slate-300 sm:text-sm">
                         {row.recommendation}

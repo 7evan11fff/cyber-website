@@ -1009,6 +1009,13 @@ export default function Home() {
     if (!report) return null;
     return toScorePercentage(report.score, report.results.length * 2);
   }, [report]);
+  const compareWithAnotherSiteHref = useMemo(() => {
+    if (!report) return "/compare";
+    const firstSite = extractDomainFromUrl(report.finalUrl) ?? extractDomainFromUrl(report.checkedUrl) ?? report.checkedUrl;
+    const params = new URLSearchParams();
+    params.set("sites", `${firstSite.trim()},`);
+    return `/compare?${params.toString()}`;
+  }, [report]);
   const scanRequestOptions = useMemo<ScanRequestOptions>(
     () => ({
       userAgent: customUserAgent.trim() || undefined,
@@ -3091,6 +3098,15 @@ export default function Home() {
           >
             Scan again
           </button>
+          {report && (
+            <Link
+              href={compareWithAnotherSiteHref}
+              aria-label="Compare this site with another site"
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+            >
+              Compare with another site
+            </Link>
+          )}
           <Suspense
             fallback={
               <button
