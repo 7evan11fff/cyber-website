@@ -216,8 +216,8 @@ const TESTIMONIALS: Testimonial[] = [
 const TRUSTED_DEVELOPER_COUNT = "18,000+";
 const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
-  { keys: "Ctrl + Enter", action: "Run scan in active tab" },
-  { keys: "Ctrl + K", action: "Clear current inputs and results" },
+  { keys: "Cmd/Ctrl + Enter", action: "Run scan in active tab" },
+  { keys: "Cmd/Ctrl + K", action: "Open quick search" },
   { keys: "Ctrl + P", action: "Download current scan report PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
   { keys: "Esc", action: "Clear current inputs and results" }
@@ -405,6 +405,12 @@ function formatReportForClipboard(report: ReportResponse): string {
   }
 
   return lines.join("\n").trim();
+}
+
+function socialShareText(report: ReportResponse): string {
+  const target = extractDomainFromUrl(report.finalUrl) ?? extractDomainFromUrl(report.checkedUrl) ?? "my site";
+  const socialGrade = report.grade.toUpperCase() === "A" ? "A+" : report.grade.toUpperCase();
+  return `My site ${target} scored ${socialGrade} on security headers! Check yours at`;
 }
 
 function HeroShieldIcon() {
@@ -1515,27 +1521,36 @@ export default function Home() {
     }
   }
 
-  async function onShareResults() {
-    if (!report && !comparison) return;
+  async function createCurrentShareUrl(): Promise<string> {
+    if (!report && !comparison) {
+      throw new Error("No report available to share.");
+    }
 
     let payload: SharePayload;
     if (report) {
       payload = { version: 1, mode: "single", report };
     } else {
-      if (!comparison) return;
+      if (!comparison) {
+        throw new Error("No comparison report available to share.");
+      }
       payload = { version: 1, mode: "compare", comparison };
     }
 
-    try {
-      const sharePath = await createSharedReportPath(payload);
-      const shareUrl = new URL(sharePath, window.location.origin);
+    const sharePath = await createSharedReportPath(payload);
+    return new URL(sharePath, window.location.origin).toString();
+  }
 
+  async function onShareResults() {
+    if (!report && !comparison) return;
+
+    try {
+      const shareUrl = await createCurrentShareUrl();
       const text = "Security Header Checker report";
       if (navigator.share) {
         await navigator.share({
           title: "Security Header Checker Report",
           text,
-          url: shareUrl.toString()
+          url: shareUrl
         });
         setShareState("shared");
         trackEvent("report_shared", {
@@ -1544,7 +1559,7 @@ export default function Home() {
         });
         notify({ tone: "success", message: "Report shared." });
       } else {
-        await navigator.clipboard.writeText(shareUrl.toString());
+        await navigator.clipboard.writeText(shareUrl);
         setShareState("copied");
         trackEvent("report_shared", {
           mode: report ? "single" : "compare",
@@ -1561,6 +1576,37 @@ export default function Home() {
       notify({ tone: "error", message: "Could not share this report right now." });
     } finally {
       window.setTimeout(() => setShareState("idle"), 3000);
+    }
+  }
+
+  async function onShareToTwitter() {
+    if (!report) return;
+
+    try {
+      const shareUrl = await createCurrentShareUrl();
+      const targetUrl = new URL("https://twitter.com/intent/tweet");
+      targetUrl.searchParams.set("text", socialShareText(report));
+      targetUrl.searchParams.set("url", shareUrl);
+      window.open(targetUrl.toString(), "_blank", "noopener,noreferrer");
+      trackEvent("report_shared", { mode: "single", method: "twitter" });
+      notify({ tone: "success", message: "Opened X sharing in a new tab." });
+    } catch {
+      notify({ tone: "error", message: "Could not open X sharing right now." });
+    }
+  }
+
+  async function onShareToLinkedIn() {
+    if (!report) return;
+
+    try {
+      const shareUrl = await createCurrentShareUrl();
+      const targetUrl = new URL("https://www.linkedin.com/sharing/share-offsite/");
+      targetUrl.searchParams.set("url", shareUrl);
+      window.open(targetUrl.toString(), "_blank", "noopener,noreferrer");
+      trackEvent("report_shared", { mode: "single", method: "linkedin" });
+      notify({ tone: "success", message: "Opened LinkedIn sharing in a new tab." });
+    } catch {
+      notify({ tone: "error", message: "Could not open LinkedIn sharing right now." });
     }
   }
 
@@ -1758,7 +1804,7 @@ export default function Home() {
 
         if (normalizedKey === "k") {
           event.preventDefault();
-          clearCurrentState();
+          window.dispatchEvent(new CustomEvent("shc:open-quick-search"));
           return;
         }
 
@@ -2049,8 +2095,8 @@ export default function Home() {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <p>
-            Shortcuts: <span className="text-slate-300">Ctrl+Enter</span> scan,{" "}
-            <span className="text-slate-300">Ctrl+K</span> clear,{" "}
+            Shortcuts: <span className="text-slate-300">Cmd/Ctrl+Enter</span> scan,{" "}
+            <span className="text-slate-300">Cmd/Ctrl+K</span> quick search,{" "}
             <span className="text-slate-300">Ctrl+P</span> PDF.
           </p>
           <button
@@ -2091,7 +2137,7 @@ export default function Home() {
               </button>
             </form>
             <p id="single-scan-hint" className="mt-2 text-xs text-slate-500">
-              Enter a domain or full URL and press Ctrl+Enter to scan.
+              Enter a domain or full URL and press Cmd/Ctrl+Enter to scan.
             </p>
 
             <div className="mt-4">
@@ -2148,7 +2194,7 @@ export default function Home() {
               {loading ? "Comparing..." : "Compare Headers"}
             </button>
             <p className="mt-2 text-xs text-slate-500">
-              Tip: enter two domains, then use Ctrl+Enter to run comparison.
+              Tip: enter two domains, then use Cmd/Ctrl+Enter to run comparison.
             </p>
           </form>
         ) : (
@@ -2224,6 +2270,28 @@ export default function Home() {
                 ? "Shared"
                 : "Share results"}
           </button>
+          {report && (
+            <>
+              <button
+                type="button"
+                onClick={() => void onShareToTwitter()}
+                disabled={loading}
+                aria-label="Share this scan on X"
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Share on X
+              </button>
+              <button
+                type="button"
+                onClick={() => void onShareToLinkedIn()}
+                disabled={loading}
+                aria-label="Share this scan on LinkedIn"
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Share on LinkedIn
+              </button>
+            </>
+          )}
           {pdfState === "error" && (
             <span className="text-xs text-rose-300">Could not export PDF. Try again.</span>
           )}

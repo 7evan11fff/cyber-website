@@ -3,7 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { SharedReportPayload, SharedReportRecord } from "@/lib/reportShare";
+import type { SharedReportPayload, SharedReportRecord, SharedScanReport } from "@/lib/reportShare";
 
 type SharedReportFile = {
   reports: Record<string, SharedReportRecord>;
@@ -95,4 +95,24 @@ export async function listSharedReportPaths(limit = 150): Promise<string[]> {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, limit)
     .map((entry) => `/report/${entry.id}`);
+}
+
+export type PublicScanRecord = {
+  id: string;
+  createdAt: string;
+  report: SharedScanReport;
+};
+
+export async function listRecentPublicScans(limit = 5): Promise<PublicScanRecord[]> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(Math.trunc(limit), 25)) : 5;
+  const data = await readDataFile();
+  return Object.values(data.reports)
+    .filter((entry) => entry.payload.mode === "single")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, safeLimit)
+    .map((entry) => ({
+      id: entry.id,
+      createdAt: entry.createdAt,
+      report: entry.payload.report
+    }));
 }
