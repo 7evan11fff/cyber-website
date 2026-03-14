@@ -30,6 +30,15 @@ type TeamSnapshot = {
     createdAt: string;
     invitedByUserId: string;
   }>;
+  memberProfiles: Record<
+    string,
+    {
+      userKey: string;
+      displayName: string;
+      avatarInitials: string;
+      avatarUrl: string | null;
+    }
+  >;
 };
 
 function canManageTeam(role: TeamRole) {
@@ -58,6 +67,7 @@ export function TeamSettingsClient({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nameSaveState, setNameSaveState] = useState<"idle" | "saving">("idle");
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
   const sortedMembers = useMemo(() => {
     const rank: Record<TeamRole, number> = { owner: 3, admin: 2, member: 1 };
@@ -152,9 +162,33 @@ export function TeamSettingsClient({
     }
   }
 
+  async function removeMember(targetUserId: string) {
+    if (!managementEnabled || removingUserId) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setRemovingUserId(targetUserId);
+    try {
+      const response = await fetch(`/api/teams/${encodeURIComponent(slug)}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId })
+      });
+      const payload = (await response.json().catch(() => null)) as { removed?: boolean; error?: string } | null;
+      if (!response.ok || !payload?.removed) {
+        throw new Error(payload?.error ?? "Could not remove member.");
+      }
+      setMembers((previous) => previous.filter((member) => member.userId !== targetUserId));
+      setStatusMessage(`Removed ${targetUserId} from the team.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not remove member.");
+    } finally {
+      setRemovingUserId(null);
+    }
+  }
+
   return (
     <section className="grid gap-6 lg:grid-cols-2">
-      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 sm:p-5 shadow-xl shadow-slate-950/60">
         <h2 className="text-lg font-semibold text-slate-100">Team profile</h2>
         <p className="mt-1 text-sm text-slate-400">Role: {initialSnapshot.team.role}</p>
         <form
@@ -187,7 +221,7 @@ export function TeamSettingsClient({
         )}
       </article>
 
-      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 sm:p-5 shadow-xl shadow-slate-950/60">
         <h2 className="text-lg font-semibold text-slate-100">Invite by email</h2>
         <form
           className="mt-3 flex flex-col gap-2 sm:flex-row"
@@ -233,42 +267,77 @@ export function TeamSettingsClient({
         </article>
       )}
 
-      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 sm:p-5 shadow-xl shadow-slate-950/60">
         <h2 className="text-lg font-semibold text-slate-100">Team members</h2>
-        <ul className="mt-3 space-y-2">
-          {sortedMembers.map((member) => (
-            <li key={member.userId} className="rounded-md border border-slate-800 bg-slate-950/60 p-2.5">
-              <p className="truncate text-sm text-slate-100">{member.userId}</p>
-              <p className="text-xs text-slate-500">
-                Joined {new Date(member.joinedAt).toLocaleDateString()} • role: {member.role}
-              </p>
-              {managementEnabled && member.role !== "owner" && (
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void updateRole(member.userId, "admin")}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
-                  >
-                    Make admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void updateRole(member.userId, "member")}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
-                  >
-                    Make member
-                  </button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+        {sortedMembers.length === 0 ? (
+          <p className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-400">
+            No members in this team yet.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {sortedMembers.map((member) => {
+              const profile = initialSnapshot.memberProfiles[member.userId];
+              return (
+                <li key={member.userId} className="rounded-md border border-slate-800 bg-slate-950/60 p-2.5">
+                  <div className="flex items-center gap-2">
+                    {profile?.avatarUrl ? (
+                      <img
+                        src={profile.avatarUrl}
+                        alt={`${profile.displayName} avatar`}
+                        className="h-7 w-7 rounded-full border border-slate-700 object-cover"
+                      />
+                    ) : (
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-xs font-semibold text-slate-200">
+                        {profile?.avatarInitials ?? member.userId.slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-slate-100">{profile?.displayName ?? member.userId}</p>
+                      <p className="truncate text-xs text-slate-500">{member.userId}</p>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Joined {new Date(member.joinedAt).toLocaleDateString()} • role: {member.role}
+                  </p>
+                  {managementEnabled && member.role !== "owner" && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void updateRole(member.userId, "admin")}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                      >
+                        Make admin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void updateRole(member.userId, "member")}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                      >
+                        Make member
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void removeMember(member.userId)}
+                        disabled={removingUserId === member.userId}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-rose-500/60 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {removingUserId === member.userId ? "Removing..." : "Remove"}
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </article>
 
-      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 sm:p-5 shadow-xl shadow-slate-950/60">
         <h2 className="text-lg font-semibold text-slate-100">Pending invites</h2>
         {invites.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-400">No invites yet.</p>
+          <p className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-400">
+            No invites yet. Send one above to add another teammate.
+          </p>
         ) : (
           <ul className="mt-3 space-y-2">
             {invites.map((invite) => {

@@ -19,10 +19,47 @@ type UserDataFile = {
   users: Record<string, UserDataRecord>;
 };
 
+export type UserProfileRecord = {
+  userKey: string;
+  displayName: string;
+  avatarInitials: string;
+  avatarUrl: string | null;
+};
+
 const USER_DATA_FILE_PATH = path.join(process.cwd(), "data", "user-data.json");
 
 function normalizeUserKey(input: string) {
   return input.trim().toLowerCase();
+}
+
+function toTitleCaseWords(value: string): string {
+  return value
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map((token) => token[0].toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
+function deriveDisplayNameFromUserKey(userKey: string): string {
+  const trimmed = userKey.trim();
+  if (!trimmed) return "Unknown user";
+  const localPart = trimmed.includes("@") ? trimmed.split("@")[0] : trimmed;
+  const normalized = localPart.replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return trimmed;
+  return toTitleCaseWords(normalized);
+}
+
+function deriveInitials(displayName: string): string {
+  const parts = displayName
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const initials = parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return initials || "?";
 }
 
 async function ensureDataFile(): Promise<void> {
@@ -214,4 +251,36 @@ export async function getUserByApiKey(
   }
 
   return null;
+}
+
+export async function getUserProfilesByUserKeys(
+  userKeys: string[]
+): Promise<Record<string, UserProfileRecord>> {
+  const normalizedKeys = Array.from(
+    new Set(
+      userKeys
+        .map((value) => normalizeUserKey(value))
+        .filter(Boolean)
+    )
+  );
+  if (normalizedKeys.length === 0) {
+    return {};
+  }
+
+  const data = await readDataFile();
+  const profiles: Record<string, UserProfileRecord> = {};
+  for (const userKey of normalizedKeys) {
+    const displayName = deriveDisplayNameFromUserKey(userKey);
+    const avatarInitials = deriveInitials(displayName);
+    const stored = data.users[userKey];
+    profiles[userKey] = {
+      userKey,
+      displayName,
+      avatarInitials,
+      avatarUrl: stored && typeof (stored as { avatarUrl?: unknown }).avatarUrl === "string"
+        ? ((stored as { avatarUrl?: string }).avatarUrl ?? null)
+        : null
+    };
+  }
+  return profiles;
 }

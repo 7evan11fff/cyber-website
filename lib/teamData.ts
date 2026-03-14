@@ -42,11 +42,35 @@ export type TeamWatchlistEntry = {
   createdByUserId: string;
 };
 
+export const TEAM_ACTIVITY_EVENT_TYPES = [
+  "watchlist_added",
+  "watchlist_removed",
+  "scan_completed",
+  "member_joined",
+  "member_left",
+  "role_changed"
+] as const;
+export type TeamActivityEventType = (typeof TEAM_ACTIVITY_EVENT_TYPES)[number];
+
+export type TeamActivityEvent = {
+  id: string;
+  teamId: string;
+  type: TeamActivityEventType;
+  actorUserId: string;
+  createdAt: string;
+  subjectUserId: string | null;
+  subjectUrl: string | null;
+  beforeValue: string | null;
+  afterValue: string | null;
+  message: string;
+};
+
 export type TeamDataFile = {
   teams: TeamRecord[];
   teamMembers: TeamMemberRecord[];
   teamInvites: TeamInviteRecord[];
   teamWatchlist: TeamWatchlistEntry[];
+  teamActivity: TeamActivityEvent[];
 };
 
 export function createEmptyTeamDataFile(): TeamDataFile {
@@ -54,7 +78,8 @@ export function createEmptyTeamDataFile(): TeamDataFile {
     teams: [],
     teamMembers: [],
     teamInvites: [],
-    teamWatchlist: []
+    teamWatchlist: [],
+    teamActivity: []
   };
 }
 
@@ -145,4 +170,11 @@ export function roleRank(role: TeamRole): number {
   if (role === "owner") return 3;
   if (role === "admin") return 2;
   return 1;
+}
+
+export function isTeamActivityEventType(value: unknown): value is TeamActivityEventType {
+  return (
+    typeof value === "string" &&
+    (TEAM_ACTIVITY_EVENT_TYPES as readonly string[]).includes(value)
+  );
 }

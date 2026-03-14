@@ -39,7 +39,7 @@ export default async function TeamSettingsPage({ params }: { params: { slug: str
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <SiteNav />
-      <section className="mb-6 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70">
+      <section className="mb-6 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-4 sm:p-6 shadow-2xl shadow-slate-950/70">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Team settings</p>
         <h1 className="mt-2 text-3xl font-semibold text-slate-100">{snapshot.team.name}</h1>
         <p className="mt-2 text-sm text-slate-300">Manage team name, member roles, and invite links.</p>

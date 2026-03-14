@@ -36,7 +36,7 @@ export function TeamInviteAcceptClient({ token }: { token: string }) {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-6 shadow-xl shadow-slate-950/60">
+    <section className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 sm:p-6 shadow-xl shadow-slate-950/60">
       <h1 className="text-2xl font-semibold text-slate-100">Team invitation</h1>
       <p className="mt-2 text-sm text-slate-300">
         Accept this invite to join the shared team workspace and watchlist.
@@ -45,7 +45,7 @@ export function TeamInviteAcceptClient({ token }: { token: string }) {
         type="button"
         onClick={() => void acceptInvite()}
         disabled={state === "saving"}
-        className="mt-4 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
       >
         {state === "saving" ? "Accepting..." : "Accept invite"}
       </button>

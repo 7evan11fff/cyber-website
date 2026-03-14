@@ -71,7 +71,8 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       actorUserId: userKey,
       url: report.checkedUrl,
       grade: report.grade,
-      checkedAt: report.checkedAt
+      checkedAt: report.checkedAt,
+      source: "add"
     });
     return NextResponse.json({ entry }, { status: 201 });
   } catch (error) {
@@ -110,7 +111,8 @@ export async function PATCH(request: Request, { params }: { params: { slug: stri
           actorUserId: userKey,
           url: report.checkedUrl,
           grade: report.grade,
-          checkedAt: report.checkedAt
+          checkedAt: report.checkedAt,
+          source: "scan"
         });
         updated.push(saved);
       } catch (error) {

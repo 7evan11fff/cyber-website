@@ -50,7 +50,7 @@ export function TeamsPageClient({ initialTeams }: { initialTeams: TeamListItem[]
   }
 
   return (
-    <section className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+    <section className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 sm:p-5 shadow-xl shadow-slate-950/60">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-100">Your teams</h2>
@@ -78,7 +78,7 @@ export function TeamsPageClient({ initialTeams }: { initialTeams: TeamListItem[]
         <button
           type="submit"
           disabled={createState === "saving"}
-          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {createState === "saving" ? "Creating..." : "Create team"}
         </button>
