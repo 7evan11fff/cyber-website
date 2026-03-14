@@ -31,6 +31,9 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
               <Link href="/" aria-label="Navigate to Scanner" className={linkClassName}>
                 Scanner
               </Link>
+              <Link href="/badge" aria-label="Navigate to Badge generator" className={linkClassName}>
+                Badge Generator
+              </Link>
               <Link href="/pricing" aria-label="Navigate to Pricing" className={linkClassName}>
                 Pricing
               </Link>

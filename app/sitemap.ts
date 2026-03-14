@@ -18,6 +18,7 @@ const STATIC_ROUTES = [
   { path: "/security-headers-guide", changeFrequency: "weekly", priority: 0.85 },
   { path: "/compare", changeFrequency: "daily", priority: 0.8 },
   { path: "/bulk", changeFrequency: "daily", priority: 0.8 },
+  { path: "/badge", changeFrequency: "weekly", priority: 0.75 },
   { path: "/changelog", changeFrequency: "monthly", priority: 0.65 }
 ] as const satisfies ReadonlyArray<{
   path: string;

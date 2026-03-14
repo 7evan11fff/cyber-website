@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: "/", label: "Scanner" },
   { href: "/compare", label: "Compare" },
   { href: "/bulk", label: "Bulk" },
+  { href: "/badge", label: "Badge" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },
