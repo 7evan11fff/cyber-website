@@ -1,10 +1,12 @@
-const STATIC_CACHE = "shc-static-v3";
-const SHELL_CACHE = "shc-shell-v3";
+const STATIC_CACHE = "shc-static-v4";
+const SHELL_CACHE = "shc-shell-v4";
 const API_CACHE = "shc-api-v1";
 const API_CACHE_KEY_PREFIX = "/__offline/api-check";
+const OFFLINE_FALLBACK_PATH = "/offline";
 
 const APP_SHELL_PATHS = [
   "/",
+  OFFLINE_FALLBACK_PATH,
   "/compare",
   "/bulk",
   "/fixes",
@@ -15,7 +17,6 @@ const APP_SHELL_PATHS = [
   "/docs/ci-cd",
   "/security-headers-guide",
   "/about",
-  "/manifest.webmanifest",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -113,11 +114,26 @@ async function navigationNetworkFirst(request) {
     if (cachedRoute) {
       return cachedRoute;
     }
+
+    const cachedOffline = await shellCache.match(OFFLINE_FALLBACK_PATH);
+    if (cachedOffline) {
+      return cachedOffline;
+    }
+
     const cachedHome = await shellCache.match("/");
     if (cachedHome) {
       return cachedHome;
     }
-    throw new Error("Offline and no cached page available.");
+
+    return new Response(
+      "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Offline</title></head><body style='font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:24px'><h1>Offline</h1><p>You appear to be offline and this page is not cached yet.</p></body></html>",
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8"
+        }
+      }
+    );
   }
 }
 

@@ -15,7 +15,8 @@ const HOME_PAGE_TITLE = "Security Header Checker - Scan HTTP Security Headers";
 const TWITTER_HANDLE = process.env.NEXT_PUBLIC_TWITTER_HANDLE?.trim() || undefined;
 const inter = Inter({
   subsets: ["latin"],
-  display: "swap"
+  display: "swap",
+  preload: true
 });
 
 export const metadata: Metadata = {
@@ -97,7 +98,7 @@ export const metadata: Metadata = {
     site: TWITTER_HANDLE,
     creator: TWITTER_HANDLE
   },
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -111,7 +112,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
     { media: "(prefers-color-scheme: light)", color: "#f8fafc" }
   ]
 };
@@ -124,8 +125,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/manifest.webmanifest" />
-        <meta name="theme-color" content="#020617" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#0f172a" />
+        <link rel="preload" as="image" href="/icons/icon-192.png" fetchPriority="high" />
         <link rel="preconnect" href="https://plausible.io" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://plausible.io" />
       </head>

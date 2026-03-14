@@ -174,6 +174,15 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   }, [quickSearchOpen]);
 
   useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
     if (!quickSearchOpen) return;
     const dialog = quickSearchDialogRef.current;
     if (!dialog) return;
@@ -295,13 +304,34 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           aria-controls="mobile-nav-menu"
           aria-expanded={mobileMenuOpen}
           aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-          className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 lg:hidden"
+          className="pressable inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 md:hidden"
         >
-          {mobileMenuOpen ? "Close" : "Menu"}
+          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+            {mobileMenuOpen ? (
+              <path
+                d="M6 6 18 18M18 6 6 18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : (
+              <path
+                d="M4 7.5h16M4 12h16M4 16.5h16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+          </svg>
+          <span className="sr-only">{mobileMenuOpen ? "Close menu" : "Open menu"}</span>
         </button>
       </div>
 
-      <div className="mt-4 hidden items-center justify-between gap-4 lg:flex">
+      <div className="mt-4 hidden items-center justify-between gap-4 md:flex">
         <nav className="flex flex-wrap items-center gap-2" aria-label="Main navigation">
           {NAV_LINKS.map((link) => {
             const active =
@@ -435,130 +465,159 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
         </div>
       </div>
 
-      {mobileMenuOpen && (
-        <div
-          id="mobile-nav-menu"
-          className="mt-4 rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-xl shadow-slate-950/70 lg:hidden"
+      <div
+        id="mobile-nav-menu"
+        className={`fixed inset-0 z-40 md:hidden ${mobileMenuOpen ? "" : "pointer-events-none"}`}
+        aria-hidden={!mobileMenuOpen}
+      >
+        <button
+          type="button"
+          aria-label="Close mobile navigation drawer"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`absolute inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-200 ${
+            mobileMenuOpen ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation drawer"
+          className={`absolute right-0 top-0 h-full w-full max-w-sm overflow-y-auto border-l border-slate-800 bg-slate-950/95 shadow-xl shadow-slate-950/70 transition-transform duration-200 ${
+            mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
         >
-          <nav className="grid gap-2" aria-label="Mobile navigation">
-            {NAV_LINKS.map((link) => {
-              const active =
-                pathname === link.href ||
-                (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
-                (link.href === "/integrations" && pathname.startsWith("/integrations")) ||
-                (link.href === "/blog" && pathname.startsWith("/blog/")) ||
-                (link.href === "/teams" && pathname.startsWith("/teams/"));
-              return (
-                <Link
-                  key={`mobile-${link.href}`}
-                  href={link.href}
-                  aria-label={`Navigate to ${link.label}`}
-                  onMouseEnter={() => prefetchRouteOnHover(link.href)}
-                  className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
-                    active
-                      ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
-                      : "border-slate-700 bg-slate-900/80 text-slate-200 hover:border-sky-500/60 hover:text-sky-200"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="mt-3 border-t border-slate-800 pt-3">
-            {teamSwitcherItems.length > 0 && (
-              <label className="mb-3 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-300">
-                <span className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Context</span>
-                <select
-                  aria-label="Switch between personal and team workspace"
-                  value={activeTeamSlug ?? "personal"}
-                  onChange={(event) => onTeamSwitch(event.target.value)}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                >
-                  <option value="personal">My Watchlist</option>
-                  {teamSwitcherItems.map((team) => (
-                    <option key={`mobile-team-${team.slug}`} value={team.slug}>
-                      {team.name} ({team.role})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <div className="mb-3">
-              <ThemeToggle />
-            </div>
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">Navigation</p>
             <button
               type="button"
-              onClick={openQuickSearch}
-              aria-label="Open quick search"
-              className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close navigation menu"
+              className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
             >
-              Quick Search
+              Close
             </button>
-            {status === "authenticated" ? (
-              <>
-                <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5">
-                  {session.user?.image ? (
-                    <Image
-                      src={session.user.image}
-                      alt={session.user.name ? `${session.user.name} avatar` : "User avatar"}
-                      width={28}
-                      height={28}
-                      sizes="28px"
-                      loading="lazy"
-                      className="h-7 w-7 rounded-full border border-slate-700 object-cover"
-                    />
-                  ) : (
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-xs font-semibold text-slate-200">
-                      {userInitial}
-                    </span>
-                  )}
-                  <span className="truncate text-xs text-slate-200">
-                    {session.user?.name ?? session.user?.email}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void signOut({ callbackUrl: "/" })}
-                  aria-label="Sign out of your account"
-                  className="pressable mt-2 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-                >
-                  Sign out
-                </button>
-              </>
-            ) : status === "loading" ? (
-              <div className="grid gap-2" aria-live="polite" aria-label="Loading mobile account actions">
-                <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-3">
-                  <div className="skeleton-shimmer h-2.5 w-24 rounded" />
-                </div>
-                <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-3">
-                  <div className="skeleton-shimmer h-2.5 w-28 rounded" />
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => void signIn("github", { callbackUrl: pathname || "/" })}
-                  aria-label="Sign in with GitHub"
-                  className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-                >
-                  Sign in with GitHub
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void signIn("google", { callbackUrl: pathname || "/" })}
-                  aria-label="Sign in with Google"
-                  className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-                >
-                  Sign in with Google
-                </button>
-              </div>
-            )}
           </div>
-          {trailing && <div className="mt-3 border-t border-slate-800 pt-3">{trailing}</div>}
-        </div>
-      )}
+          <div className="p-3">
+            <nav className="grid gap-2" aria-label="Mobile navigation">
+              {NAV_LINKS.map((link) => {
+                const active =
+                  pathname === link.href ||
+                  (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
+                  (link.href === "/integrations" && pathname.startsWith("/integrations")) ||
+                  (link.href === "/blog" && pathname.startsWith("/blog/")) ||
+                  (link.href === "/teams" && pathname.startsWith("/teams/"));
+                return (
+                  <Link
+                    key={`mobile-${link.href}`}
+                    href={link.href}
+                    aria-label={`Navigate to ${link.label}`}
+                    onMouseEnter={() => prefetchRouteOnHover(link.href)}
+                    className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                      active
+                        ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
+                        : "border-slate-700 bg-slate-900/80 text-slate-200 hover:border-sky-500/60 hover:text-sky-200"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="mt-3 border-t border-slate-800 pt-3">
+              {teamSwitcherItems.length > 0 && (
+                <label className="mb-3 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-300">
+                  <span className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Context</span>
+                  <select
+                    aria-label="Switch between personal and team workspace"
+                    value={activeTeamSlug ?? "personal"}
+                    onChange={(event) => onTeamSwitch(event.target.value)}
+                    className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                  >
+                    <option value="personal">My Watchlist</option>
+                    {teamSwitcherItems.map((team) => (
+                      <option key={`mobile-team-${team.slug}`} value={team.slug}>
+                        {team.name} ({team.role})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="mb-3">
+                <ThemeToggle />
+              </div>
+              <button
+                type="button"
+                onClick={openQuickSearch}
+                aria-label="Open quick search"
+                className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Quick Search
+              </button>
+              {status === "authenticated" ? (
+                <>
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5">
+                    {session.user?.image ? (
+                      <Image
+                        src={session.user.image}
+                        alt={session.user.name ? `${session.user.name} avatar` : "User avatar"}
+                        width={28}
+                        height={28}
+                        sizes="28px"
+                        loading="lazy"
+                        className="h-7 w-7 rounded-full border border-slate-700 object-cover"
+                      />
+                    ) : (
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-xs font-semibold text-slate-200">
+                        {userInitial}
+                      </span>
+                    )}
+                    <span className="truncate text-xs text-slate-200">
+                      {session.user?.name ?? session.user?.email}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void signOut({ callbackUrl: "/" })}
+                    aria-label="Sign out of your account"
+                    className="pressable mt-2 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : status === "loading" ? (
+                <div className="grid gap-2" aria-live="polite" aria-label="Loading mobile account actions">
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-3">
+                    <div className="skeleton-shimmer h-2.5 w-24 rounded" />
+                  </div>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-3">
+                    <div className="skeleton-shimmer h-2.5 w-28 rounded" />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void signIn("github", { callbackUrl: pathname || "/" })}
+                    aria-label="Sign in with GitHub"
+                    className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  >
+                    Sign in with GitHub
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void signIn("google", { callbackUrl: pathname || "/" })}
+                    aria-label="Sign in with Google"
+                    className="pressable min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  >
+                    Sign in with Google
+                  </button>
+                </div>
+              )}
+            </div>
+            {trailing && <div className="mt-3 border-t border-slate-800 pt-3">{trailing}</div>}
+          </div>
+        </aside>
+      </div>
 
       {quickSearchOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 sm:pt-24">

@@ -8,7 +8,9 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const INSTALL_DISMISS_STORAGE_KEY = "security-header-checker:pwa-install-dismissed-at";
-const INSTALL_DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 14;
+const INSTALL_DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const SCAN_COMPLETED_STORAGE_KEY = "security-header-checker:pwa-install-eligible";
+const SCAN_COMPLETED_EVENT = "shc:scan-completed";
 
 function isStandaloneDisplayMode() {
   return (
@@ -43,27 +45,41 @@ function markInstallPromptDismissed() {
   }
 }
 
+function hasCompletedAtLeastOneScan() {
+  try {
+    return localStorage.getItem(SCAN_COMPLETED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function PwaInstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [scanCompleted, setScanCompleted] = useState(false);
 
   const canShowBanner = useMemo(() => {
     if (!deferredPrompt) return false;
     if (typeof window === "undefined") return false;
     if (isStandaloneDisplayMode()) return false;
     if (!isMobileViewport()) return false;
+    if (!scanCompleted) return false;
     if (wasDismissedRecently()) return false;
     return true;
-  }, [deferredPrompt]);
+  }, [deferredPrompt, scanCompleted]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setScanCompleted(hasCompletedAtLeastOneScan());
 
     const onBeforeInstallPrompt = (event: Event) => {
       const installEvent = event as BeforeInstallPromptEvent;
       installEvent.preventDefault();
       setDeferredPrompt(installEvent);
+    };
+    const onScanCompleted = () => {
+      setScanCompleted(true);
     };
 
     const onAppInstalled = () => {
@@ -77,9 +93,11 @@ export function PwaInstallBanner() {
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener(SCAN_COMPLETED_EVENT, onScanCompleted);
     window.addEventListener("appinstalled", onAppInstalled);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener(SCAN_COMPLETED_EVENT, onScanCompleted);
       window.removeEventListener("appinstalled", onAppInstalled);
     };
   }, []);

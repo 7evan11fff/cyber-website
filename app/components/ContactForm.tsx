@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 
 const ConfettiLauncher = dynamic(
   () => import("@/app/components/ConfettiLauncher").then((module) => module.ConfettiLauncher),
-  { ssr: false }
+  { ssr: false, loading: () => null }
 );
 
 type ContactValues = {

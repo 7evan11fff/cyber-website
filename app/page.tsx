@@ -35,7 +35,10 @@ import {
 
 const ConfettiLauncher = dynamic(
   () => import("@/app/components/ConfettiLauncher").then((module) => module.ConfettiLauncher),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => null
+  }
 );
 const WatchlistPanel = dynamic(
   () => import("@/app/components/WatchlistPanel").then((module) => module.WatchlistPanel),
@@ -172,6 +175,8 @@ const EMPTY_STATE_SUGGESTIONS = ["owasp.org", "mozilla.org", "cloudflare.com", "
 const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const HISTORY_REPORT_STORAGE_KEY = "security-header-checker:scan-history-reports";
+const PWA_INSTALL_ELIGIBILITY_STORAGE_KEY = "security-header-checker:pwa-install-eligible";
+const PWA_SCAN_COMPLETED_EVENT = "shc:scan-completed";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
@@ -877,9 +882,12 @@ export default function Home() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [revealedSections, setRevealedSections] = useState<Record<string, boolean>>({});
   const [gradeConfettiTrigger, setGradeConfettiTrigger] = useState(0);
+  const [pullRefreshDistance, setPullRefreshDistance] = useState(0);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const { data: session, status: sessionStatus } = useSession();
   const compareTouchStartXRef = useRef<number | null>(null);
   const historyTouchStartXRef = useRef<number | null>(null);
+  const pullRefreshStartYRef = useRef<number | null>(null);
   const singleUrlInputRef = useRef<HTMLInputElement | null>(null);
   const compareUrlAInputRef = useRef<HTMLInputElement | null>(null);
   const shortcutsDialogRef = useRef<HTMLDivElement | null>(null);
@@ -1242,6 +1250,16 @@ export default function Home() {
       // Ignore storage failures.
     }
   }, [historyBootstrapped, scanHistory]);
+
+  useEffect(() => {
+    if (!historyBootstrapped || scanHistory.length === 0) return;
+    try {
+      localStorage.setItem(PWA_INSTALL_ELIGIBILITY_STORAGE_KEY, "1");
+      window.dispatchEvent(new Event(PWA_SCAN_COMPLETED_EVENT));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [historyBootstrapped, scanHistory.length]);
 
   useEffect(() => {
     if (!historyBootstrapped) return;
@@ -1846,6 +1864,80 @@ export default function Home() {
     }
   }, [addToHistory, requestReport, scanRequestOptions]);
 
+  const canPullRefresh = Boolean(report || comparison || (mode === "bulk" && bulkResults.length > 0));
+  const pullRefreshLabel = pullRefreshing
+    ? "Refreshing scan results..."
+    : pullRefreshDistance >= 72
+      ? "Release to refresh"
+      : "Pull down to refresh results";
+
+  const refreshActiveResults = useCallback(async () => {
+    if (loading) return;
+
+    if (report) {
+      await runSingleCheck(report.checkedUrl);
+      return;
+    }
+
+    if (comparison) {
+      await runComparisonCheck(comparison.siteA.checkedUrl, comparison.siteB.checkedUrl);
+      return;
+    }
+
+    if (mode === "bulk") {
+      const fallbackInput = bulkResults.map((entry) => entry.inputUrl).join("\n");
+      const bulkTargetInput = bulkUrlsInput.trim() || fallbackInput;
+      if (bulkTargetInput) {
+        await runBulkCheck(bulkTargetInput);
+      }
+    }
+  }, [bulkResults, bulkUrlsInput, comparison, loading, mode, report, runBulkCheck, runComparisonCheck, runSingleCheck]);
+
+  const onResultsPullStart = useCallback(
+    (event: TouchEvent<HTMLDivElement>) => {
+      if (window.innerWidth >= 768 || loading || !canPullRefresh || pullRefreshing) return;
+      pullRefreshStartYRef.current = event.changedTouches[0]?.clientY ?? null;
+    },
+    [canPullRefresh, loading, pullRefreshing]
+  );
+
+  const onResultsPullMove = useCallback(
+    (event: TouchEvent<HTMLDivElement>) => {
+      if (window.innerWidth >= 768 || pullRefreshing) return;
+      const startY = pullRefreshStartYRef.current;
+      if (startY === null) return;
+      const currentY = event.changedTouches[0]?.clientY;
+      if (typeof currentY !== "number") return;
+
+      const deltaY = currentY - startY;
+      if (deltaY <= 0) {
+        setPullRefreshDistance(0);
+        return;
+      }
+
+      if (deltaY > 6) {
+        event.preventDefault();
+      }
+      setPullRefreshDistance(Math.min(108, Math.round(deltaY * 0.6)));
+    },
+    [pullRefreshing]
+  );
+
+  const onResultsPullEnd = useCallback(() => {
+    pullRefreshStartYRef.current = null;
+
+    if (window.innerWidth >= 768 || loading || pullRefreshing || !canPullRefresh || pullRefreshDistance < 72) {
+      setPullRefreshDistance(0);
+      return;
+    }
+
+    setPullRefreshDistance(0);
+    setPullRefreshing(true);
+    void refreshActiveResults().finally(() => {
+      setPullRefreshing(false);
+    });
+  }, [canPullRefresh, loading, pullRefreshDistance, pullRefreshing, refreshActiveResults]);
+
   function onSingleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void runSingleCheck(url);
@@ -2330,6 +2422,12 @@ export default function Home() {
   }, [loading, mode, scanProgress]);
 
   useEffect(() => {
+    if (loading || !canPullRefresh) {
+      setPullRefreshDistance(0);
+    }
+  }, [canPullRefresh, loading]);
+
+  useEffect(() => {
     if (!report || loading || report.grade !== "A") return;
 
     const celebrationId = `${report.checkedAt}-${report.checkedUrl}`;
@@ -2589,7 +2687,7 @@ export default function Home() {
   ]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+    <main id="main-content" className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <Suspense fallback={null}>
         <ConfettiLauncher triggerKey={gradeConfettiTrigger} preset="grade" />
       </Suspense>
@@ -2887,7 +2985,7 @@ export default function Home() {
             onClick={() => setMode("single")}
             aria-pressed={mode === "single"}
             aria-label="Switch to single scan mode"
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+            className={`flex-1 min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium transition sm:flex-none ${
               mode === "single"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -2903,7 +3001,7 @@ export default function Home() {
             }}
             aria-pressed={mode === "compare"}
             aria-label="Switch to compare mode"
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+            className={`flex-1 min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium transition sm:flex-none ${
               mode === "compare"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -2916,7 +3014,7 @@ export default function Home() {
             onClick={() => setMode("bulk")}
             aria-pressed={mode === "bulk"}
             aria-label="Switch to bulk scan mode"
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+            className={`flex-1 min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium transition sm:flex-none ${
               mode === "bulk"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -3656,10 +3754,31 @@ export default function Home() {
         )}
       </section>
 
-      {loading && mode === "bulk" && <LoadingSkeleton />}
-      {loading && mode !== "bulk" && <ScanResultsLoadingSkeleton mode={mode} />}
+      <section
+        id="scan-results-area"
+        className="relative overscroll-y-contain"
+        onTouchStart={onResultsPullStart}
+        onTouchMove={onResultsPullMove}
+        onTouchEnd={onResultsPullEnd}
+        onTouchCancel={onResultsPullEnd}
+        aria-label="Main scan results area"
+      >
+        <div
+          className="pointer-events-none flex justify-center transition-all duration-150"
+          style={{
+            maxHeight: pullRefreshing || pullRefreshDistance > 0 ? 42 : 0,
+            opacity: pullRefreshing || pullRefreshDistance > 0 ? 1 : 0
+          }}
+          aria-hidden="true"
+        >
+          <p className="inline-flex min-h-9 items-center rounded-full border border-sky-500/30 bg-slate-900/90 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-sky-200">
+            {pullRefreshLabel}
+          </p>
+        </div>
+        {loading && mode === "bulk" && <LoadingSkeleton />}
+        {loading && mode !== "bulk" && <ScanResultsLoadingSkeleton mode={mode} />}
 
-      <div className="lazy-section">
+        <div className="lazy-section">
         {!loading && report && (
           <>
             {scorePercent !== null && scorePercent < 80 && (
@@ -3970,7 +4089,7 @@ export default function Home() {
                   onClick={() => setMobileCompareView("siteA")}
                   aria-pressed={mobileCompareView === "siteA"}
                   aria-label="Show Site A headers"
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                  className={`min-h-11 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     mobileCompareView === "siteA"
                       ? "bg-sky-500 text-slate-950"
                       : "text-slate-300 hover:text-sky-200"
@@ -3983,7 +4102,7 @@ export default function Home() {
                   onClick={() => setMobileCompareView("siteB")}
                   aria-pressed={mobileCompareView === "siteB"}
                   aria-label="Show Site B headers"
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                  className={`min-h-11 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     mobileCompareView === "siteB"
                       ? "bg-sky-500 text-slate-950"
                       : "text-slate-300 hover:text-sky-200"
@@ -4037,7 +4156,8 @@ export default function Home() {
             </div>
           </section>
         )}
-      </div>
+        </div>
+      </section>
 
       {activeHeaderDetail && activeHeaderDeepDive && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center p-3 sm:items-center sm:p-4">
