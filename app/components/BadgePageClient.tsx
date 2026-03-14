@@ -5,8 +5,9 @@ import Image from "next/image";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 
-type BadgeStyle = "flat" | "flat-square";
+type BadgeStyle = "flat" | "plastic";
 type BadgeFormat = "svg" | "png";
+type BadgeTheme = "default" | "slate" | "light";
 type CopyState = "idle" | "copied-markdown" | "copied-html" | "error";
 
 function normalizeDomain(value: string): string {
@@ -25,6 +26,8 @@ export function BadgePageClient() {
   const [domainInput, setDomainInput] = useState("example.com");
   const [activeDomain, setActiveDomain] = useState("example.com");
   const [style, setStyle] = useState<BadgeStyle>("flat");
+  const [theme, setTheme] = useState<BadgeTheme>("default");
+  const [label, setLabel] = useState("security headers");
   const [format, setFormat] = useState<BadgeFormat>("svg");
   const [origin, setOrigin] = useState("");
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -38,8 +41,14 @@ export function BadgePageClient() {
   const hasValidDomain = normalizedDomain.length > 0;
 
   const encodedDomain = useMemo(() => encodeURIComponent(normalizedDomain || "example.com"), [normalizedDomain]);
-  const svgPath = `/api/badge/${encodedDomain}?style=${style}`;
-  const pngPath = `/api/badge/${encodedDomain}/png?style=${style}`;
+  const badgeLabel = label.trim() || "security headers";
+  const svgQuery = new URLSearchParams({
+    style,
+    theme,
+    label: badgeLabel
+  });
+  const svgPath = `/badge/${encodedDomain}?${svgQuery.toString()}`;
+  const pngPath = `/api/badge/${encodedDomain}/png?style=${style === "plastic" ? "flat" : style}`;
   const activePath = format === "svg" ? svgPath : pngPath;
   const absoluteActivePath = origin ? `${origin}${activePath}` : activePath;
 
@@ -122,12 +131,12 @@ export function BadgePageClient() {
               </button>
               <button
                 type="button"
-                onClick={() => setStyle("flat-square")}
+                onClick={() => setStyle("plastic")}
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
-                  style === "flat-square" ? "bg-sky-500 text-slate-950" : "text-slate-300 hover:text-sky-200"
+                  style === "plastic" ? "bg-sky-500 text-slate-950" : "text-slate-300 hover:text-sky-200"
                 }`}
               >
-                Flat-square
+                Plastic
               </button>
             </div>
 
@@ -151,6 +160,31 @@ export function BadgePageClient() {
                 PNG
               </button>
             </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-slate-400">
+              Badge label
+              <input
+                type="text"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+                maxLength={42}
+              />
+            </label>
+            <label className="text-xs text-slate-400">
+              Theme
+              <select
+                value={theme}
+                onChange={(event) => setTheme(event.target.value as BadgeTheme)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+              >
+                <option value="default">Default</option>
+                <option value="slate">Slate</option>
+                <option value="light">Light</option>
+              </select>
+            </label>
           </div>
         </form>
 

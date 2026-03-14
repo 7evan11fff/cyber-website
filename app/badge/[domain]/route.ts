@@ -8,7 +8,7 @@ export const runtime = "edge";
 export async function GET(request: Request, { params }: { params: { domain: string } }) {
   const rateLimitResult = enforceApiRateLimit({
     request,
-    route: "badge:get"
+    route: "badge:public:get"
   });
   if (!rateLimitResult.ok) {
     return rateLimitResult.response;

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
+import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -117,7 +118,8 @@ type ScanRequestOptions = {
 type ScanMode = "single" | "compare" | "bulk";
 type MobileCompareView = "siteA" | "siteB";
 type ShareState = "idle" | "copied" | "shared" | "error";
-type BadgeStyle = "flat" | "flat-square";
+type BadgeStyle = "flat" | "plastic";
+type BadgeTheme = "default" | "slate" | "light";
 type BadgeCopyState = "idle" | "markdown" | "html" | "error";
 type UserAgentPresetChoice = "default" | "custom" | "chrome" | "firefox" | "googlebot";
 type ReportSource = "live" | "cache" | "shared";
@@ -237,6 +239,7 @@ const TESTIMONIALS: Testimonial[] = [
 const TRUSTED_DEVELOPER_COUNT = "18,000+";
 const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
+  { keys: "/", action: "Focus the URL input" },
   { keys: "Cmd/Ctrl + Enter", action: "Run scan in active tab" },
   { keys: "Cmd/Ctrl + K", action: "Focus the URL input" },
   { keys: "1-6", action: "Jump to visible header result cards" },
@@ -492,30 +495,37 @@ function reportSourceLabel(source: ReportSource | null): string {
   return "Live scan";
 }
 
-function formatReportForClipboard(report: ReportResponse): string {
+function escapeMarkdownCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null): string {
   const checkedAt = new Date(report.checkedAt).toLocaleString();
   const lines = [
-    "Security Header Checker Report",
-    "==============================",
-    `Checked URL: ${report.checkedUrl}`,
-    `Final URL: ${report.finalUrl}`,
-    `Status Code: ${report.statusCode}`,
-    `Grade: ${report.grade}`,
-    `Score: ${report.score}/${report.results.length * 2}`,
-    `Checked At: ${checkedAt}`,
-    `Scan Duration: ${formatScanDuration(report.scanDurationMs) ?? "Not available"}`,
-    `Detected Stack: ${report.framework?.detected?.label ?? "Unknown"}`,
+    "## Security Header Checker Report",
     "",
-    "Header Details",
-    "--------------"
-  ];
+    `- **Checked URL:** ${report.checkedUrl}`,
+    `- **Final URL:** ${report.finalUrl}`,
+    `- **Status Code:** ${report.statusCode}`,
+    `- **Grade:** ${report.grade}`,
+    `- **Score:** ${report.score}/${report.results.length * 2}`,
+    `- **Checked At:** ${checkedAt}`,
+    `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs) ?? "Not available"}`,
+    `- **Detected Stack:** ${report.framework?.detected?.label ?? "Unknown"}`,
+    shareUrl ? `- **Share Link:** ${shareUrl}` : null,
+    "",
+    "### Header Details",
+    "",
+    "| Header | Status | Value | Recommendation |",
+    "| --- | --- | --- | --- |"
+  ].filter((line): line is string => typeof line === "string");
 
   for (const result of report.results) {
-    lines.push(`${result.label}: ${result.status.toUpperCase()}`);
-    lines.push(`  Value: ${result.value ?? "Missing"}`);
-    lines.push(`  Why it matters: ${result.whyItMatters}`);
-    lines.push(`  Recommendation: ${result.guidance}`);
-    lines.push("");
+    lines.push(
+      `| ${escapeMarkdownCell(result.label)} | ${escapeMarkdownCell(result.status.toUpperCase())} | ${escapeMarkdownCell(
+        result.value ?? "Missing"
+      )} | ${escapeMarkdownCell(result.guidance)} |`
+    );
   }
 
   return lines.join("\n").trim();
@@ -739,11 +749,14 @@ export default function Home() {
   const [reportCachedAt, setReportCachedAt] = useState<string | null>(null);
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [copyLinkState, setCopyLinkState] = useState<"idle" | "copied" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
   const [pdfExportRequestKey, setPdfExportRequestKey] = useState(0);
   const [shareState, setShareState] = useState<ShareState>("idle");
   const [badgePanelOpen, setBadgePanelOpen] = useState(false);
   const [badgeStyle, setBadgeStyle] = useState<BadgeStyle>("flat");
+  const [badgeTheme, setBadgeTheme] = useState<BadgeTheme>("default");
+  const [badgeLabel, setBadgeLabel] = useState("security headers");
   const [badgeCopyState, setBadgeCopyState] = useState<BadgeCopyState>("idle");
   const [scanHistory, setScanHistory] = useState<HistoryEntry[]>([]);
   const [historyReportSnapshots, setHistoryReportSnapshots] = useState<Record<string, ReportResponse>>({});
@@ -884,12 +897,17 @@ export default function Home() {
 
   const badgeUrl = useMemo(() => {
     if (!badgeDomain) return "";
-    const badgePath = `/api/badge/${encodeURIComponent(badgeDomain)}?style=${badgeStyle}`;
+    const query = new URLSearchParams({
+      style: badgeStyle,
+      theme: badgeTheme,
+      label: badgeLabel.trim() || "security headers"
+    });
+    const badgePath = `/badge/${encodeURIComponent(badgeDomain)}?${query.toString()}`;
     if (typeof window === "undefined") {
       return badgePath;
     }
     return `${window.location.origin}${badgePath}`;
-  }, [badgeDomain, badgeStyle]);
+  }, [badgeDomain, badgeLabel, badgeStyle, badgeTheme]);
 
   const badgeMarkdownCode = useMemo(() => {
     if (!badgeDomain || !badgeUrl) return "";
@@ -981,18 +999,11 @@ export default function Home() {
     if (error) {
       return `Scan error: ${error}`;
     }
-    if (!loading && report) {
-      return `Scan complete. ${report.checkedUrl} received grade ${report.grade}.`;
-    }
-    if (!loading && comparison) {
-      return `Comparison complete. Site A grade ${comparison.siteA.grade}. Site B grade ${comparison.siteB.grade}.`;
-    }
-    if (!loading && mode === "bulk" && bulkResults.length > 0) {
-      const successCount = bulkResults.filter((entry) => entry.report).length;
-      return `Bulk scan complete. ${successCount} of ${bulkResults.length} URLs scanned successfully.`;
-    }
     if (copyState === "copied") {
-      return "Report copied to clipboard.";
+      return "Markdown report copied to clipboard.";
+    }
+    if (copyLinkState === "copied") {
+      return "Share link copied to clipboard.";
     }
     if (shareState === "copied") {
       return "Share link copied to clipboard.";
@@ -1012,8 +1023,31 @@ export default function Home() {
     if (bulkExportState === "exported") {
       return "Bulk results exported as CSV.";
     }
+    if (!loading && report) {
+      return `Scan complete. ${report.checkedUrl} received grade ${report.grade}.`;
+    }
+    if (!loading && comparison) {
+      return `Comparison complete. Site A grade ${comparison.siteA.grade}. Site B grade ${comparison.siteB.grade}.`;
+    }
+    if (!loading && mode === "bulk" && bulkResults.length > 0) {
+      const successCount = bulkResults.filter((entry) => entry.report).length;
+      return `Bulk scan complete. ${successCount} of ${bulkResults.length} URLs scanned successfully.`;
+    }
     return "";
-  }, [badgeCopyState, bulkExportState, bulkResults, comparison, copyState, error, loading, mode, pdfState, report, shareState]);
+  }, [
+    badgeCopyState,
+    bulkExportState,
+    bulkResults,
+    comparison,
+    copyLinkState,
+    copyState,
+    error,
+    loading,
+    mode,
+    pdfState,
+    report,
+    shareState
+  ]);
 
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal-id]"));
@@ -1283,6 +1317,7 @@ export default function Home() {
 
     setError(null);
     setCopyState("idle");
+    setCopyLinkState("idle");
     setPdfState("idle");
     setShareState("idle");
     setLoading(false);
@@ -1313,8 +1348,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    setCopyLinkState("idle");
     setBadgePanelOpen(false);
     setBadgeStyle("flat");
+    setBadgeTheme("default");
+    setBadgeLabel("security headers");
     setBadgeCopyState("idle");
   }, [mode, report?.checkedAt]);
 
@@ -1409,6 +1447,7 @@ export default function Home() {
     setBulkResults([]);
     setBulkExportState("idle");
     setCopyState("idle");
+    setCopyLinkState("idle");
     setPdfState("idle");
     setShareState("idle");
     setScanProgress(0);
@@ -1494,6 +1533,7 @@ export default function Home() {
         setActiveHeaderDetail(null);
         setError(null);
         setCopyState("idle");
+        setCopyLinkState("idle");
         setShareState("idle");
         addToHistory(nextReport);
         trackEvent("scan_complete", {
@@ -1524,6 +1564,7 @@ export default function Home() {
     setBulkTargetCount(0);
     setBulkCompletedCount(0);
     setCopyState("idle");
+    setCopyLinkState("idle");
     setShareState("idle");
 
     try {
@@ -1567,6 +1608,7 @@ export default function Home() {
     setBulkTargetCount(0);
     setBulkCompletedCount(0);
     setCopyState("idle");
+    setCopyLinkState("idle");
     setShareState("idle");
 
     try {
@@ -1625,6 +1667,7 @@ export default function Home() {
     setBulkResults([]);
     setBulkExportState("idle");
     setCopyState("idle");
+    setCopyLinkState("idle");
     setShareState("idle");
     setBulkTargetCount(targets.length);
     setBulkCompletedCount(0);
@@ -1717,6 +1760,7 @@ export default function Home() {
       setComparison(null);
       setActiveHeaderDetail(null);
       setCopyState("idle");
+      setCopyLinkState("idle");
       setPdfState("idle");
       setShareState("idle");
       trackEvent("history_report_opened", {
@@ -1769,6 +1813,7 @@ export default function Home() {
       setActiveHeaderDetail(null);
       setError(null);
       setCopyState("idle");
+      setCopyLinkState("idle");
       setShareState("idle");
       addToHistory(cached.report);
       trackEvent("popular_domain_opened", {
@@ -1813,14 +1858,35 @@ export default function Home() {
     if (!report) return;
 
     try {
-      await navigator.clipboard.writeText(formatReportForClipboard(report));
+      const shareUrl = await createCurrentShareUrl().catch(() => null);
+      await navigator.clipboard.writeText(formatReportAsMarkdown(report, shareUrl));
       setCopyState("copied");
-      notify({ tone: "success", message: "Report copied to clipboard." });
+      notify({ tone: "success", message: "Markdown report copied to clipboard." });
     } catch {
       setCopyState("error");
-      notify({ tone: "error", message: "Clipboard unavailable. Copy manually instead." });
+      notify({ tone: "error", message: "Clipboard unavailable. Copy markdown manually instead." });
     } finally {
       window.setTimeout(() => setCopyState("idle"), 2500);
+    }
+  }
+
+  async function onCopyShareLink() {
+    if (!report && !comparison) return;
+
+    try {
+      const shareUrl = await createCurrentShareUrl();
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyLinkState("copied");
+      trackEvent("report_shared", {
+        mode: report ? "single" : "compare",
+        method: "copy-link"
+      });
+      notify({ tone: "success", message: "Share link copied to clipboard." });
+    } catch {
+      setCopyLinkState("error");
+      notify({ tone: "error", message: "Could not copy a share link right now." });
+    } finally {
+      window.setTimeout(() => setCopyLinkState("idle"), 3000);
     }
   }
 
@@ -2264,6 +2330,11 @@ export default function Home() {
           setBadgePanelOpen(false);
           return;
         }
+        if (advancedOptionsOpen) {
+          event.preventDefault();
+          setAdvancedOptionsOpen(false);
+          return;
+        }
         if (!loading) {
           event.preventDefault();
           clearCurrentState();
@@ -2278,6 +2349,12 @@ export default function Home() {
       if (event.key === "?" && !isTypingTarget) {
         event.preventDefault();
         toggleShortcutsModal();
+        return;
+      }
+
+      if (event.key === "/" && !isTypingTarget && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        scrollToScanInput();
         return;
       }
 
@@ -2343,6 +2420,7 @@ export default function Home() {
     };
   }, [
     activeHeaderDetail,
+    advancedOptionsOpen,
     badgePanelOpen,
     bulkUrlsInput,
     closeHeaderDetailModal,
@@ -3413,13 +3491,20 @@ export default function Home() {
               <p className="mt-1 text-sm text-slate-300">
                 Score: {report.score}/{report.results.length * 2}
               </p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => void onCopyShareLink()}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                >
+                  {copyLinkState === "copied" ? "Link copied" : "Copy Link"}
+                </button>
                 <button
                   type="button"
                   onClick={onCopyReport}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
-                  {copyState === "copied" ? "Copied report" : "Copy Report"}
+                  {copyState === "copied" ? "Markdown copied" : "Copy as Markdown"}
                 </button>
                 <button
                   type="button"
@@ -3436,9 +3521,12 @@ export default function Home() {
                   Quick fixes
                 </Link>
               </div>
+              {copyLinkState === "error" && (
+                <p className="mt-2 text-xs text-rose-300">Could not copy a share link right now.</p>
+              )}
               {copyState === "error" && (
                 <p className="mt-2 text-xs text-rose-300">
-                  Clipboard unavailable. Please copy manually.
+                  Clipboard unavailable. Please copy markdown manually.
                 </p>
               )}
               {badgePanelOpen && (
@@ -3446,38 +3534,64 @@ export default function Home() {
                   <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Embeddable badge</p>
                   {badgeDomain ? (
                     <>
-                      <div className="mt-2 inline-flex rounded-md border border-slate-700 bg-slate-900 p-1">
-                        <button
-                          type="button"
-                          onClick={() => setBadgeStyle("flat")}
-                          className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
-                            badgeStyle === "flat"
-                              ? "bg-sky-500 text-slate-950"
-                              : "text-slate-300 hover:text-sky-200"
-                          }`}
-                        >
-                          Flat
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBadgeStyle("flat-square")}
-                          className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
-                            badgeStyle === "flat-square"
-                              ? "bg-sky-500 text-slate-950"
-                              : "text-slate-300 hover:text-sky-200"
-                          }`}
-                        >
-                          Flat-square
-                        </button>
+                      <div className="mt-2 space-y-2">
+                        <div className="inline-flex rounded-md border border-slate-700 bg-slate-900 p-1">
+                          <button
+                            type="button"
+                            onClick={() => setBadgeStyle("flat")}
+                            className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                              badgeStyle === "flat"
+                                ? "bg-sky-500 text-slate-950"
+                                : "text-slate-300 hover:text-sky-200"
+                            }`}
+                          >
+                            Flat
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBadgeStyle("plastic")}
+                            className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                              badgeStyle === "plastic"
+                                ? "bg-sky-500 text-slate-950"
+                                : "text-slate-300 hover:text-sky-200"
+                            }`}
+                          >
+                            Plastic
+                          </button>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="text-xs text-slate-400">
+                            Badge label
+                            <input
+                              type="text"
+                              value={badgeLabel}
+                              onChange={(event) => setBadgeLabel(event.target.value)}
+                              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100"
+                              maxLength={42}
+                            />
+                          </label>
+                          <label className="text-xs text-slate-400">
+                            Theme
+                            <select
+                              value={badgeTheme}
+                              onChange={(event) => setBadgeTheme(event.target.value as BadgeTheme)}
+                              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100"
+                            >
+                              <option value="default">Default</option>
+                              <option value="slate">Slate</option>
+                              <option value="light">Light</option>
+                            </select>
+                          </label>
+                        </div>
                       </div>
 
                       <div className="mt-3 flex items-center justify-center rounded-md border border-slate-800 bg-slate-900/60 p-3">
                         <Image
                           src={badgeUrl}
                           alt={`Security headers grade badge for ${badgeDomain}`}
-                          width={120}
+                          width={260}
                           height={20}
-                          sizes="120px"
+                          sizes="(max-width: 640px) 100vw, 260px"
                           loading="lazy"
                           decoding="async"
                           unoptimized
@@ -3485,6 +3599,15 @@ export default function Home() {
                       </div>
 
                       <div className="mt-3 space-y-2">
+                        <div>
+                          <p className="text-xs text-slate-400">Badge URL</p>
+                          <input
+                            type="text"
+                            value={badgeUrl}
+                            readOnly
+                            className="mt-1 min-w-0 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200"
+                          />
+                        </div>
                         <div>
                           <p className="text-xs text-slate-400">Markdown</p>
                           <div className="mt-1 flex gap-2">
@@ -3793,60 +3916,13 @@ export default function Home() {
 
       <SiteFooter className="mt-10" />
 
-      {shortcutsOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4">
-          <button
-            type="button"
-            aria-label="Close keyboard shortcuts modal"
-            onClick={closeShortcutsModal}
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
-          />
-          <div
-            id="keyboard-shortcuts-modal"
-            ref={shortcutsDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="keyboard-shortcuts-title"
-            aria-describedby="keyboard-shortcuts-description"
-            className="relative z-10 max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-slate-700 bg-slate-900/95 p-6 shadow-2xl shadow-slate-950/80"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 id="keyboard-shortcuts-title" className="text-xl font-semibold text-slate-100">
-                  Keyboard shortcuts
-                </h2>
-                <p id="keyboard-shortcuts-description" className="mt-1 text-sm text-slate-300">
-                  Use these shortcuts to navigate and operate the checker faster.
-                </p>
-              </div>
-              <button
-                ref={shortcutCloseButtonRef}
-                type="button"
-                onClick={closeShortcutsModal}
-                className="rounded-md border border-slate-700 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-              >
-                Close
-              </button>
-            </div>
-            <ul className="mt-4 space-y-2">
-              {SHORTCUT_ROWS.map((shortcut) => (
-                <li
-                  key={shortcut.keys}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2"
-                >
-                  <kbd className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs font-semibold text-sky-200">
-                    {shortcut.keys}
-                  </kbd>
-                  <span className="text-sm text-slate-300">{shortcut.action}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-4 text-xs text-slate-500">
-              On macOS, Command (⌘) also works for Ctrl-based shortcuts.
-            </p>
-          </div>
-        </div>
-      )}
+      <KeyboardShortcutsHelp
+        open={shortcutsOpen}
+        onClose={closeShortcutsModal}
+        shortcuts={SHORTCUT_ROWS}
+        dialogRef={shortcutsDialogRef}
+        closeButtonRef={shortcutCloseButtonRef}
+      />
     </main>
   );
 }
