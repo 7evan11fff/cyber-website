@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
@@ -11,6 +12,8 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { trackEvent } from "@/lib/analytics";
+import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import { getSuggestedPlatformFromFramework } from "@/lib/platformFixes";
 import {
   DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
@@ -74,6 +77,7 @@ type ReportResponse = {
   grade: string;
   results: HeaderResult[];
   checkedAt: string;
+  framework?: FrameworkInfo;
 };
 
 type ComparisonReport = {
@@ -209,6 +213,7 @@ const TESTIMONIALS: Testimonial[] = [
     company: "Ironwall Advisory"
   }
 ];
+const TRUSTED_DEVELOPER_COUNT = "18,000+";
 const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
   { keys: "Ctrl + Enter", action: "Run scan in active tab" },
@@ -351,6 +356,12 @@ function extractDomainFromUrl(value: string): string | null {
   }
 }
 
+function frameworkSummaryLabel(info: FrameworkInfo | undefined): string | null {
+  const detected = info?.detected;
+  if (!detected) return null;
+  return `${detected.label} (${detected.reason})`;
+}
+
 function initialsFromName(value: string): string {
   const parts = value
     .trim()
@@ -379,6 +390,7 @@ function formatReportForClipboard(report: ReportResponse): string {
     `Grade: ${report.grade}`,
     `Score: ${report.score}/${report.results.length * 2}`,
     `Checked At: ${checkedAt}`,
+    `Detected Stack: ${report.framework?.detected?.label ?? "Unknown"}`,
     "",
     "Header Details",
     "--------------"
@@ -722,6 +734,16 @@ export default function Home() {
     if (!badgeDomain || !badgeUrl) return "";
     return `<img src="${badgeUrl}" alt="Security headers grade badge for ${badgeDomain}" />`;
   }, [badgeDomain, badgeUrl]);
+
+  const suggestedFixPlatform = useMemo(
+    () => getSuggestedPlatformFromFramework(report?.framework?.detected),
+    [report?.framework?.detected]
+  );
+
+  const quickFixesHref = useMemo(() => {
+    if (!suggestedFixPlatform) return "/fixes";
+    return `/fixes?platform=${encodeURIComponent(suggestedFixPlatform)}`;
+  }, [suggestedFixPlatform]);
 
   const comparisonDifferences = useMemo<HeaderDifference[]>(() => {
     if (!comparison) return [];
@@ -1882,6 +1904,7 @@ export default function Home() {
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Trusted by</p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Teams shipping every week</h2>
+            <p className="mt-2 text-sm text-sky-200">Trusted by {TRUSTED_DEVELOPER_COUNT} developers</p>
           </div>
           <p className="max-w-xl text-sm text-slate-300">
             Example launch metrics and logos to show product confidence before customer references are finalized.
@@ -2578,7 +2601,7 @@ export default function Home() {
               <p className="mt-1 text-sm text-slate-300">
                 Score: {report.score}/{report.results.length * 2}
               </p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={onCopyReport}
@@ -2594,6 +2617,12 @@ export default function Home() {
                 >
                   {badgePanelOpen ? "Hide Badge" : "Get Badge"}
                 </button>
+                <Link
+                  href={quickFixesHref}
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                >
+                  Quick fixes
+                </Link>
               </div>
               {copyState === "error" && (
                 <p className="mt-2 text-xs text-rose-300">
@@ -2710,6 +2739,19 @@ export default function Home() {
                 <p>
                   <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
                 </p>
+                {frameworkSummaryLabel(report.framework) && (
+                  <p>
+                    <span className="text-slate-500">Detected stack:</span> {frameworkSummaryLabel(report.framework)}
+                  </p>
+                )}
+                {suggestedFixPlatform && (
+                  <p>
+                    <span className="text-slate-500">Suggested quick fix:</span>{" "}
+                    <Link href={quickFixesHref} className="text-sky-300 transition hover:text-sky-200">
+                      {report.framework?.detected?.label ?? suggestedFixPlatform}
+                    </Link>
+                  </p>
+                )}
               </div>
               </article>
 
@@ -2720,7 +2762,7 @@ export default function Home() {
               </div>
             </section>
             <Suspense fallback={<SuspensePanelFallback label="Fix suggestions panel" />}>
-              <FixSuggestionsPanel results={report.results} />
+              <FixSuggestionsPanel results={report.results} framework={report.framework} />
             </Suspense>
           </>
         )}

@@ -1,26 +1,44 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import {
+  buildPlatformFixSuggestions,
+  getSuggestedPlatformFromFramework,
+  type FixPlatformId,
+  type PlatformFixSnippet
+} from "@/lib/platformFixes";
 import type { HeaderResult } from "@/lib/securityHeaders";
-import { buildHeaderFixBundle } from "@/lib/headerGuidance";
 
-type CopyTarget = "idle" | "nginx" | "apache" | "cloudflare" | "error";
+type CopyTarget = "idle" | FixPlatformId | "error";
 
 function SnippetCard({
-  title,
-  snippet,
+  item,
   onCopy,
-  copied
+  copied,
+  highlighted
 }: {
-  title: string;
-  snippet: string;
+  item: PlatformFixSnippet;
   onCopy: () => void;
   copied: boolean;
+  highlighted: boolean;
 }) {
   return (
-    <article className="motion-card rounded-lg border border-slate-800/90 bg-slate-900/70 p-3">
+    <article
+      className={`motion-card rounded-lg border p-3 ${
+        highlighted
+          ? "border-sky-500/50 bg-sky-500/10 shadow-lg shadow-sky-950/30"
+          : "border-slate-800/90 bg-slate-900/70"
+      }`}
+    >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">{title}</h4>
+        <div className="min-w-0">
+          <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">{item.title}</h4>
+          {highlighted && (
+            <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.08em] text-sky-200">Recommended</p>
+          )}
+        </div>
         <button
           type="button"
           onClick={onCopy}
@@ -29,18 +47,41 @@ function SnippetCard({
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+      <p className="mb-2 text-xs text-slate-400">{item.description}</p>
       <pre className="max-h-52 overflow-auto rounded-md border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-200">
-        <code>{snippet}</code>
+        <code>{item.snippet}</code>
       </pre>
     </article>
   );
 }
 
-export function FixSuggestionsPanel({ results }: { results: HeaderResult[] }) {
+export function FixSuggestionsPanel({
+  results,
+  framework
+}: {
+  results: HeaderResult[];
+  framework?: FrameworkInfo;
+}) {
   const [open, setOpen] = useState(true);
   const [copyState, setCopyState] = useState<CopyTarget>("idle");
 
-  const fixBundle = useMemo(() => buildHeaderFixBundle(results), [results]);
+  const fixBundle = useMemo(() => buildPlatformFixSuggestions(results), [results]);
+  const suggestedPlatform = useMemo(
+    () => getSuggestedPlatformFromFramework(framework?.detected),
+    [framework?.detected]
+  );
+  const orderedSnippets = useMemo(() => {
+    if (!suggestedPlatform) return fixBundle.snippets;
+    return [...fixBundle.snippets].sort((a, b) => {
+      if (a.id === suggestedPlatform) return -1;
+      if (b.id === suggestedPlatform) return 1;
+      return 0;
+    });
+  }, [fixBundle.snippets, suggestedPlatform]);
+  const suggestedFixesHref = useMemo(() => {
+    if (!suggestedPlatform) return "/fixes";
+    return `/fixes?platform=${encodeURIComponent(suggestedPlatform)}`;
+  }, [suggestedPlatform]);
 
   useEffect(() => {
     setOpen(true);
@@ -81,6 +122,16 @@ export function FixSuggestionsPanel({ results }: { results: HeaderResult[] }) {
             </p>
           ) : (
             <>
+              {framework?.detected && suggestedPlatform && (
+                <p className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+                  Detected <span className="font-semibold">{framework.detected.label}</span>. Start with the
+                  recommended snippet below or open the{" "}
+                  <Link href={suggestedFixesHref} className="font-semibold text-sky-200 underline-offset-2 hover:underline">
+                    Quick Fixes page
+                  </Link>
+                  .
+                </p>
+              )}
               <div>
                 <p className="text-sm text-slate-300">
                   Copy and apply these snippets for headers that are missing or weak:
@@ -97,25 +148,16 @@ export function FixSuggestionsPanel({ results }: { results: HeaderResult[] }) {
                 </ul>
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-3">
-                <SnippetCard
-                  title="nginx"
-                  snippet={fixBundle.nginxSnippet}
-                  onCopy={() => void copySnippet("nginx", fixBundle.nginxSnippet)}
-                  copied={copyState === "nginx"}
-                />
-                <SnippetCard
-                  title="Apache"
-                  snippet={fixBundle.apacheSnippet}
-                  onCopy={() => void copySnippet("apache", fixBundle.apacheSnippet)}
-                  copied={copyState === "apache"}
-                />
-                <SnippetCard
-                  title="Cloudflare"
-                  snippet={fixBundle.cloudflareSnippet}
-                  onCopy={() => void copySnippet("cloudflare", fixBundle.cloudflareSnippet)}
-                  copied={copyState === "cloudflare"}
-                />
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {orderedSnippets.map((snippet) => (
+                  <SnippetCard
+                    key={snippet.id}
+                    item={snippet}
+                    onCopy={() => void copySnippet(snippet.id, snippet.snippet)}
+                    copied={copyState === snippet.id}
+                    highlighted={snippet.id === suggestedPlatform}
+                  />
+                ))}
               </div>
               {copyState === "error" && (
                 <p className="text-xs text-rose-300">Clipboard unavailable. Please copy manually.</p>

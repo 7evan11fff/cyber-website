@@ -1,4 +1,5 @@
 import { calculateGrade } from "@/lib/grading";
+import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -17,6 +18,7 @@ export type SecurityReport = {
   grade: string;
   results: HeaderResult[];
   checkedAt: string;
+  framework: FrameworkInfo;
 };
 
 const domainBadgeCache = new Map<string, CachedDomainReport>();
@@ -120,7 +122,8 @@ export async function runSecurityScan(inputUrl: string): Promise<SecurityReport>
     score,
     grade,
     results,
-    checkedAt: new Date().toISOString()
+    checkedAt: new Date().toISOString(),
+    framework: detectFrameworkInfo(upstreamResponse.headers)
   };
 
   cacheDomainReport(report);

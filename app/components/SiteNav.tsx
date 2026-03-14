@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/compare", label: "Compare" },
   { href: "/bulk", label: "Bulk" },
   { href: "/badge", label: "Badge" },
+  { href: "/fixes", label: "Fixes" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },

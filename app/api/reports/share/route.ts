@@ -21,6 +21,26 @@ const HEADER_RESULT_SCHEMA = z.object({
   guidance: z.string()
 });
 
+const FRAMEWORK_SCHEMA = z.object({
+  server: z.string().nullable(),
+  poweredBy: z.string().nullable(),
+  detected: z
+    .object({
+      id: z.enum(["nextjs", "express", "nginx", "apache", "cloudflare-workers", "nodejs"]),
+      label: z.string().min(1).max(64),
+      reason: z.string().min(1).max(240),
+      evidence: z
+        .array(
+          z.object({
+            header: z.string().min(1).max(64),
+            value: z.string().min(1).max(240)
+          })
+        )
+        .max(5)
+    })
+    .nullable()
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -28,7 +48,12 @@ const REPORT_SCHEMA = z.object({
   score: z.number().int().nonnegative(),
   grade: z.string().min(1).max(8),
   results: z.array(HEADER_RESULT_SCHEMA).min(1).max(40),
-  checkedAt: z.string().datetime()
+  checkedAt: z.string().datetime(),
+  framework: FRAMEWORK_SCHEMA.optional().default({
+    server: null,
+    poweredBy: null,
+    detected: null
+  })
 });
 
 const SHARE_PAYLOAD_SCHEMA = z.discriminatedUnion("mode", [

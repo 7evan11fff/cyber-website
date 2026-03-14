@@ -1,4 +1,5 @@
 import type { HeaderResult } from "@/lib/securityHeaders";
+import type { FrameworkInfo } from "@/lib/frameworkDetection";
 
 export type SharedScanReport = {
   checkedUrl: string;
@@ -8,6 +9,7 @@ export type SharedScanReport = {
   grade: string;
   results: HeaderResult[];
   checkedAt: string;
+  framework?: FrameworkInfo;
 };
 
 export type SharedComparisonReport = {

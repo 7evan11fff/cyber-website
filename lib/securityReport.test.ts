@@ -18,7 +18,17 @@ function buildReport(domain: string): SecurityReport {
     score: 10,
     grade: "C",
     results: [],
-    checkedAt: new Date().toISOString()
+    checkedAt: new Date().toISOString(),
+    framework: {
+      server: "nginx",
+      poweredBy: null,
+      detected: {
+        id: "nginx",
+        label: "Nginx",
+        reason: "Detected from Server response header.",
+        evidence: [{ header: "server", value: "nginx" }]
+      }
+    }
   };
 }
 
@@ -96,5 +106,6 @@ describe("securityReport", () => {
     expect(report.results).toHaveLength(11);
     expect(report.score).toBeGreaterThan(0);
     expect(["A", "B", "C", "D", "F"]).toContain(report.grade);
+    expect(report.framework.detected?.id).toBe("nginx");
   });
 });

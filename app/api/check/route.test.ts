@@ -57,7 +57,17 @@ describe("POST /api/check", () => {
       score: 22,
       grade: "A",
       results: [],
-      checkedAt: "2026-03-14T00:00:00.000Z"
+      checkedAt: "2026-03-14T00:00:00.000Z",
+      framework: {
+        server: "nginx",
+        poweredBy: null,
+        detected: {
+          id: "nginx",
+          label: "Nginx",
+          reason: "Detected from Server response header.",
+          evidence: [{ header: "server", value: "nginx" }]
+        }
+      }
     });
   });
 
