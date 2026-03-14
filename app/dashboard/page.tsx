@@ -117,7 +117,10 @@ export default async function DashboardPage() {
     .find((point) => point.value !== null);
 
   const trendDelta =
-    latestAveragePoint?.value !== null && previousAveragePoint?.value !== null
+    latestAveragePoint &&
+    latestAveragePoint.value !== null &&
+    previousAveragePoint &&
+    previousAveragePoint.value !== null
       ? Number((latestAveragePoint.value - previousAveragePoint.value).toFixed(2))
       : null;
   const trendDeltaLabel =
