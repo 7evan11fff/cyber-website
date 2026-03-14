@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/app/components/SiteFooter";
+import { NewsletterSignupForm } from "@/app/components/NewsletterSignupForm";
 import { SiteNav } from "@/app/components/SiteNav";
 import { getAllBlogPosts } from "@/lib/blogPosts";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
@@ -85,6 +86,8 @@ export default function BlogPage() {
           </article>
         ))}
       </section>
+
+      <NewsletterSignupForm />
 
       <SiteFooter className="mt-10" />
     </main>
