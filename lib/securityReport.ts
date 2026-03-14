@@ -1,4 +1,5 @@
-import { analyzeSecurityHeaders, calculateGrade, type HeaderResult } from "@/lib/securityHeaders";
+import { calculateGrade } from "@/lib/grading";
+import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
 
 const REQUEST_TIMEOUT_MS = 12000;
 export const BADGE_CACHE_TTL_MS = 1000 * 60 * 60 * 24;

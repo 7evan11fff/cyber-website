@@ -392,22 +392,4 @@ export function analyzeSecurityHeaders(headers: Headers): HeaderResult[] {
     checkCrossOriginResourcePolicy(headers.get(REQUIRED_HEADERS.corp))
   ];
 }
-
-export function calculateGrade(results: HeaderResult[]): { score: number; grade: string } {
-  const score = results.reduce((total, result) => {
-    if (result.status === "good") return total + 2;
-    if (result.status === "weak") return total + 1;
-    return total;
-  }, 0);
-
-  const maxScore = results.length * 2;
-  const ratio = maxScore > 0 ? score / maxScore : 0;
-
-  let grade = "F";
-  if (ratio >= 0.92) grade = "A";
-  else if (ratio >= 0.8) grade = "B";
-  else if (ratio >= 0.65) grade = "C";
-  else if (ratio >= 0.5) grade = "D";
-
-  return { score, grade };
-}
+export { calculateGrade } from "@/lib/grading";
