@@ -42,6 +42,7 @@ export default async function SettingsPage() {
         initialAlertEmail={userData.alertEmail}
         initialNotificationOnGradeChange={userData.notificationOnGradeChange}
         initialNotificationFrequency={userData.notificationFrequency}
+        initialDigestFrequency={userData.digestFrequency}
         initialBrowserNotificationsEnabled={userData.browserNotificationsEnabled}
         initialWebhooks={userData.webhooks}
         initialApiKey={userData.apiKey}

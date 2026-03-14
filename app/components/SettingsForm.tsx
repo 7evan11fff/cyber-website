@@ -5,12 +5,14 @@ import { FormEvent, useMemo, useState } from "react";
 import {
   BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
   COMPARISON_HISTORY_STORAGE_KEY,
+  type DigestFrequency,
   DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
   type NotificationFrequency,
   type WebhookRegistration,
   normalizeWebhookRegistrations,
   WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
+  WATCHLIST_DIGEST_FREQUENCY_STORAGE_KEY,
   WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY,
   WATCHLIST_STORAGE_KEY
 } from "@/lib/userData";
@@ -27,6 +29,7 @@ type SettingsFormProps = {
   initialAlertEmail: string | null;
   initialNotificationOnGradeChange: boolean;
   initialNotificationFrequency: NotificationFrequency;
+  initialDigestFrequency: DigestFrequency;
   initialBrowserNotificationsEnabled: boolean;
   initialWebhooks: WebhookRegistration[];
   initialApiKey: string | null;
@@ -40,6 +43,7 @@ export function SettingsForm({
   initialAlertEmail,
   initialNotificationOnGradeChange,
   initialNotificationFrequency,
+  initialDigestFrequency,
   initialBrowserNotificationsEnabled,
   initialWebhooks,
   initialApiKey,
@@ -53,6 +57,7 @@ export function SettingsForm({
   const [notificationFrequency, setNotificationFrequency] = useState<NotificationFrequency>(
     initialNotificationFrequency
   );
+  const [digestFrequency, setDigestFrequency] = useState<DigestFrequency>(initialDigestFrequency);
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
     initialBrowserNotificationsEnabled
   );
@@ -94,11 +99,20 @@ export function SettingsForm({
     event.preventDefault();
     const trimmedEmail = alertEmail.trim();
     const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    const accountEmailLooksValid =
+      typeof accountEmail === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountEmail);
 
     if (notificationOnGradeChange && (!trimmedEmail || !looksLikeEmail)) {
       notify({
         tone: "error",
         message: "Enter a valid email to enable grade change notifications."
+      });
+      return;
+    }
+    if (digestFrequency !== "off" && !looksLikeEmail && !accountEmailLooksValid) {
+      notify({
+        tone: "error",
+        message: "Add a valid alert email or account email before enabling digest emails."
       });
       return;
     }
@@ -141,6 +155,7 @@ export function SettingsForm({
           alertEmail: trimmedEmail || null,
           notificationOnGradeChange,
           notificationFrequency,
+          digestFrequency,
           browserNotificationsEnabled
         })
       });
@@ -159,6 +174,7 @@ export function SettingsForm({
           localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
         }
         localStorage.setItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY, notificationFrequency);
+        localStorage.setItem(WATCHLIST_DIGEST_FREQUENCY_STORAGE_KEY, digestFrequency);
         localStorage.setItem(
           BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
           browserNotificationsEnabled ? "true" : "false"
@@ -203,6 +219,7 @@ export function SettingsForm({
         localStorage.removeItem(WATCHLIST_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY);
+        localStorage.removeItem(WATCHLIST_DIGEST_FREQUENCY_STORAGE_KEY);
         localStorage.removeItem(BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY);
       } catch {
         // Ignore browser storage failures.
@@ -211,6 +228,7 @@ export function SettingsForm({
       setAlertEmail("");
       setNotificationOnGradeChange(true);
       setNotificationFrequency("instant");
+      setDigestFrequency("off");
       setBrowserNotificationsEnabled(false);
       setWebhooks([]);
       setWebhookUrlInput("");
@@ -486,6 +504,25 @@ export function SettingsForm({
               <option value="daily">Daily digest cadence</option>
               <option value="weekly">Weekly digest cadence</option>
             </select>
+          </div>
+
+          <div>
+            <label htmlFor="settings-digest-frequency" className="text-xs uppercase tracking-[0.14em] text-slate-500">
+              Watchlist digest reports
+            </label>
+            <select
+              id="settings-digest-frequency"
+              value={digestFrequency}
+              onChange={(event) => setDigestFrequency(event.target.value as DigestFrequency)}
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+            >
+              <option value="off">Off</option>
+              <option value="weekly">Weekly summary email</option>
+              <option value="monthly">Monthly summary email</option>
+            </select>
+            <p className="mt-2 text-xs text-slate-500">
+              Digest emails include all watchlist grades, grade-change highlights, and quick dashboard links.
+            </p>
           </div>
 
           <button

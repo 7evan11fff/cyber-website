@@ -6,7 +6,9 @@ import {
   createEmptyUserDataRecord,
   type UserDataRecord,
   isApiKey,
+  isDigestFrequency,
   isNotificationFrequency,
+  normalizeDigestGradeSnapshot,
   normalizeComparisonHistoryEntries,
   normalizeDomainGradeHistory,
   normalizeWebhookRegistrations,
@@ -58,10 +60,18 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
   const normalizedFrequency = isNotificationFrequency(record.notificationFrequency)
     ? record.notificationFrequency
     : "instant";
+  const normalizedDigestFrequency = isDigestFrequency(record.digestFrequency)
+    ? record.digestFrequency
+    : createEmptyUserDataRecord().digestFrequency;
   const normalizedNotificationOnGradeChange =
     typeof record.notificationOnGradeChange === "boolean"
       ? record.notificationOnGradeChange
       : createEmptyUserDataRecord().notificationOnGradeChange;
+  const normalizedDigestLastSentAt =
+    typeof record.digestLastSentAt === "string" &&
+    Number.isFinite(new Date(record.digestLastSentAt).getTime())
+      ? new Date(record.digestLastSentAt).toISOString()
+      : null;
 
   return {
     watchlist: normalizeWatchlistEntries(Array.isArray(record.watchlist) ? record.watchlist : []),
@@ -78,6 +88,9 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
         ? record.browserNotificationsEnabled
         : createEmptyUserDataRecord().browserNotificationsEnabled,
     watchlistNotificationLog: normalizeWatchlistNotificationLog(record.watchlistNotificationLog),
+    digestFrequency: normalizedDigestFrequency,
+    digestLastSentAt: normalizedDigestLastSentAt,
+    digestGradeSnapshot: normalizeDigestGradeSnapshot(record.digestGradeSnapshot),
     webhooks: normalizeWebhookRegistrations(Array.isArray(record.webhooks) ? record.webhooks : []),
     apiKey: isApiKey(record.apiKey) ? record.apiKey.trim() : null,
     updatedAt: record.updatedAt
@@ -114,6 +127,9 @@ export async function updateUserDataForUser(
       | "notificationFrequency"
       | "browserNotificationsEnabled"
       | "watchlistNotificationLog"
+      | "digestFrequency"
+      | "digestLastSentAt"
+      | "digestGradeSnapshot"
       | "webhooks"
       | "apiKey"
     >
@@ -147,6 +163,20 @@ export async function updateUserDataForUser(
       patch.watchlistNotificationLog && typeof patch.watchlistNotificationLog === "object"
         ? normalizeWatchlistNotificationLog(patch.watchlistNotificationLog)
         : current.watchlistNotificationLog,
+    digestFrequency: isDigestFrequency(patch.digestFrequency)
+      ? patch.digestFrequency
+      : current.digestFrequency,
+    digestLastSentAt:
+      patch.digestLastSentAt === null
+        ? null
+        : typeof patch.digestLastSentAt === "string" &&
+            Number.isFinite(new Date(patch.digestLastSentAt).getTime())
+          ? new Date(patch.digestLastSentAt).toISOString()
+          : current.digestLastSentAt,
+    digestGradeSnapshot:
+      patch.digestGradeSnapshot && typeof patch.digestGradeSnapshot === "object"
+        ? normalizeDigestGradeSnapshot(patch.digestGradeSnapshot)
+        : current.digestGradeSnapshot,
     webhooks: Array.isArray(patch.webhooks)
       ? normalizeWebhookRegistrations(patch.webhooks)
       : current.webhooks,

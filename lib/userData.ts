@@ -41,6 +41,8 @@ export type WebhookRegistration = {
 
 export const NOTIFICATION_FREQUENCIES = ["instant", "daily", "weekly"] as const;
 export type NotificationFrequency = (typeof NOTIFICATION_FREQUENCIES)[number];
+export const DIGEST_FREQUENCIES = ["off", "weekly", "monthly"] as const;
+export type DigestFrequency = (typeof DIGEST_FREQUENCIES)[number];
 
 export type UserDataRecord = {
   watchlist: WatchlistEntry[];
@@ -52,6 +54,9 @@ export type UserDataRecord = {
   notificationFrequency: NotificationFrequency;
   browserNotificationsEnabled: boolean;
   watchlistNotificationLog: Record<string, string>;
+  digestFrequency: DigestFrequency;
+  digestLastSentAt: string | null;
+  digestGradeSnapshot: Record<string, string>;
   webhooks: WebhookRegistration[];
   apiKey: string | null;
   updatedAt: string;
@@ -64,6 +69,8 @@ export const WATCHLIST_STORAGE_KEY = "security-header-checker:watchlist";
 export const WATCHLIST_ALERT_EMAIL_STORAGE_KEY = "security-header-checker:watchlist-alert-email";
 export const WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY =
   "security-header-checker:watchlist-notification-frequency";
+export const WATCHLIST_DIGEST_FREQUENCY_STORAGE_KEY =
+  "security-header-checker:watchlist-digest-frequency";
 export const BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY =
   "security-header-checker:browser-notifications-enabled";
 export const MAX_HISTORY_ITEMS = 10;
@@ -150,6 +157,10 @@ export function isNotificationFrequency(value: unknown): value is NotificationFr
   );
 }
 
+export function isDigestFrequency(value: unknown): value is DigestFrequency {
+  return typeof value === "string" && (DIGEST_FREQUENCIES as readonly string[]).includes(value);
+}
+
 export function isApiKey(value: unknown): value is string {
   return typeof value === "string" && API_KEY_PATTERN.test(value.trim());
 }
@@ -175,6 +186,20 @@ export function normalizeWatchlistNotificationLog(
     const parsed = new Date(timestamp);
     if (!Number.isFinite(parsed.getTime())) continue;
     normalized[key.toLowerCase()] = parsed.toISOString();
+  }
+  return normalized;
+}
+
+export function normalizeDigestGradeSnapshot(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object") return {};
+  const entries = Object.entries(value);
+  const normalized: Record<string, string> = {};
+  for (const [domainKey, grade] of entries) {
+    if (typeof domainKey !== "string" || typeof grade !== "string") continue;
+    const normalizedDomain = domainKey.trim().toLowerCase();
+    const normalizedGrade = grade.trim().toUpperCase();
+    if (!normalizedDomain || !/^[A-F]$/.test(normalizedGrade)) continue;
+    normalized[normalizedDomain] = normalizedGrade;
   }
   return normalized;
 }
@@ -235,6 +260,9 @@ export function createEmptyUserDataRecord(): UserDataRecord {
     notificationFrequency: "instant",
     browserNotificationsEnabled: false,
     watchlistNotificationLog: {},
+    digestFrequency: "off",
+    digestLastSentAt: null,
+    digestGradeSnapshot: {},
     webhooks: [],
     apiKey: null,
     updatedAt: new Date(0).toISOString()

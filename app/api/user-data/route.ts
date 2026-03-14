@@ -10,7 +10,9 @@ import {
 } from "@/lib/userDataStore";
 import {
   isApiKey,
+  isDigestFrequency,
   normalizeComparisonHistoryEntries,
+  normalizeDigestGradeSnapshot,
   isNotificationFrequency,
   normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
@@ -74,6 +76,9 @@ export async function PUT(request: Request) {
         notificationFrequency?: unknown;
         browserNotificationsEnabled?: unknown;
         watchlistNotificationLog?: unknown;
+        digestFrequency?: unknown;
+        digestLastSentAt?: unknown;
+        digestGradeSnapshot?: unknown;
         webhooks?: unknown;
         apiKey?: unknown;
       }
@@ -93,6 +98,9 @@ export async function PUT(request: Request) {
     notificationFrequency?: "instant" | "daily" | "weekly";
     browserNotificationsEnabled?: boolean;
     watchlistNotificationLog?: Record<string, string>;
+    digestFrequency?: "off" | "weekly" | "monthly";
+    digestLastSentAt?: string | null;
+    digestGradeSnapshot?: Record<string, string>;
     webhooks?: ReturnType<typeof normalizeWebhookRegistrations>;
     apiKey?: string | null;
   } = {};
@@ -196,6 +204,46 @@ export async function PUT(request: Request) {
       );
     }
     patch.watchlistNotificationLog = normalizeWatchlistNotificationLog(body.watchlistNotificationLog);
+  }
+
+  if (body.digestFrequency !== undefined) {
+    if (!isDigestFrequency(body.digestFrequency)) {
+      return respond!(
+        {
+          error: 'Invalid "digestFrequency". Use one of: off, weekly, monthly.'
+        },
+        { status: 400 }
+      );
+    }
+    patch.digestFrequency = body.digestFrequency;
+  }
+
+  if (body.digestLastSentAt !== undefined) {
+    if (
+      body.digestLastSentAt !== null &&
+      (typeof body.digestLastSentAt !== "string" ||
+        !Number.isFinite(new Date(body.digestLastSentAt).getTime()))
+    ) {
+      return respond!(
+        { error: 'Invalid "digestLastSentAt". Expected an ISO date string or null.' },
+        { status: 400 }
+      );
+    }
+    patch.digestLastSentAt = body.digestLastSentAt;
+  }
+
+  if (body.digestGradeSnapshot !== undefined) {
+    if (
+      !body.digestGradeSnapshot ||
+      typeof body.digestGradeSnapshot !== "object" ||
+      Array.isArray(body.digestGradeSnapshot)
+    ) {
+      return respond!(
+        { error: 'Invalid "digestGradeSnapshot". Expected a domain-to-grade object.' },
+        { status: 400 }
+      );
+    }
+    patch.digestGradeSnapshot = normalizeDigestGradeSnapshot(body.digestGradeSnapshot);
   }
 
   if (body.webhooks !== undefined) {

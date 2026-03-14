@@ -2,8 +2,10 @@ import "server-only";
 
 import * as React from "react";
 import { Resend } from "resend";
+import type { DigestSummary } from "@/lib/digestEmail";
 import { GradeChangeEmailTemplate } from "@/lib/emailTemplates/GradeChangeEmail";
-import type { NotificationFrequency } from "@/lib/userData";
+import { WatchlistDigestEmailTemplate } from "@/lib/emailTemplates/WatchlistDigestEmail";
+import type { DigestFrequency, NotificationFrequency } from "@/lib/userData";
 
 const DEFAULT_FROM_EMAIL = "onboarding@resend.dev";
 const FALLBACK_SITE_URL = "https://security-header-checker.vercel.app";
@@ -106,6 +108,72 @@ export async function sendGradeChangeEmail({
 
   if (result.error) {
     throw new Error(result.error.message || "Unable to send grade change email.");
+  }
+
+  return result.data?.id ?? null;
+}
+
+function buildDigestSubject(frequency: Exclude<DigestFrequency, "off">) {
+  if (frequency === "monthly") {
+    return "Monthly watchlist digest report";
+  }
+  return "Weekly watchlist digest report";
+}
+
+export async function sendWatchlistDigestEmail({
+  toEmail,
+  frequency,
+  summary
+}: {
+  toEmail: string;
+  frequency: Exclude<DigestFrequency, "off">;
+  summary: DigestSummary;
+}) {
+  const resend = getResendClient();
+  const siteUrl = resolveSiteUrl();
+  const dashboardUrl = new URL("/dashboard", siteUrl).toString();
+  const watchlistUrl = new URL("/dashboard#watchlist", siteUrl).toString();
+  const settingsUrl = new URL("/settings", siteUrl).toString();
+  const unsubscribeUrl = new URL("/settings?digest=off", siteUrl).toString();
+  const from = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL;
+
+  const text = [
+    "Security Header Checker digest report",
+    "",
+    `Domains monitored: ${summary.stats.totalDomainsMonitored}`,
+    `Average grade: ${summary.stats.averageGrade}`,
+    `Domains needing attention (C or below): ${summary.stats.domainsNeedingAttention}`,
+    "",
+    summary.changes.length > 0
+      ? "Grade changes since last digest:"
+      : "No grade changes since last digest.",
+    ...summary.changes.map(
+      (change) => `- ${change.domain}: ${change.previousGrade} -> ${change.currentGrade}`
+    ),
+    "",
+    `Dashboard: ${dashboardUrl}`,
+    `Watchlist: ${watchlistUrl}`,
+    `Unsubscribe: ${unsubscribeUrl}`
+  ].join("\n");
+
+  const result = await resend.emails.send({
+    from,
+    to: [toEmail],
+    subject: buildDigestSubject(frequency),
+    react: React.createElement(WatchlistDigestEmailTemplate, {
+      frequency,
+      summary,
+      dashboardUrl,
+      watchlistUrl,
+      settingsUrl,
+      unsubscribeUrl,
+      siteUrl
+    }),
+    text
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message || "Unable to send watchlist digest email.");
   }
 
   return result.data?.id ?? null;
