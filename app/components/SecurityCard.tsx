@@ -12,25 +12,55 @@ type SecurityCardProps = {
   header: HeaderResult;
   highlighted?: boolean;
   animationDelayMs?: number;
+  shortcutNumber?: number;
+  onSelect?: (header: HeaderResult) => void;
+  cardId?: string;
 };
 
 export function SecurityCard({
   header,
   highlighted = false,
-  animationDelayMs = 0
+  animationDelayMs = 0,
+  shortcutNumber,
+  onSelect,
+  cardId
 }: SecurityCardProps) {
+  const interactive = typeof onSelect === "function";
+
   return (
     <article
+      id={cardId}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? `Open deep dive for ${header.label}` : undefined}
+      data-header-result-card={interactive ? "true" : undefined}
+      data-header-shortcut={typeof shortcutNumber === "number" ? String(shortcutNumber) : undefined}
+      onClick={interactive ? () => onSelect?.(header) : undefined}
+      onKeyDown={
+        interactive
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect?.(header);
+              }
+            }
+          : undefined
+      }
       className={`motion-card stagger-card-enter rounded-2xl border p-5 shadow-lg ${
         highlighted
           ? "border-sky-500/60 bg-sky-500/10 shadow-sky-950/40"
           : "border-slate-800 bg-slate-900/60 shadow-slate-950/50"
-      }`}
+      } ${interactive ? "cursor-pointer transition hover:border-sky-500/50" : ""}`}
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-100">{header.label}</h2>
         <div className="flex items-center gap-2">
+          {typeof shortcutNumber === "number" && (
+            <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-300">
+              {shortcutNumber}
+            </span>
+          )}
           {highlighted && (
             <span className="rounded-full bg-sky-500/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-sky-200 ring-1 ring-sky-500/40">
               Diff

@@ -17,3 +17,24 @@ test("homepage scan flow displays report results", async ({ page }) => {
   await expect(page.getByText(/Final URL:\s*https:\/\/example\.com\//)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Content-Security-Policy" })).toBeVisible();
 });
+
+test("header deep-dive modal and keyboard shortcuts work", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByLabel("Website URL to scan").fill("example.com");
+  await page.getByRole("button", { name: "Check", exact: true }).click();
+
+  await page.getByRole("button", { name: "Open deep dive for Content-Security-Policy" }).click();
+  await expect(page.getByRole("dialog", { name: "Content-Security-Policy" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Read on MDN" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Content-Security-Policy" })).toHaveCount(0);
+
+  await page.keyboard.press("?");
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
+
+  await page.keyboard.press("2");
+  await expect(page.locator("#header-card-single-strict-transport-security")).toBeFocused();
+});

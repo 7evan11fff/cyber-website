@@ -13,6 +13,7 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { trackEvent } from "@/lib/analytics";
 import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import { getHeaderDeepDiveDetails } from "@/lib/headerDeepDive";
 import { getSuggestedPlatformFromFramework } from "@/lib/platformFixes";
 import {
   DOMAIN_HISTORY_STORAGE_KEY,
@@ -78,6 +79,7 @@ type ReportResponse = {
   results: HeaderResult[];
   checkedAt: string;
   framework?: FrameworkInfo;
+  scanDurationMs?: number;
 };
 
 type ComparisonReport = {
@@ -225,6 +227,7 @@ const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
   { keys: "Cmd/Ctrl + Enter", action: "Run scan in active tab" },
   { keys: "Cmd/Ctrl + K", action: "Focus the URL input" },
+  { keys: "1-6", action: "Jump to visible header result cards" },
   { keys: "Ctrl + P", action: "Download current scan report PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
   { keys: "Esc", action: "Close open dialogs/panels" }
@@ -421,6 +424,22 @@ function toScorePercentage(score: number, maxScore: number): number {
   return Math.round((score / maxScore) * 100);
 }
 
+function isTextInputLikeTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    return true;
+  }
+  if (target.isContentEditable) return true;
+  return target.closest('[contenteditable="true"]') !== null;
+}
+
+function formatScanDuration(durationMs: number | null | undefined): string | null {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  return `Scan completed in ${(durationMs / 1000).toFixed(2)}s`;
+}
+
 function formatReportForClipboard(report: ReportResponse): string {
   const checkedAt = new Date(report.checkedAt).toLocaleString();
   const lines = [
@@ -432,6 +451,7 @@ function formatReportForClipboard(report: ReportResponse): string {
     `Grade: ${report.grade}`,
     `Score: ${report.score}/${report.results.length * 2}`,
     `Checked At: ${checkedAt}`,
+    `Scan Duration: ${formatScanDuration(report.scanDurationMs) ?? "Not available"}`,
     `Detected Stack: ${report.framework?.detected?.label ?? "Unknown"}`,
     "",
     "Header Details",
@@ -637,6 +657,11 @@ function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: Re
         <p>
           <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
         </p>
+        {formatScanDuration(report.scanDurationMs) && (
+          <p className="text-xs uppercase tracking-[0.12em] text-sky-300/90">
+            {formatScanDuration(report.scanDurationMs)}
+          </p>
+        )}
       </div>
     </article>
   );
@@ -679,6 +704,7 @@ export default function Home() {
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [activeHeaderDetail, setActiveHeaderDetail] = useState<HeaderResult | null>(null);
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
   const [userAgentPreset, setUserAgentPreset] = useState<UserAgentPresetChoice>("default");
   const [customUserAgent, setCustomUserAgent] = useState("");
@@ -693,6 +719,8 @@ export default function Home() {
   const compareUrlAInputRef = useRef<HTMLInputElement | null>(null);
   const shortcutsDialogRef = useRef<HTMLDivElement | null>(null);
   const shortcutCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const headerDetailDialogRef = useRef<HTMLDivElement | null>(null);
+  const headerDetailCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const celebratedScanRef = useRef<string | null>(null);
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -855,6 +883,10 @@ export default function Home() {
   const differingHeaderKeys = useMemo(() => {
     return new Set(comparisonDifferences.map((difference) => difference.key));
   }, [comparisonDifferences]);
+  const activeHeaderDeepDive = useMemo(() => {
+    if (!activeHeaderDetail) return null;
+    return getHeaderDeepDiveDetails(activeHeaderDetail);
+  }, [activeHeaderDetail]);
 
   const popularCacheByUrl = useMemo(() => {
     return new Map(popularSitesCache.map((entry) => [entry.url, entry]));
@@ -1136,6 +1168,7 @@ export default function Home() {
       setUrl(decoded.report.checkedUrl);
       setReport(decoded.report);
       setComparison(null);
+      setActiveHeaderDetail(null);
       return;
     }
 
@@ -1145,6 +1178,7 @@ export default function Home() {
     setCompareUrlB(decoded.comparison.siteB.checkedUrl);
     setReport(null);
     setComparison(decoded.comparison);
+    setActiveHeaderDetail(null);
   }, []);
 
   useEffect(() => {
@@ -1185,6 +1219,7 @@ export default function Home() {
         throw new Error("Please enter a URL.");
       }
 
+      const startedAt = performance.now();
       const response = await fetch("/api/check", {
         method: "POST",
         headers: {
@@ -1205,7 +1240,11 @@ export default function Home() {
         throw new Error(apiError);
       }
 
-      return payload as ReportResponse;
+      const finishedAt = performance.now();
+      return {
+        ...(payload as ReportResponse),
+        scanDurationMs: Math.max(0, finishedAt - startedAt)
+      };
     },
     []
   );
@@ -1228,6 +1267,7 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setActiveHeaderDetail(null);
     setBulkResults([]);
     setBulkExportState("idle");
     setCopyState("idle");
@@ -1273,6 +1313,28 @@ export default function Home() {
     setShortcutsOpen((current) => !current);
   }, [shortcutsOpen]);
 
+  const openHeaderDetailModal = useCallback((header: HeaderResult) => {
+    if (document.activeElement instanceof HTMLElement) {
+      lastFocusedElementRef.current = document.activeElement;
+    }
+    setActiveHeaderDetail(header);
+  }, []);
+
+  const closeHeaderDetailModal = useCallback(() => {
+    setActiveHeaderDetail(null);
+  }, []);
+
+  const focusHeaderCardByShortcut = useCallback((shortcutIndex: number) => {
+    const visibleCards = Array.from(document.querySelectorAll<HTMLElement>('[data-header-result-card="true"]')).filter(
+      (card) => card.getClientRects().length > 0
+    );
+    const target = visibleCards[shortcutIndex];
+    if (!target) return false;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.focus();
+    return true;
+  }, []);
+
   async function refreshPopularSite(site: string, openReport = false) {
     setActivePopularRefresh(site);
     try {
@@ -1289,6 +1351,7 @@ export default function Home() {
         setUrl(site);
         setReport(nextReport);
         setComparison(null);
+        setActiveHeaderDetail(null);
         setError(null);
         setCopyState("idle");
         setShareState("idle");
@@ -1308,6 +1371,7 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setActiveHeaderDetail(null);
     setBulkTargetCount(0);
     setBulkCompletedCount(0);
     setCopyState("idle");
@@ -1342,6 +1406,7 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setActiveHeaderDetail(null);
     setBulkTargetCount(0);
     setBulkCompletedCount(0);
     setCopyState("idle");
@@ -1395,6 +1460,7 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setActiveHeaderDetail(null);
     setBulkResults([]);
     setBulkExportState("idle");
     setCopyState("idle");
@@ -1492,6 +1558,7 @@ export default function Home() {
       setUrl(site);
       setReport(cached.report);
       setComparison(null);
+      setActiveHeaderDetail(null);
       setError(null);
       setCopyState("idle");
       setShareState("idle");
@@ -1838,20 +1905,75 @@ export default function Home() {
   }, [shortcutsOpen]);
 
   useEffect(() => {
+    if (!activeHeaderDetail) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    window.setTimeout(() => {
+      headerDetailCloseButtonRef.current?.focus();
+    }, 0);
+
+    const onModalKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const dialog = headerDetailDialogRef.current;
+      if (!dialog) return;
+
+      const focusableElements = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onModalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onModalKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      lastFocusedElementRef.current?.focus();
+    };
+  }, [activeHeaderDetail]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
+      const isTypingTarget = isTextInputLikeTarget(event.target);
 
-      if (event.key === "?") {
-        event.preventDefault();
-        toggleShortcutsModal();
+      if (event.key === "Escape") {
+        if (activeHeaderDetail) {
+          event.preventDefault();
+          closeHeaderDetailModal();
+          return;
+        }
+        if (shortcutsOpen) {
+          event.preventDefault();
+          closeShortcutsModal();
+          return;
+        }
+        if (badgePanelOpen) {
+          event.preventDefault();
+          setBadgePanelOpen(false);
+          return;
+        }
+      }
+
+      if (shortcutsOpen || activeHeaderDetail) {
         return;
       }
 
-      if (shortcutsOpen) {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          closeShortcutsModal();
-        }
+      if (event.key === "?" && !isTypingTarget) {
+        event.preventDefault();
+        toggleShortcutsModal();
         return;
       }
 
@@ -1883,6 +2005,16 @@ export default function Home() {
         }
       }
 
+      if (!loading && !event.metaKey && !event.ctrlKey && !event.altKey && !isTypingTarget) {
+        if (/^[1-6]$/.test(event.key)) {
+          const jumped = focusHeaderCardByShortcut(Number(event.key) - 1);
+          if (jumped) {
+            event.preventDefault();
+          }
+          return;
+        }
+      }
+
       if (loading || event.metaKey || event.ctrlKey || event.altKey) return;
 
       if (event.key === "Enter") {
@@ -1899,13 +2031,6 @@ export default function Home() {
         }
         return;
       }
-
-      if (event.key === "Escape") {
-        if (badgePanelOpen) {
-          event.preventDefault();
-          setBadgePanelOpen(false);
-        }
-      }
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -1913,12 +2038,15 @@ export default function Home() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [
+    activeHeaderDetail,
     badgePanelOpen,
     bulkUrlsInput,
+    closeHeaderDetailModal,
     closeShortcutsModal,
     compareUrlA,
     compareUrlB,
     comparison,
+    focusHeaderCardByShortcut,
     loading,
     mode,
     pdfState,
@@ -2168,6 +2296,7 @@ export default function Home() {
           <p>
             Shortcuts: <span className="text-slate-300">Cmd/Ctrl+Enter</span> scan,{" "}
             <span className="text-slate-300">Cmd/Ctrl+K</span> focus URL,{" "}
+            <span className="text-slate-300">1-6</span> jump headers,{" "}
             <span className="text-slate-300">Ctrl+P</span> PDF.
           </p>
           <button
@@ -2538,19 +2667,26 @@ export default function Home() {
                         {entry.error ? (
                           entry.error
                         ) : (
-                          <span className="success-checkmark inline-flex items-center gap-1.5 text-emerald-300">
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
-                              <path
-                                d="M3.2 8.4 6.5 11.4 12.8 4.8"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                            Complete
-                          </span>
+                          <div>
+                            <span className="success-checkmark inline-flex items-center gap-1.5 text-emerald-300">
+                              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+                                <path
+                                  d="M3.2 8.4 6.5 11.4 12.8 4.8"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              Complete
+                            </span>
+                            {formatScanDuration(entry.report?.scanDurationMs) && (
+                              <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-sky-300/90">
+                                {formatScanDuration(entry.report?.scanDurationMs)}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -2988,6 +3124,11 @@ export default function Home() {
                 <p>
                   <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
                 </p>
+                {formatScanDuration(report.scanDurationMs) && (
+                  <p className="text-xs uppercase tracking-[0.12em] text-sky-300/90">
+                    {formatScanDuration(report.scanDurationMs)}
+                  </p>
+                )}
                 {frameworkSummaryLabel(report.framework) && (
                   <p>
                     <span className="text-slate-500">Detected stack:</span> {frameworkSummaryLabel(report.framework)}
@@ -3006,7 +3147,14 @@ export default function Home() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 {report.results.map((header, index) => (
-                  <SecurityCard key={header.key} header={header} animationDelayMs={index * 55} />
+                  <SecurityCard
+                    key={header.key}
+                    cardId={`header-card-single-${header.key}`}
+                    header={header}
+                    animationDelayMs={index * 55}
+                    shortcutNumber={index < 6 ? index + 1 : undefined}
+                    onSelect={openHeaderDetailModal}
+                  />
                 ))}
               </div>
             </section>
@@ -3094,9 +3242,12 @@ export default function Home() {
                   {comparison.siteA.results.map((header, index) => (
                     <SecurityCard
                       key={`a-${header.key}`}
+                      cardId={`header-card-site-a-${header.key}`}
                       header={header}
                       highlighted={differingHeaderKeys.has(header.key)}
                       animationDelayMs={index * 45}
+                      shortcutNumber={index < 6 ? index + 1 : undefined}
+                      onSelect={openHeaderDetailModal}
                     />
                   ))}
                 </div>
@@ -3107,9 +3258,12 @@ export default function Home() {
                   {comparison.siteB.results.map((header, index) => (
                     <SecurityCard
                       key={`b-${header.key}`}
+                      cardId={`header-card-site-b-${header.key}`}
                       header={header}
                       highlighted={differingHeaderKeys.has(header.key)}
                       animationDelayMs={index * 45}
+                      shortcutNumber={index < 6 ? index + 1 : undefined}
+                      onSelect={openHeaderDetailModal}
                     />
                   ))}
                 </div>
@@ -3118,6 +3272,84 @@ export default function Home() {
           </section>
         )}
       </div>
+
+      {activeHeaderDetail && activeHeaderDeepDive && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center p-3 sm:items-center sm:p-4">
+          <button
+            type="button"
+            aria-label="Close header details"
+            onClick={closeHeaderDetailModal}
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          />
+          <div
+            ref={headerDetailDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="header-deep-dive-title"
+            className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900/95 p-5 shadow-2xl shadow-slate-950/80 sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Header deep dive</p>
+                <h2 id="header-deep-dive-title" className="mt-1 text-xl font-semibold text-slate-100">
+                  {activeHeaderDetail.label}
+                </h2>
+              </div>
+              <button
+                ref={headerDetailCloseButtonRef}
+                type="button"
+                onClick={closeHeaderDetailModal}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <section>
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Raw header value</p>
+                {activeHeaderDetail.value ? (
+                  <code className="mt-2 block max-h-28 overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2 text-xs text-slate-200">
+                    {activeHeaderDetail.value}
+                  </code>
+                ) : (
+                  <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                    Missing in the latest response.
+                  </p>
+                )}
+              </section>
+
+              <section>
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Directive breakdown</p>
+                <ul className="mt-2 space-y-2">
+                  {activeHeaderDeepDive.directives.map((directive, index) => (
+                    <li
+                      key={`${directive.directive}-${index}`}
+                      className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2"
+                    >
+                      <p className="text-sm font-semibold text-sky-200">{directive.directive}</p>
+                      {directive.raw && <p className="mt-1 break-all text-xs text-slate-400">{directive.raw}</p>}
+                      <p className="mt-1 text-sm text-slate-300">{directive.explanation}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/90 pt-4">
+                <a
+                  href={activeHeaderDeepDive.mdnUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                >
+                  Read on MDN
+                </a>
+                <p className="text-xs text-slate-500">Tip: press Esc to close.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SiteFooter className="mt-10" />
 

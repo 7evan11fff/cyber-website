@@ -9,7 +9,8 @@ test.beforeEach(async ({ page }) => {
 test("theme toggle switches between light and dark", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  const toggleToLight = page.getByRole("button", { name: "Switch to light theme" });
+  await toggleToLight.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
   await page.getByRole("button", { name: "Switch to dark theme" }).click();
