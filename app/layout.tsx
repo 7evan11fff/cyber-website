@@ -3,12 +3,14 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { AnalyticsProvider } from "@/app/components/AnalyticsProvider";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { ServiceWorkerRegistrar } from "@/app/components/ServiceWorkerRegistrar";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
 import { SITE_DESCRIPTION, SITE_NAME, buildOgImageUrl, resolveSiteUrl } from "@/lib/seo";
 
 const HOME_PAGE_TITLE = "Security Header Checker - Scan HTTP Security Headers";
+const TWITTER_HANDLE = process.env.NEXT_PUBLIC_TWITTER_HANDLE?.trim() || undefined;
 
 export const metadata: Metadata = {
   metadataBase: resolveSiteUrl(),
@@ -69,16 +71,19 @@ export const metadata: Metadata = {
         title: HOME_PAGE_TITLE,
         description: SITE_DESCRIPTION
       })
-    ]
+    ],
+    site: TWITTER_HANDLE,
+    creator: TWITTER_HANDLE
   },
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
-      { url: "/icons/icon-512.svg", sizes: "512x512", type: "image/svg+xml" }
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }
     ],
-    apple: [{ url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" }],
-    shortcut: ["/icons/icon-192.svg"]
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    shortcut: ["/icons/icon-192.png"],
+    other: [{ rel: "icon", url: "/icons/icon-512-maskable.png", sizes: "512x512", type: "image/png" }]
   }
 };
 
@@ -96,13 +101,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#020617" />
+        <link rel="preconnect" href="https://plausible.io" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://plausible.io" />
+      </head>
       <body>
         <ThemeProvider>
           <AnalyticsProvider>
             <AuthSessionProvider>
               <ToastProvider>
-                <ServiceWorkerRegistrar />
-                {children}
+                <ErrorBoundary>
+                  <ServiceWorkerRegistrar />
+                  {children}
+                </ErrorBoundary>
               </ToastProvider>
             </AuthSessionProvider>
           </AnalyticsProvider>

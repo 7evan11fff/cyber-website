@@ -5,21 +5,31 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Security Header Checker",
     short_name: "HeaderChecker",
     description: "Scan, compare, and share security header reports with an installable app experience.",
+    id: "/",
+    scope: "/",
+    lang: "en-US",
     start_url: "/",
     display: "standalone",
+    orientation: "portrait-primary",
     background_color: "#020617",
     theme_color: "#020617",
     icons: [
       {
-        src: "/icons/icon-192.svg",
+        src: "/icons/icon-192.png",
         sizes: "192x192",
-        type: "image/svg+xml",
+        type: "image/png",
         purpose: "any"
       },
       {
-        src: "/icons/icon-512.svg",
+        src: "/icons/icon-512.png",
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: "image/png",
+        purpose: "any"
+      },
+      {
+        src: "/icons/icon-512-maskable.png",
+        sizes: "512x512",
+        type: "image/png",
         purpose: "maskable"
       }
     ]

@@ -1,5 +1,5 @@
-const STATIC_CACHE = "shc-static-v1";
-const SHELL_CACHE = "shc-shell-v1";
+const STATIC_CACHE = "shc-static-v2";
+const SHELL_CACHE = "shc-shell-v2";
 
 const APP_SHELL_PATHS = [
   "/",
@@ -11,9 +11,10 @@ const APP_SHELL_PATHS = [
   "/docs/ci-cd",
   "/security-headers-guide",
   "/about",
-  "/manifest.webmanifest",
-  "/icons/icon-192.svg",
-  "/icons/icon-512.svg"
+  "/manifest.json",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/icon-512-maskable.png"
 ];
 
 self.addEventListener("install", (event) => {

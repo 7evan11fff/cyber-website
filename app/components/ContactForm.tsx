@@ -2,6 +2,12 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
+import dynamic from "next/dynamic";
+
+const ConfettiLauncher = dynamic(
+  () => import("@/app/components/ConfettiLauncher").then((module) => module.ConfettiLauncher),
+  { ssr: false }
+);
 
 type ContactValues = {
   name: string;
@@ -63,6 +69,7 @@ export function ContactForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [confettiTrigger, setConfettiTrigger] = useState(0);
 
   function updateField(field: ContactField, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -80,37 +87,6 @@ export function ContactForm() {
       }
       return next;
     });
-  }
-
-  async function celebrateSubmission() {
-    if (typeof window === "undefined") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    await import("canvas-confetti")
-      .then((module) => {
-        const confetti = module.default;
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          startVelocity: 28,
-          origin: { y: 0.75 },
-          scalar: 0.75,
-          colors: ["#7dd3fc", "#34d399", "#22d3ee", "#a7f3d0"]
-        });
-        window.setTimeout(() => {
-          confetti({
-            particleCount: 32,
-            spread: 45,
-            startVelocity: 24,
-            origin: { y: 0.78 },
-            scalar: 0.68,
-            colors: ["#38bdf8", "#5eead4", "#4ade80"]
-          });
-        }, 180);
-      })
-      .catch(() => {
-        // Ignore cosmetic animation failures.
-      });
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -149,7 +125,7 @@ export function ContactForm() {
       setValues(INITIAL_VALUES);
       setErrors({});
       setSubmitted(true);
-      await celebrateSubmission();
+      setConfettiTrigger((current) => current + 1);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to submit your message right now.");
       setSubmitted(false);
@@ -163,6 +139,7 @@ export function ContactForm() {
 
   return (
     <form noValidate onSubmit={onSubmit} className="space-y-4">
+      <ConfettiLauncher triggerKey={confettiTrigger} preset="contact" />
       {submitted && (
         <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
           Message sent successfully. Thanks for reaching out — we usually respond within one business day.

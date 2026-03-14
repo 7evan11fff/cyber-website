@@ -361,6 +361,8 @@ export function SettingsForm({
               alt={accountName ? `${accountName} avatar` : "Account avatar"}
               width={44}
               height={44}
+              sizes="44px"
+              loading="lazy"
               className="h-11 w-11 rounded-full border border-slate-700 object-cover"
             />
           ) : (

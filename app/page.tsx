@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
@@ -25,6 +26,26 @@ import {
   type DomainGradeHistoryRecord,
   type ScanHistoryEntry
 } from "@/lib/userData";
+
+const ConfettiLauncher = dynamic(
+  () => import("@/app/components/ConfettiLauncher").then((module) => module.ConfettiLauncher),
+  { ssr: false }
+);
+const PdfDownloadButton = dynamic(
+  () => import("@/app/components/PdfDownloadButton").then((module) => module.PdfDownloadButton),
+  {
+    ssr: false,
+    loading: () => (
+      <button
+        type="button"
+        disabled
+        className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-400"
+      >
+        Loading PDF tools...
+      </button>
+    )
+  }
+);
 
 type ReportResponse = {
   checkedUrl: string;
@@ -522,6 +543,7 @@ export default function Home() {
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
+  const [pdfExportRequestKey, setPdfExportRequestKey] = useState(0);
   const [shareState, setShareState] = useState<ShareState>("idle");
   const [badgePanelOpen, setBadgePanelOpen] = useState(false);
   const [badgeStyle, setBadgeStyle] = useState<BadgeStyle>("flat");
@@ -541,6 +563,7 @@ export default function Home() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [revealedSections, setRevealedSections] = useState<Record<string, boolean>>({});
+  const [gradeConfettiTrigger, setGradeConfettiTrigger] = useState(0);
   const { data: session, status: sessionStatus } = useSession();
   const compareTouchStartXRef = useRef<number | null>(null);
   const singleUrlInputRef = useRef<HTMLInputElement | null>(null);
@@ -1406,34 +1429,6 @@ export default function Home() {
     }
   }
 
-  const onExportPdf = useCallback(async () => {
-    if (!report) return;
-
-    setPdfState("generating");
-    try {
-      const { buildSecurityReportPdfBlob } = await import("@/lib/pdfReport");
-      const blob = await buildSecurityReportPdfBlob(report);
-      const objectUrl = URL.createObjectURL(blob);
-      const domain = extractDomainFromUrl(report.finalUrl) ?? extractDomainFromUrl(report.checkedUrl) ?? "scan";
-      const safeDomain = domain.replace(/[^a-z0-9.-]/gi, "-");
-
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = `security-report-${safeDomain}-${Date.now()}.pdf`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(objectUrl);
-
-      setPdfState("idle");
-      notify({ tone: "success", message: "Report downloaded." });
-    } catch {
-      setPdfState("error");
-      notify({ tone: "error", message: "Could not generate report PDF." });
-      window.setTimeout(() => setPdfState("idle"), 3000);
-    }
-  }, [notify, report]);
-
   async function onShareResults() {
     if (!report && !comparison) return;
 
@@ -1600,42 +1595,7 @@ export default function Home() {
     if (celebratedScanRef.current === celebrationId) return;
     celebratedScanRef.current = celebrationId;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    let followUpBurstTimer: number | null = null;
-    void import("canvas-confetti")
-      .then((module) => {
-        const confetti = module.default;
-        confetti({
-          particleCount: 36,
-          spread: 56,
-          startVelocity: 26,
-          origin: { y: 0.72 },
-          scalar: 0.72,
-          gravity: 1,
-          colors: ["#7dd3fc", "#34d399", "#22d3ee", "#a7f3d0"]
-        });
-        followUpBurstTimer = window.setTimeout(() => {
-          confetti({
-            particleCount: 24,
-            spread: 44,
-            startVelocity: 22,
-            origin: { y: 0.74 },
-            scalar: 0.66,
-            gravity: 1.05,
-            colors: ["#38bdf8", "#4ade80", "#5eead4"]
-          });
-        }, 180);
-      })
-      .catch(() => {
-        // Ignore cosmetic animation failures.
-      });
-
-    return () => {
-      if (followUpBurstTimer !== null) {
-        window.clearTimeout(followUpBurstTimer);
-      }
-    };
+    setGradeConfettiTrigger((current) => current + 1);
   }, [loading, report]);
 
   useEffect(() => {
@@ -1718,7 +1678,7 @@ export default function Home() {
 
         if (normalizedKey === "p" && !loading && pdfState !== "generating" && report) {
           event.preventDefault();
-          void onExportPdf();
+          setPdfExportRequestKey((current) => current + 1);
           return;
         }
       }
@@ -1759,7 +1719,6 @@ export default function Home() {
     comparison,
     loading,
     mode,
-    onExportPdf,
     pdfState,
     report,
     runBulkCheck,
@@ -1772,6 +1731,7 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <ConfettiLauncher triggerKey={gradeConfettiTrigger} preset="grade" />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
@@ -2084,15 +2044,14 @@ export default function Home() {
           >
             Clear current
           </button>
-          <button
-            type="button"
-            onClick={onExportPdf}
-            disabled={loading || pdfState === "generating" || !report}
-            aria-label="Download PDF report for current scan"
-            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pdfState === "generating" ? "Preparing report..." : "Download Report"}
-          </button>
+          <PdfDownloadButton
+            report={report}
+            busy={loading}
+            requestKey={pdfExportRequestKey}
+            onStateChange={setPdfState}
+            onSuccess={() => notify({ tone: "success", message: "Report downloaded." })}
+            onError={() => notify({ tone: "error", message: "Could not generate report PDF." })}
+          />
           <button
             type="button"
             onClick={onShareResults}
@@ -2539,6 +2498,8 @@ export default function Home() {
                           alt={`Security headers grade badge for ${badgeDomain}`}
                           width={120}
                           height={20}
+                          sizes="120px"
+                          loading="lazy"
                           unoptimized
                         />
                       </div>

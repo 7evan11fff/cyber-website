@@ -32,6 +32,11 @@ body {
   box-shadow: 0 0 0 2px rgb(2 6 23 / 0.75), 0 0 0 4px rgb(56 189 248 / 0.38);
 }
 
+:where(button:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (max-width: 768px) {
   :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea, a[class*="rounded"]) {
     min-height: 44px;

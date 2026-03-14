@@ -117,6 +117,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                     alt={session.user.name ? `${session.user.name} avatar` : "User avatar"}
                     width={28}
                     height={28}
+                    sizes="28px"
+                    loading="lazy"
                     className="h-7 w-7 rounded-full border border-slate-700 object-cover"
                   />
                 ) : (
@@ -221,6 +223,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                       alt={session.user.name ? `${session.user.name} avatar` : "User avatar"}
                       width={28}
                       height={28}
+                      sizes="28px"
+                      loading="lazy"
                       className="h-7 w-7 rounded-full border border-slate-700 object-cover"
                     />
                   ) : (
