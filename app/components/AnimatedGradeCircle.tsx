@@ -68,8 +68,11 @@ export function AnimatedGradeCircle({
   );
 
   return (
-    <div className="grade-badge-in relative mx-auto h-36 w-36">
-      <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90 transform">
+    <div className="grade-badge-in relative mx-auto h-28 w-28 sm:h-36 sm:w-36">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        Grade {grade} with score {displayScore} out of {safeTotal}
+      </p>
+      <svg viewBox="0 0 128 128" aria-hidden="true" className="h-full w-full -rotate-90 transform">
         <circle cx={64} cy={64} r={radius} fill="none" stroke="currentColor" strokeOpacity={0.2} strokeWidth={10} />
         <circle
           cx={64}
@@ -85,8 +88,8 @@ export function AnimatedGradeCircle({
           style={strokeTransitionStyle}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p className={`text-5xl font-bold ${gradeClassName}`}>{grade}</p>
+      <div className="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
+        <p className={`text-4xl font-bold sm:text-5xl ${gradeClassName}`}>{grade}</p>
         <p className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">
           {displayScore}/{safeTotal}
         </p>

@@ -481,6 +481,19 @@ export function ComparePageClient() {
       );
   }, [comparison, siteALabel, siteBLabel]);
 
+  const comparisonLiveMessage = useMemo(() => {
+    if (error) {
+      return `Comparison error: ${error}`;
+    }
+    if (loading) {
+      return "Running two scans for comparison.";
+    }
+    if (comparison) {
+      return `Comparison complete. ${siteALabel} grade ${comparison.siteA.grade}. ${siteBLabel} grade ${comparison.siteB.grade}.`;
+    }
+    return "";
+  }, [comparison, error, loading, siteALabel, siteBLabel]);
+
   const runComparisonCheck = useCallback(async (siteAUrl: string, siteBUrl: string) => {
     if (!normalizeUrl(siteAUrl) || !normalizeUrl(siteBUrl)) {
       setError("Please enter both URLs before comparing.");
@@ -526,6 +539,9 @@ export function ComparePageClient() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {comparisonLiveMessage}
+      </p>
       <SiteNav />
 
       <section className="motion-card mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
@@ -575,6 +591,7 @@ export function ComparePageClient() {
             <button
               type="submit"
               disabled={loading}
+              aria-label="Compare security headers for both URLs"
               className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
               {loading ? "Comparing..." : "Compare Headers"}
@@ -601,13 +618,14 @@ export function ComparePageClient() {
           </p>
         )}
 
-        <section className="mt-6 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-6 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <button
               type="button"
               onClick={() => setHistoryOpen((open) => !open)}
               aria-expanded={historyOpen}
               aria-controls="recent-comparisons-list"
+              aria-label={historyOpen ? "Collapse recent comparisons" : "Expand recent comparisons"}
               className="text-sm font-medium text-slate-200 transition hover:text-sky-200"
             >
               Recent Comparisons ({comparisonHistory.length}) {historyOpen ? "−" : "+"}
@@ -616,6 +634,7 @@ export function ComparePageClient() {
               type="button"
               onClick={clearComparisonHistory}
               disabled={comparisonHistory.length === 0}
+              aria-label="Clear comparison history"
               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear history
@@ -655,6 +674,7 @@ export function ComparePageClient() {
                         type="button"
                         onClick={() => onHistoryEntryClick(entry)}
                         disabled={loading}
+                        aria-label={`Run comparison again for ${entry.siteAUrl} and ${entry.siteBUrl}`}
                         className="motion-card w-full rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -687,12 +707,12 @@ export function ComparePageClient() {
         {loading && <ComparisonResultsSkeleton />}
 
         {comparison && (
-          <div className="mt-6 space-y-5">
+          <div className="lazy-section mt-6 space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteA.checkedUrl}</p>
-                <p className={`grade-badge-in mt-3 text-4xl font-bold ${gradeColor(comparison.siteA.grade)}`}>
+                <p className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(comparison.siteA.grade)}`}>
                   {comparison.siteA.grade}
                 </p>
                 <p className="text-sm text-slate-300">
@@ -702,7 +722,7 @@ export function ComparePageClient() {
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteB.checkedUrl}</p>
-                <p className={`grade-badge-in mt-3 text-4xl font-bold ${gradeColor(comparison.siteB.grade)}`}>
+                <p className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(comparison.siteB.grade)}`}>
                   {comparison.siteB.grade}
                 </p>
                 <p className="text-sm text-slate-300">
@@ -716,8 +736,13 @@ export function ComparePageClient() {
               <p className="mt-1 text-sm text-sky-200/90">{getGradeNarrative(comparison)}</p>
             </article>
 
-            <section className="overflow-x-auto rounded-xl border border-slate-800/90">
-              <table className="min-w-full text-left text-sm">
+            <p className="text-xs text-slate-400 sm:hidden">Scroll horizontally to view the full comparison table.</p>
+            <section
+              className="overflow-x-auto rounded-xl border border-slate-800/90"
+              role="region"
+              aria-label="Comparison result table. Scroll horizontally on mobile."
+            >
+              <table className="min-w-[840px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">Header</th>

@@ -21,6 +21,28 @@ body {
     radial-gradient(circle at bottom, rgba(59, 130, 246, 0.12), transparent 40%);
 }
 
+/* Lift muted body copy contrast in dark mode to WCAG AA. */
+.text-slate-500 {
+  color: rgb(148 163 184);
+}
+
+:where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid rgb(56 189 248);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgb(2 6 23 / 0.75), 0 0 0 4px rgb(56 189 248 / 0.38);
+}
+
+@media (max-width: 768px) {
+  :where(button, input:not([type="checkbox"]):not([type="radio"]), select, textarea, a[class*="rounded"]) {
+    min-height: 44px;
+  }
+
+  :where(a[class*="rounded"]) {
+    align-items: center;
+    display: inline-flex;
+  }
+}
+
 html[data-theme="light"] body {
   @apply bg-slate-100 text-slate-900;
   background-image:
@@ -161,6 +183,11 @@ html[data-theme="light"] .scan-pulse-skeleton {
   transform: none;
 }
 
+.lazy-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 640px;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .reveal-section {
     opacity: 0;
@@ -193,7 +220,12 @@ html[data-theme="light"] .scan-pulse-skeleton {
   .toast-item,
   .toast-progress,
   .empty-state-float,
-  .cta-attention {
+  .cta-attention,
+  .shield-float,
+  .skeleton-shimmer,
+  .scan-pulse-skeleton,
+  .progress-pulse,
+  .success-checkmark {
     animation: none !important;
     transform: none !important;
   }

@@ -1913,7 +1913,7 @@ export default function Home() {
       <section
         id="how-it-works"
         data-reveal-id="how-it-works"
-        className={`${revealClass("how-it-works")} mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+        className={`${revealClass("how-it-works")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -1945,7 +1945,7 @@ export default function Home() {
       <section
         id="testimonials"
         data-reveal-id="testimonials"
-        className={`${revealClass("testimonials")} mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+        className={`${revealClass("testimonials")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -1985,6 +1985,7 @@ export default function Home() {
             type="button"
             onClick={() => setMode("single")}
             aria-pressed={mode === "single"}
+            aria-label="Switch to single scan mode"
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "single"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
@@ -2000,6 +2001,7 @@ export default function Home() {
               setMobileCompareView("siteA");
             }}
             aria-pressed={mode === "compare"}
+            aria-label="Switch to compare mode"
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "compare"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
@@ -2012,6 +2014,7 @@ export default function Home() {
             type="button"
             onClick={() => setMode("bulk")}
             aria-pressed={mode === "bulk"}
+            aria-label="Switch to bulk scan mode"
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
               mode === "bulk"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
@@ -2160,6 +2163,7 @@ export default function Home() {
             type="button"
             onClick={clearCurrentState}
             disabled={loading}
+            aria-label="Clear current inputs and results"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear current
@@ -2168,6 +2172,7 @@ export default function Home() {
             type="button"
             onClick={onExportPdf}
             disabled={loading || pdfState === "generating" || !report}
+            aria-label="Download PDF report for current scan"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pdfState === "generating" ? "Preparing report..." : "Download Report"}
@@ -2176,6 +2181,7 @@ export default function Home() {
             type="button"
             onClick={onShareResults}
             disabled={loading || (!report && !comparison)}
+            aria-label="Share current scan results"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {shareState === "copied"
@@ -2193,7 +2199,7 @@ export default function Home() {
         </div>
 
         {mode === "bulk" && !loading && bulkResults.length > 0 && (
-          <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+          <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div>
                 <h3 className="text-sm font-medium text-slate-100">Bulk Scan Results</h3>
@@ -2205,13 +2211,21 @@ export default function Home() {
               <button
                 type="button"
                 onClick={onExportBulkCsv}
+                aria-label="Export bulk scan results as CSV"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 {bulkExportState === "exported" ? "CSV exported" : "Export CSV"}
               </button>
             </div>
-            <div className="overflow-x-auto border-t border-slate-800/90">
-              <table className="min-w-full text-left text-sm">
+            <p className="border-t border-slate-800/90 px-4 py-2 text-xs text-slate-400 sm:hidden">
+              Scroll horizontally to see all columns.
+            </p>
+            <div
+              className="overflow-x-auto border-t border-slate-800/90"
+              role="region"
+              aria-label="Bulk scan results table. Scroll horizontally on mobile."
+            >
+              <table className="min-w-[920px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
@@ -2315,7 +2329,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="border-b border-slate-800/90 px-4 py-3">
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-300">
               Frequently asked questions
@@ -2399,13 +2413,14 @@ export default function Home() {
           </section>
         )}
 
-        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <button
               type="button"
               onClick={() => setHistoryOpen((open) => !open)}
               aria-expanded={historyOpen}
               aria-controls="recent-scans-list"
+              aria-label={historyOpen ? "Collapse recent scans" : "Expand recent scans"}
               className="text-sm font-medium text-slate-200 transition hover:text-sky-200"
             >
               Recent Scans ({scanHistory.length}) {historyOpen ? "−" : "+"}
@@ -2414,6 +2429,7 @@ export default function Home() {
               type="button"
               onClick={clearHistory}
               disabled={scanHistory.length === 0}
+              aria-label="Clear recent scan history"
               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear history
@@ -2431,6 +2447,7 @@ export default function Home() {
                         type="button"
                         onClick={() => onHistoryEntryClick(entry.url)}
                         disabled={loading}
+                        aria-label={`Run scan again for ${entry.url}`}
                         className="motion-card flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <div className="min-w-0">
@@ -2465,7 +2482,7 @@ export default function Home() {
           disabled={loading}
         />
 
-        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <p className="text-sm font-medium text-slate-200">Recent Popular Sites</p>
             <p className="text-xs text-slate-500">
@@ -2497,6 +2514,7 @@ export default function Home() {
                         type="button"
                         onClick={() => onPopularSiteClick(site)}
                         disabled={loading || isRefreshingThisSite}
+                        aria-label={`Open cached report for ${site}`}
                         className="flex-1 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {cached ? "Open report" : "Pre-scan"}
@@ -2505,6 +2523,7 @@ export default function Home() {
                         type="button"
                         onClick={() => void refreshPopularSite(site)}
                         disabled={loading || isRefreshingThisSite}
+                        aria-label={`Refresh cached scan for ${site}`}
                         className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isRefreshingThisSite ? "..." : "Refresh"}
@@ -2531,7 +2550,7 @@ export default function Home() {
       {loading && mode === "bulk" && <LoadingSkeleton />}
       {loading && mode !== "bulk" && <ScanResultsLoadingSkeleton mode={mode} />}
 
-      <div>
+      <div className="lazy-section">
         {!loading && report && (
           <>
             <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -2728,6 +2747,8 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setMobileCompareView("siteA")}
+                  aria-pressed={mobileCompareView === "siteA"}
+                  aria-label="Show Site A headers"
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     mobileCompareView === "siteA"
                       ? "bg-sky-500 text-slate-950"
@@ -2739,6 +2760,8 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setMobileCompareView("siteB")}
+                  aria-pressed={mobileCompareView === "siteB"}
+                  aria-label="Show Site B headers"
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     mobileCompareView === "siteB"
                       ? "bg-sky-500 text-slate-950"

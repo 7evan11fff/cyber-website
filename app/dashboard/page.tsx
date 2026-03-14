@@ -50,14 +50,14 @@ export default async function DashboardPage() {
 
       <section className="mb-6 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Dashboard</p>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-100">Your security monitoring workspace</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Your security monitoring workspace</h1>
         <p className="mt-2 text-sm text-slate-300">
           Signed in as <span className="font-medium text-slate-100">{session.user.email ?? session.user.name}</span>
         </p>
         <DashboardActions />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="lazy-section grid gap-6 lg:grid-cols-2">
         <article className="motion-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Saved watchlist</h2>
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
 
                 return (
                   <li key={entry.id} className="motion-card rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0">
                         {historyHref ? (
                           <Link
@@ -112,7 +112,7 @@ export default async function DashboardPage() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
-                        <div className="w-24">
+                        <div className="w-20 sm:w-24">
                           <TrendChart
                             points={history}
                             className={`h-9 w-full ${tone.chartClass}`}

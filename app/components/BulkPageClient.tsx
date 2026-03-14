@@ -195,7 +195,7 @@ function BulkResultsSkeleton({ rows = 5 }: { rows?: number }) {
         Running scans...
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="min-w-[760px] text-left text-sm">
           <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-500">
             <tr>
               <th className="px-4 py-3">URL</th>
@@ -348,6 +348,20 @@ export function BulkPageClient() {
       return left.inputUrl.localeCompare(right.inputUrl) * multiplier;
     });
   }, [resultFilter, results, sortDirection, sortField]);
+
+  const bulkLiveMessage = useMemo(() => {
+    if (error) {
+      return `Bulk scan error: ${error}`;
+    }
+    if (loading && bulkTargetCount > 0) {
+      return `Running bulk scan. ${bulkCompletedCount} of ${bulkTargetCount} complete.`;
+    }
+    if (!loading && results.length > 0) {
+      const successCount = results.filter((entry) => entry.report).length;
+      return `Bulk scan finished. ${successCount} of ${results.length} scans succeeded.`;
+    }
+    return "";
+  }, [bulkCompletedCount, bulkTargetCount, error, loading, results]);
 
   function toggleSort(nextField: BulkSortField) {
     setSortField((currentField) => {
@@ -528,6 +542,9 @@ export function BulkPageClient() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {bulkLiveMessage}
+      </p>
       <SiteNav />
 
       <section className="motion-card mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
@@ -622,7 +639,7 @@ export function BulkPageClient() {
         {loading && <BulkResultsSkeleton rows={Math.max(enteredUrlCount, 3)} />}
 
         {results.length > 0 && (
-          <section className="mt-6 rounded-xl border border-slate-800/90">
+          <section className="lazy-section mt-6 rounded-xl border border-slate-800/90">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/90 px-4 py-3">
               <div className="flex items-center gap-2">
                 <label htmlFor="bulk-result-filter" className="text-xs uppercase tracking-[0.12em] text-slate-500">
@@ -643,8 +660,15 @@ export function BulkPageClient() {
                 Showing {filteredAndSortedResults.length} of {results.length} rows
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
+            <p className="border-b border-slate-800/90 px-4 py-2 text-xs text-slate-400 sm:hidden">
+              Scroll horizontally to view all columns.
+            </p>
+            <div
+              className="overflow-x-auto"
+              role="region"
+              aria-label="Bulk scan results table. Scroll horizontally on mobile."
+            >
+              <table className="min-w-[980px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
@@ -657,6 +681,7 @@ export function BulkPageClient() {
                       <button
                         type="button"
                         onClick={() => toggleSort("grade")}
+                        aria-label="Sort rows by grade"
                         className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
                       >
                         Grade
@@ -672,6 +697,7 @@ export function BulkPageClient() {
                       <button
                         type="button"
                         onClick={() => toggleSort("score")}
+                        aria-label="Sort rows by score"
                         className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
                       >
                         Score
@@ -688,6 +714,7 @@ export function BulkPageClient() {
                       <button
                         type="button"
                         onClick={() => toggleSort("checkedAt")}
+                        aria-label="Sort rows by checked time"
                         className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
                       >
                         Checked at
@@ -757,6 +784,7 @@ export function BulkPageClient() {
                               href={entry.reportHref}
                               target="_blank"
                               rel="noreferrer"
+                              aria-label={`Open full report for ${entry.inputUrl}`}
                               className="text-sky-300 transition hover:text-sky-200"
                             >
                               Open full report
@@ -773,6 +801,7 @@ export function BulkPageClient() {
                             type="button"
                             onClick={() => setDetailsTarget(entry)}
                             disabled={!entry.report}
+                            aria-label={`View full scan details for ${entry.inputUrl}`}
                             className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             View Details
@@ -788,6 +817,7 @@ export function BulkPageClient() {
               <button
                 type="button"
                 onClick={onDownloadCsv}
+                aria-label="Download bulk scan results as CSV"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 {bulkExportState === "exported" ? "CSV downloaded" : "Download CSV"}
@@ -795,6 +825,7 @@ export function BulkPageClient() {
               <button
                 type="button"
                 onClick={onCopyMarkdownTable}
+                aria-label="Copy bulk scan results as markdown table"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 {bulkCopyState === "copied" ? "Markdown copied" : "Markdown Copy"}
@@ -823,6 +854,7 @@ export function BulkPageClient() {
                 <button
                   type="button"
                   onClick={() => setDetailsTarget(null)}
+                  aria-label="Close full scan details"
                   className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Close
@@ -850,8 +882,12 @@ export function BulkPageClient() {
                   </div>
                 </div>
 
-                <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800/90">
-                  <table className="min-w-full text-left text-sm">
+                <div
+                  className="mt-4 overflow-x-auto rounded-lg border border-slate-800/90"
+                  role="region"
+                  aria-label="Detailed header status table"
+                >
+                  <table className="min-w-[760px] text-left text-sm">
                     <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                       <tr>
                         <th className="px-4 py-3">Header</th>
