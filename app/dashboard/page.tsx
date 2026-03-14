@@ -7,15 +7,16 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { TrendChart } from "@/app/components/TrendChart";
 import { authOptions } from "@/lib/auth";
 import { getTrendDirection } from "@/lib/gradeTrends";
+import { buildPageMetadata } from "@/lib/seo";
 import { getDomainKeyFromUrl } from "@/lib/userData";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Dashboard",
   description: "Signed-in dashboard for watchlist monitoring and scan history.",
-  alternates: { canonical: "/dashboard" },
-  robots: { index: false, follow: false }
-};
+  path: "/dashboard",
+  robots: { index: false, follow: false, googleBot: { index: false, follow: false } }
+});
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);

@@ -49,6 +49,8 @@ type PageMetadataOptions = {
   description: string;
   path: string;
   keywords?: string[];
+  robots?: Metadata["robots"];
+  openGraphType?: "website" | "article";
 };
 
 export function buildPageMetadata(options: PageMetadataOptions): Metadata {
@@ -58,6 +60,18 @@ export function buildPageMetadata(options: PageMetadataOptions): Metadata {
     description: options.description
   });
   const pageTitle = withSiteName(options.title);
+  const twitterSite = process.env.NEXT_PUBLIC_TWITTER_HANDLE?.trim() || undefined;
+  const robots = options.robots ?? {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1
+    }
+  };
 
   return {
     title: options.title,
@@ -66,12 +80,14 @@ export function buildPageMetadata(options: PageMetadataOptions): Metadata {
     alternates: {
       canonical: pagePath
     },
+    robots,
     openGraph: {
       title: pageTitle,
       description: options.description,
       url: pagePath,
       siteName: SITE_NAME,
-      type: "website",
+      type: options.openGraphType ?? "website",
+      locale: "en_US",
       images: [
         {
           url: ogImageUrl,
@@ -85,7 +101,9 @@ export function buildPageMetadata(options: PageMetadataOptions): Metadata {
       card: "summary_large_image",
       title: pageTitle,
       description: options.description,
-      images: [ogImageUrl]
+      images: [ogImageUrl],
+      site: twitterSite,
+      creator: twitterSite
     }
   };
 }

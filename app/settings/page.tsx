@@ -4,14 +4,15 @@ import type { Metadata } from "next";
 import { SettingsForm } from "@/app/components/SettingsForm";
 import { SiteNav } from "@/app/components/SiteNav";
 import { authOptions } from "@/lib/auth";
+import { buildPageMetadata } from "@/lib/seo";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Settings",
   description: "Manage account preferences, notifications, and privacy controls.",
-  alternates: { canonical: "/settings" },
-  robots: { index: false, follow: false }
-};
+  path: "/settings",
+  robots: { index: false, follow: false, googleBot: { index: false, follow: false } }
+});
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);

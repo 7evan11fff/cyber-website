@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
+import { ServiceWorkerRegistrar } from "@/app/components/ServiceWorkerRegistrar";
 import { ToastProvider } from "@/app/components/ToastProvider";
 import { SITE_DESCRIPTION, SITE_NAME, buildOgImageUrl, resolveSiteUrl } from "@/lib/seo";
 
@@ -66,10 +67,14 @@ export const metadata: Metadata = {
       })
     ]
   },
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico"
+    icon: [
+      { url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/icons/icon-512.svg", sizes: "512x512", type: "image/svg+xml" }
+    ],
+    apple: [{ url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" }],
+    shortcut: ["/icons/icon-192.svg"]
   }
 };
 
@@ -89,7 +94,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AuthSessionProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <ServiceWorkerRegistrar />
+            {children}
+          </ToastProvider>
         </AuthSessionProvider>
       </body>
     </html>

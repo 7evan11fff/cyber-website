@@ -7,15 +7,16 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { TrendChart } from "@/app/components/TrendChart";
 import { authOptions } from "@/lib/auth";
 import { getGradeChangeAnnotations, getTrendDirection, type TrendDirection } from "@/lib/gradeTrends";
+import { buildPageMetadata } from "@/lib/seo";
 import { getDomainKeyFromUrl } from "@/lib/userData";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Watchlist history",
   description: "Detailed watchlist trend history for a monitored domain.",
-  alternates: { canonical: "/dashboard" },
-  robots: { index: false, follow: false }
-};
+  path: "/dashboard",
+  robots: { index: false, follow: false, googleBot: { index: false, follow: false } }
+});
 
 const toneByTrend: Record<
   TrendDirection,
