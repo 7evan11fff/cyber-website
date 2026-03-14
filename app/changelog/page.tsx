@@ -13,6 +13,16 @@ export const metadata: Metadata = buildPageMetadata({
 
 const RELEASES = [
   {
+    version: "v1.5.0",
+    date: "Mar 2026",
+    notes: [
+      "Expanded bulk mode with sortable columns, result filters, and in-table detail modals for faster triage.",
+      "Added markdown-table copy workflows for bulk results alongside CSV export improvements.",
+      "Introduced recent comparison history with local persistence, one-click re-run, and account sync.",
+      "Added opt-in browser notifications for scan completion with per-account settings support."
+    ]
+  },
+  {
     version: "v1.4.0",
     date: "Mar 2026",
     notes: [

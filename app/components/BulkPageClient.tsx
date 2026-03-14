@@ -1,12 +1,14 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import type { HeaderResult } from "@/lib/securityHeaders";
+import { BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY } from "@/lib/userData";
+import { sendBrowserNotification } from "@/lib/browserNotifications";
 
 type ReportResponse = {
   checkedUrl: string;
@@ -32,8 +34,19 @@ type SharePayload = {
   report: ReportResponse;
 };
 
+type BulkResultFilter = "all" | "success" | "failed";
+type BulkSortField = "grade" | "score" | "checkedAt";
+type SortDirection = "asc" | "desc";
+
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
+const GRADE_RANK: Record<string, number> = {
+  A: 5,
+  B: 4,
+  C: 3,
+  D: 2,
+  F: 1
+};
 
 const gradeClassNames: Record<string, string> = {
   A: "text-emerald-300",
@@ -51,6 +64,16 @@ function normalizeUrl(value: string) {
   return value.trim();
 }
 
+function extractDomain(value: string) {
+  try {
+    const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    const parsed = new URL(withProtocol);
+    return parsed.hostname || value;
+  } catch {
+    return value;
+  }
+}
+
 function escapeCsvCell(value: string): string {
   if (/[",\n]/.test(value)) {
     return `"${value.replace(/"/g, "\"\"")}"`;
@@ -66,6 +89,22 @@ function formatCheckedAt(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function scoreValue(entry: BulkScanResult) {
+  if (!entry.report) return -1;
+  return entry.report.score;
+}
+
+function checkedAtValue(entry: BulkScanResult) {
+  if (!entry.report) return -1;
+  const parsed = new Date(entry.report.checkedAt).getTime();
+  return Number.isFinite(parsed) ? parsed : -1;
+}
+
+function gradeValue(entry: BulkScanResult) {
+  if (!entry.report) return -1;
+  return GRADE_RANK[entry.report.grade] ?? 0;
 }
 
 function toExportRow(entry: BulkScanResult): [string, string, string, string, string] {
@@ -153,21 +192,100 @@ async function requestReport(targetUrl: string): Promise<ReportResponse> {
 
 export function BulkPageClient() {
   const { notify } = useToast();
-  const { status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [bulkUrlsInput, setBulkUrlsInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BulkScanResult[]>([]);
   const [bulkExportState, setBulkExportState] = useState<"idle" | "exported" | "error">("idle");
   const [bulkCopyState, setBulkCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [resultFilter, setResultFilter] = useState<BulkResultFilter>("all");
+  const [sortField, setSortField] = useState<BulkSortField>("checkedAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [detailsTarget, setDetailsTarget] = useState<BulkScanResult | null>(null);
+  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
 
   const isAuthenticated = sessionStatus === "authenticated";
+  const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const enteredUrlCount = useMemo(() => {
     return bulkUrlsInput
       .split(/\r?\n/)
       .map((entry) => entry.trim())
       .filter(Boolean).length;
   }, [bulkUrlsInput]);
+
+  useEffect(() => {
+    try {
+      const localValue = localStorage.getItem(BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY);
+      setBrowserNotificationsEnabled(localValue === "true");
+    } catch {
+      setBrowserNotificationsEnabled(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey) return;
+    let cancelled = false;
+
+    async function syncNotificationPreference() {
+      try {
+        const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { browserNotificationsEnabled?: unknown };
+        if (cancelled || typeof payload.browserNotificationsEnabled !== "boolean") return;
+        setBrowserNotificationsEnabled(payload.browserNotificationsEnabled);
+        try {
+          localStorage.setItem(
+            BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
+            payload.browserNotificationsEnabled ? "true" : "false"
+          );
+        } catch {
+          // Ignore storage failures.
+        }
+      } catch {
+        // Keep local setting fallback.
+      }
+    }
+
+    void syncNotificationPreference();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserKey, isAuthenticated]);
+
+  const filteredAndSortedResults = useMemo(() => {
+    const filtered =
+      resultFilter === "all"
+        ? results
+        : results.filter((entry) => (resultFilter === "success" ? Boolean(entry.report) : Boolean(entry.error)));
+
+    return [...filtered].sort((left, right) => {
+      const multiplier = sortDirection === "asc" ? 1 : -1;
+      let difference = 0;
+      if (sortField === "grade") {
+        difference = gradeValue(left) - gradeValue(right);
+      } else if (sortField === "score") {
+        difference = scoreValue(left) - scoreValue(right);
+      } else {
+        difference = checkedAtValue(left) - checkedAtValue(right);
+      }
+      if (difference !== 0) {
+        return difference * multiplier;
+      }
+      return left.inputUrl.localeCompare(right.inputUrl) * multiplier;
+    });
+  }, [resultFilter, results, sortDirection, sortField]);
+
+  function toggleSort(nextField: BulkSortField) {
+    setSortField((currentField) => {
+      if (currentField === nextField) {
+        setSortDirection((currentDirection) => (currentDirection === "asc" ? "desc" : "asc"));
+        return currentField;
+      }
+      setSortDirection("desc");
+      return nextField;
+    });
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -194,6 +312,7 @@ export function BulkPageClient() {
     setResults([]);
     setBulkExportState("idle");
     setBulkCopyState("idle");
+    setDetailsTarget(null);
 
     try {
       const settled = await Promise.allSettled(targets.map((target) => requestReport(target)));
@@ -229,6 +348,32 @@ export function BulkPageClient() {
         notify({ tone: "error", message });
       } else {
         notify({ tone: "success", message: `Scanned ${nextResults.length} URL${nextResults.length === 1 ? "" : "s"}.` });
+      }
+
+      if (browserNotificationsEnabled) {
+        const successfulReports = nextResults
+          .map((entry) => entry.report)
+          .filter((entry): entry is ReportResponse => Boolean(entry));
+        if (successfulReports.length === 1) {
+          const single = successfulReports[0];
+          sendBrowserNotification("Scan complete", {
+            body: `${extractDomain(single.checkedUrl)} earned grade ${single.grade}.`,
+            tag: "bulk-scan-complete"
+          });
+        } else if (successfulReports.length > 1) {
+          const bestGrade = [...successfulReports].sort(
+            (left, right) => (GRADE_RANK[right.grade] ?? 0) - (GRADE_RANK[left.grade] ?? 0)
+          )[0]?.grade;
+          sendBrowserNotification("Bulk scan complete", {
+            body: `${successfulReports.length}/${nextResults.length} succeeded${bestGrade ? `. Best grade: ${bestGrade}.` : "."}`,
+            tag: "bulk-scan-complete"
+          });
+        } else {
+          sendBrowserNotification("Bulk scan complete", {
+            body: "All scans failed. Review the table for details.",
+            tag: "bulk-scan-complete"
+          });
+        }
       }
     } finally {
       setLoading(false);
@@ -266,10 +411,10 @@ export function BulkPageClient() {
   }
 
   async function onCopyMarkdownTable() {
-    if (results.length === 0) return;
+    if (filteredAndSortedResults.length === 0) return;
 
     try {
-      await navigator.clipboard.writeText(buildMarkdownTable(results));
+      await navigator.clipboard.writeText(buildMarkdownTable(filteredAndSortedResults));
       setBulkCopyState("copied");
       notify({ tone: "success", message: "Bulk scan markdown table copied." });
     } catch {
@@ -279,6 +424,18 @@ export function BulkPageClient() {
       window.setTimeout(() => setBulkCopyState("idle"), 2500);
     }
   }
+
+  useEffect(() => {
+    if (!detailsTarget) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDetailsTarget(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [detailsTarget]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -338,73 +495,154 @@ export function BulkPageClient() {
 
         {results.length > 0 && (
           <section className="mt-6 rounded-xl border border-slate-800/90">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/90 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="bulk-result-filter" className="text-xs uppercase tracking-[0.12em] text-slate-500">
+                  Filter
+                </label>
+                <select
+                  id="bulk-result-filter"
+                  value={resultFilter}
+                  onChange={(event) => setResultFilter(event.target.value as BulkResultFilter)}
+                  className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                >
+                  <option value="all">All</option>
+                  <option value="success">Success</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+              <p className="text-xs text-slate-500">
+                Showing {filteredAndSortedResults.length} of {results.length} rows
+              </p>
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
-                    <th className="px-4 py-3">Grade</th>
-                    <th className="px-4 py-3">Score</th>
+                    <th
+                      className="px-4 py-3"
+                      aria-sort={
+                        sortField === "grade" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"
+                      }
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("grade")}
+                        className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
+                      >
+                        Grade
+                        {sortField === "grade" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                      </button>
+                    </th>
+                    <th
+                      className="px-4 py-3"
+                      aria-sort={
+                        sortField === "score" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"
+                      }
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("score")}
+                        className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
+                      >
+                        Score
+                        {sortField === "score" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                      </button>
+                    </th>
                     <th className="px-4 py-3">Missing headers</th>
-                    <th className="px-4 py-3">Checked at</th>
+                    <th
+                      className="px-4 py-3"
+                      aria-sort={
+                        sortField === "checkedAt" ? (sortDirection === "asc" ? "ascending" : "descending") : "none"
+                      }
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("checkedAt")}
+                        className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
+                      >
+                        Checked at
+                        {sortField === "checkedAt" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                      </button>
+                    </th>
                     <th className="px-4 py-3">Full report</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((entry, index) => (
-                    <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
-                      <td className="px-4 py-3 align-top text-slate-200">
-                        <p className="max-w-[320px] break-all">{entry.inputUrl}</p>
-                        {entry.report && <p className="mt-1 max-w-[320px] break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
+                  {filteredAndSortedResults.length === 0 ? (
+                    <tr className="border-t border-slate-800/70">
+                      <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">
+                        No rows match this filter.
                       </td>
-                      <td className="px-4 py-3 align-top">
-                        {entry.report ? (
-                          <span className={`text-lg font-semibold ${gradeColor(entry.report.grade)}`}>{entry.report.grade}</span>
-                        ) : (
-                          <span className="text-lg font-semibold text-rose-300">--</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top text-slate-300">
-                        {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
-                      </td>
-                      <td className="px-4 py-3 align-top text-slate-300">
-                        {entry.report ? (
-                          entry.missingHeaders.length > 0 ? (
-                            <ul className="space-y-1">
-                              {entry.missingHeaders.map((header) => (
-                                <li key={header} className="text-xs">
-                                  {header}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-emerald-300">None</span>
-                          )
-                        ) : (
-                          "--"
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top text-slate-400">
-                        {entry.report ? formatCheckedAt(entry.report.checkedAt) : "--"}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        {entry.reportHref ? (
-                          <Link
-                            href={entry.reportHref}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sky-300 transition hover:text-sky-200"
-                          >
-                            Open full report
-                          </Link>
-                        ) : (
-                          <span className="text-slate-500">Unavailable</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top text-slate-300">{entry.error ?? "OK"}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredAndSortedResults.map((entry, index) => (
+                      <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
+                        <td className="px-4 py-3 align-top text-slate-200">
+                          <p className="max-w-[320px] break-all">{entry.inputUrl}</p>
+                          {entry.report && <p className="mt-1 max-w-[320px] break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {entry.report ? (
+                            <span className={`text-lg font-semibold ${gradeColor(entry.report.grade)}`}>{entry.report.grade}</span>
+                          ) : (
+                            <span className="text-lg font-semibold text-rose-300">--</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top text-slate-300">
+                          {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                        </td>
+                        <td className="px-4 py-3 align-top text-slate-300">
+                          {entry.report ? (
+                            entry.missingHeaders.length > 0 ? (
+                              <ul className="space-y-1">
+                                {entry.missingHeaders.map((header) => (
+                                  <li key={header} className="text-xs">
+                                    {header}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-emerald-300">None</span>
+                            )
+                          ) : (
+                            "--"
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top text-slate-400">
+                          {entry.report ? formatCheckedAt(entry.report.checkedAt) : "--"}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {entry.reportHref ? (
+                            <Link
+                              href={entry.reportHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-300 transition hover:text-sky-200"
+                            >
+                              Open full report
+                            </Link>
+                          ) : (
+                            <span className="text-slate-500">Unavailable</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top text-slate-300">{entry.error ?? "OK"}</td>
+                        <td className="px-4 py-3 align-top">
+                          <button
+                            type="button"
+                            onClick={() => setDetailsTarget(entry)}
+                            disabled={!entry.report}
+                            className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -421,12 +659,90 @@ export function BulkPageClient() {
                 onClick={onCopyMarkdownTable}
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
               >
-                {bulkCopyState === "copied" ? "Copied markdown" : "Copy to Clipboard"}
+                {bulkCopyState === "copied" ? "Markdown copied" : "Markdown Copy"}
               </button>
               {bulkExportState === "error" && <p className="text-xs text-rose-300">Could not download CSV. Try again.</p>}
               {bulkCopyState === "error" && <p className="text-xs text-rose-300">Could not copy markdown table. Try again.</p>}
             </div>
           </section>
+        )}
+
+        {detailsTarget?.report && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-scan-details-title"
+          >
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
+                <div>
+                  <h2 id="bulk-scan-details-title" className="text-lg font-semibold text-slate-100">
+                    Full scan details
+                  </h2>
+                  <p className="mt-1 break-all text-xs text-slate-400">{detailsTarget.report.checkedUrl}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailsTarget(null)}
+                  className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="max-h-[75vh] overflow-y-auto px-5 py-4">
+                <div className="grid gap-4 rounded-lg border border-slate-800/90 bg-slate-900/70 p-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Grade</p>
+                    <p className={`mt-1 text-3xl font-bold ${gradeColor(detailsTarget.report.grade)}`}>
+                      {detailsTarget.report.grade}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Score</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-100">
+                      {detailsTarget.report.score}/{detailsTarget.report.results.length * 2}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Checked at</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      {formatCheckedAt(detailsTarget.report.checkedAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800/90">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Header</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Value</th>
+                        <th className="px-4 py-3">Guidance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailsTarget.report.results.map((header) => (
+                        <tr key={header.key} className="border-t border-slate-800/70">
+                          <td className="px-4 py-3 align-top text-slate-100">{header.label}</td>
+                          <td className="px-4 py-3 align-top">
+                            <span className="inline-flex rounded-full border border-slate-700 bg-slate-900/70 px-2 py-1 text-xs uppercase text-slate-200">
+                              {header.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-top text-xs text-slate-300">
+                            {header.value ?? "Missing header"}
+                          </td>
+                          <td className="px-4 py-3 align-top text-xs text-slate-300">{header.guidance}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </section>
 

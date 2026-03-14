@@ -6,6 +6,7 @@ import {
   createEmptyUserDataRecord,
   type UserDataRecord,
   isNotificationFrequency,
+  normalizeComparisonHistoryEntries,
   normalizeDomainGradeHistory,
   normalizeWatchlistNotificationLog,
   normalizeScanHistoryEntries,
@@ -63,10 +64,17 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
   return {
     watchlist: normalizeWatchlistEntries(Array.isArray(record.watchlist) ? record.watchlist : []),
     scanHistory: normalizeScanHistoryEntries(Array.isArray(record.scanHistory) ? record.scanHistory : []),
+    comparisonHistory: normalizeComparisonHistoryEntries(
+      Array.isArray(record.comparisonHistory) ? record.comparisonHistory : []
+    ),
     history: normalizeDomainGradeHistory(record.history),
     alertEmail: typeof record.alertEmail === "string" ? record.alertEmail : null,
     notificationOnGradeChange: normalizedNotificationOnGradeChange,
     notificationFrequency: normalizedFrequency,
+    browserNotificationsEnabled:
+      typeof record.browserNotificationsEnabled === "boolean"
+        ? record.browserNotificationsEnabled
+        : createEmptyUserDataRecord().browserNotificationsEnabled,
     watchlistNotificationLog: normalizeWatchlistNotificationLog(record.watchlistNotificationLog),
     updatedAt: record.updatedAt
   };
@@ -95,10 +103,12 @@ export async function updateUserDataForUser(
       UserDataRecord,
       | "watchlist"
       | "scanHistory"
+      | "comparisonHistory"
       | "history"
       | "alertEmail"
       | "notificationOnGradeChange"
       | "notificationFrequency"
+      | "browserNotificationsEnabled"
       | "watchlistNotificationLog"
     >
   >
@@ -110,6 +120,7 @@ export async function updateUserDataForUser(
   const next: UserDataRecord = normalizeRecord({
     watchlist: patch.watchlist ?? current.watchlist,
     scanHistory: patch.scanHistory ?? current.scanHistory,
+    comparisonHistory: patch.comparisonHistory ?? current.comparisonHistory,
     history: patch.history ?? current.history,
     alertEmail:
       patch.alertEmail === null || typeof patch.alertEmail === "string"
@@ -122,6 +133,10 @@ export async function updateUserDataForUser(
     notificationFrequency: isNotificationFrequency(patch.notificationFrequency)
       ? patch.notificationFrequency
       : current.notificationFrequency,
+    browserNotificationsEnabled:
+      typeof patch.browserNotificationsEnabled === "boolean"
+        ? patch.browserNotificationsEnabled
+        : current.browserNotificationsEnabled,
     watchlistNotificationLog:
       patch.watchlistNotificationLog && typeof patch.watchlistNotificationLog === "object"
         ? normalizeWatchlistNotificationLog(patch.watchlistNotificationLog)

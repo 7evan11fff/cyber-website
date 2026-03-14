@@ -5,6 +5,15 @@ export type ScanHistoryEntry = {
   checkedAt: string;
 };
 
+export type ComparisonHistoryEntry = {
+  id: string;
+  siteAUrl: string;
+  siteAGrade: string;
+  siteBUrl: string;
+  siteBGrade: string;
+  checkedAt: string;
+};
+
 export type DomainGradeHistoryPoint = {
   grade: string;
   checkedAt: string;
@@ -26,20 +35,25 @@ export type NotificationFrequency = (typeof NOTIFICATION_FREQUENCIES)[number];
 export type UserDataRecord = {
   watchlist: WatchlistEntry[];
   scanHistory: ScanHistoryEntry[];
+  comparisonHistory: ComparisonHistoryEntry[];
   history: DomainGradeHistoryRecord;
   alertEmail: string | null;
   notificationOnGradeChange: boolean;
   notificationFrequency: NotificationFrequency;
+  browserNotificationsEnabled: boolean;
   watchlistNotificationLog: Record<string, string>;
   updatedAt: string;
 };
 
 export const HISTORY_STORAGE_KEY = "security-header-checker:scan-history";
+export const COMPARISON_HISTORY_STORAGE_KEY = "security-header-checker:comparison-history";
 export const DOMAIN_HISTORY_STORAGE_KEY = "security-header-checker:domain-grade-history";
 export const WATCHLIST_STORAGE_KEY = "security-header-checker:watchlist";
 export const WATCHLIST_ALERT_EMAIL_STORAGE_KEY = "security-header-checker:watchlist-alert-email";
 export const WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY =
   "security-header-checker:watchlist-notification-frequency";
+export const BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY =
+  "security-header-checker:browser-notifications-enabled";
 export const MAX_HISTORY_ITEMS = 10;
 export const MAX_DOMAIN_HISTORY_POINTS = 30;
 export const DOMAIN_HISTORY_RETENTION_DAYS = 90;
@@ -52,6 +66,19 @@ export function isScanHistoryEntry(value: unknown): value is ScanHistoryEntry {
     typeof candidate.id === "string" &&
     typeof candidate.url === "string" &&
     typeof candidate.grade === "string" &&
+    typeof candidate.checkedAt === "string"
+  );
+}
+
+export function isComparisonHistoryEntry(value: unknown): value is ComparisonHistoryEntry {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ComparisonHistoryEntry>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.siteAUrl === "string" &&
+    typeof candidate.siteAGrade === "string" &&
+    typeof candidate.siteBUrl === "string" &&
+    typeof candidate.siteBGrade === "string" &&
     typeof candidate.checkedAt === "string"
   );
 }
@@ -100,10 +127,12 @@ export function createEmptyUserDataRecord(): UserDataRecord {
   return {
     watchlist: [],
     scanHistory: [],
+    comparisonHistory: [],
     history: {},
     alertEmail: null,
     notificationOnGradeChange: true,
     notificationFrequency: "instant",
+    browserNotificationsEnabled: false,
     watchlistNotificationLog: {},
     updatedAt: new Date(0).toISOString()
   };
@@ -148,6 +177,21 @@ export function normalizeScanHistoryEntries(entries: unknown[]): ScanHistoryEntr
   for (const entry of entries) {
     if (!isScanHistoryEntry(entry)) continue;
     dedupedByKey.set(`${entry.url}::${entry.checkedAt}`, entry);
+  }
+
+  return Array.from(dedupedByKey.values())
+    .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())
+    .slice(0, MAX_HISTORY_ITEMS);
+}
+
+export function normalizeComparisonHistoryEntries(entries: unknown[]): ComparisonHistoryEntry[] {
+  const dedupedByKey = new Map<string, ComparisonHistoryEntry>();
+  for (const entry of entries) {
+    if (!isComparisonHistoryEntry(entry)) continue;
+    dedupedByKey.set(
+      `${entry.siteAUrl}::${entry.siteBUrl}::${entry.checkedAt}`,
+      entry
+    );
   }
 
   return Array.from(dedupedByKey.values())
@@ -224,4 +268,11 @@ export function mergeScanHistories(
   secondary: ScanHistoryEntry[]
 ): ScanHistoryEntry[] {
   return normalizeScanHistoryEntries([...primary, ...secondary]);
+}
+
+export function mergeComparisonHistories(
+  primary: ComparisonHistoryEntry[],
+  secondary: ComparisonHistoryEntry[]
+): ComparisonHistoryEntry[] {
+  return normalizeComparisonHistoryEntries([...primary, ...secondary]);
 }

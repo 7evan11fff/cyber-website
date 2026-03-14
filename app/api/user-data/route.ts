@@ -8,6 +8,7 @@ import {
   updateUserDataForUser
 } from "@/lib/userDataStore";
 import {
+  normalizeComparisonHistoryEntries,
   isNotificationFrequency,
   normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
@@ -39,10 +40,12 @@ export async function PUT(request: Request) {
     | {
         watchlist?: unknown;
         scanHistory?: unknown;
+        comparisonHistory?: unknown;
         history?: unknown;
         alertEmail?: unknown;
         notificationOnGradeChange?: unknown;
         notificationFrequency?: unknown;
+        browserNotificationsEnabled?: unknown;
         watchlistNotificationLog?: unknown;
       }
     | null;
@@ -54,10 +57,12 @@ export async function PUT(request: Request) {
   const patch: {
     watchlist?: ReturnType<typeof normalizeWatchlistEntries>;
     scanHistory?: ReturnType<typeof normalizeScanHistoryEntries>;
+    comparisonHistory?: ReturnType<typeof normalizeComparisonHistoryEntries>;
     history?: ReturnType<typeof normalizeDomainGradeHistory>;
     alertEmail?: string | null;
     notificationOnGradeChange?: boolean;
     notificationFrequency?: "instant" | "daily" | "weekly";
+    browserNotificationsEnabled?: boolean;
     watchlistNotificationLog?: Record<string, string>;
   } = {};
 
@@ -79,6 +84,16 @@ export async function PUT(request: Request) {
   }
   if (Array.isArray(body.scanHistory)) {
     patch.scanHistory = normalizeScanHistoryEntries(body.scanHistory);
+  }
+
+  if (body.comparisonHistory !== undefined && !Array.isArray(body.comparisonHistory)) {
+    return NextResponse.json(
+      { error: 'Invalid "comparisonHistory". Expected an array of comparison history entries.' },
+      { status: 400 }
+    );
+  }
+  if (Array.isArray(body.comparisonHistory)) {
+    patch.comparisonHistory = normalizeComparisonHistoryEntries(body.comparisonHistory);
   }
 
   if (body.history !== undefined) {
@@ -125,6 +140,19 @@ export async function PUT(request: Request) {
       );
     }
     patch.notificationFrequency = body.notificationFrequency;
+  }
+
+  if (
+    body.browserNotificationsEnabled !== undefined &&
+    typeof body.browserNotificationsEnabled !== "boolean"
+  ) {
+    return NextResponse.json(
+      { error: 'Invalid "browserNotificationsEnabled". Expected true or false.' },
+      { status: 400 }
+    );
+  }
+  if (typeof body.browserNotificationsEnabled === "boolean") {
+    patch.browserNotificationsEnabled = body.browserNotificationsEnabled;
   }
 
   if (body.watchlistNotificationLog !== undefined) {

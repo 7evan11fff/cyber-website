@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
 import {
+  BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
+  COMPARISON_HISTORY_STORAGE_KEY,
   DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
   type NotificationFrequency,
@@ -11,6 +13,10 @@ import {
   WATCHLIST_STORAGE_KEY
 } from "@/lib/userData";
 import { useToast } from "@/app/components/ToastProvider";
+import {
+  getBrowserNotificationPermission,
+  requestBrowserNotificationPermission
+} from "@/lib/browserNotifications";
 
 type SettingsFormProps = {
   accountName: string | null;
@@ -19,6 +25,7 @@ type SettingsFormProps = {
   initialAlertEmail: string | null;
   initialNotificationOnGradeChange: boolean;
   initialNotificationFrequency: NotificationFrequency;
+  initialBrowserNotificationsEnabled: boolean;
   lastUpdatedAt: string;
 };
 
@@ -29,6 +36,7 @@ export function SettingsForm({
   initialAlertEmail,
   initialNotificationOnGradeChange,
   initialNotificationFrequency,
+  initialBrowserNotificationsEnabled,
   lastUpdatedAt
 }: SettingsFormProps) {
   const { notify } = useToast();
@@ -38,6 +46,9 @@ export function SettingsForm({
   );
   const [notificationFrequency, setNotificationFrequency] = useState<NotificationFrequency>(
     initialNotificationFrequency
+  );
+  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
+    initialBrowserNotificationsEnabled
   );
   const [saveInFlight, setSaveInFlight] = useState(false);
   const [deleteInFlight, setDeleteInFlight] = useState(false);
@@ -64,6 +75,35 @@ export function SettingsForm({
       return;
     }
 
+    if (browserNotificationsEnabled) {
+      const permission = getBrowserNotificationPermission();
+      if (permission === "unsupported") {
+        notify({
+          tone: "error",
+          message: "This browser does not support notifications."
+        });
+        return;
+      }
+      if (permission === "denied") {
+        notify({
+          tone: "error",
+          message: "Browser notifications are blocked. Re-enable them in your browser settings."
+        });
+        return;
+      }
+      if (permission === "default") {
+        const granted = await requestBrowserNotificationPermission();
+        if (granted !== "granted") {
+          setBrowserNotificationsEnabled(false);
+          notify({
+            tone: "error",
+            message: "Notification permission was not granted."
+          });
+          return;
+        }
+      }
+    }
+
     setSaveInFlight(true);
     try {
       const response = await fetch("/api/user-data", {
@@ -72,7 +112,8 @@ export function SettingsForm({
         body: JSON.stringify({
           alertEmail: trimmedEmail || null,
           notificationOnGradeChange,
-          notificationFrequency
+          notificationFrequency,
+          browserNotificationsEnabled
         })
       });
 
@@ -90,6 +131,10 @@ export function SettingsForm({
           localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
         }
         localStorage.setItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY, notificationFrequency);
+        localStorage.setItem(
+          BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
+          browserNotificationsEnabled ? "true" : "false"
+        );
       } catch {
         // Ignore storage write failures.
       }
@@ -125,10 +170,12 @@ export function SettingsForm({
 
       try {
         localStorage.removeItem(HISTORY_STORAGE_KEY);
+        localStorage.removeItem(COMPARISON_HISTORY_STORAGE_KEY);
         localStorage.removeItem(DOMAIN_HISTORY_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_ALERT_EMAIL_STORAGE_KEY);
         localStorage.removeItem(WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY);
+        localStorage.removeItem(BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY);
       } catch {
         // Ignore browser storage failures.
       }
@@ -136,6 +183,7 @@ export function SettingsForm({
       setAlertEmail("");
       setNotificationOnGradeChange(true);
       setNotificationFrequency("instant");
+      setBrowserNotificationsEnabled(false);
       setDeleteConfirmText("");
       notify({
         tone: "success",
@@ -196,6 +244,21 @@ export function SettingsForm({
               <span className="block text-sm font-medium text-slate-100">Email on watchlist grade change</span>
               <span className="block text-xs text-slate-500">
                 Disable this if you only want in-app watchlist updates.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-3">
+            <input
+              type="checkbox"
+              checked={browserNotificationsEnabled}
+              onChange={(event) => setBrowserNotificationsEnabled(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-950 text-sky-500 focus:ring-sky-500/40"
+            />
+            <span>
+              <span className="block text-sm font-medium text-slate-100">Browser notifications on scan completion</span>
+              <span className="block text-xs text-slate-500">
+                Useful for bulk scans running in another tab. You will be prompted for permission on save.
               </span>
             </span>
           </label>

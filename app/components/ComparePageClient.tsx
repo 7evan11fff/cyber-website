@@ -1,22 +1,29 @@
 "use client";
 
-import { FormEvent, useCallback, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import {
+  BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
+  COMPARISON_HISTORY_STORAGE_KEY,
   DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
+  isComparisonHistoryEntry,
   isScanHistoryEntry,
+  mergeComparisonHistories,
   mergeDomainGradeHistories,
   mergeScanHistories,
+  normalizeComparisonHistoryEntries,
   normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
   recordDomainGradeHistoryPoint,
+  type ComparisonHistoryEntry,
   type ScanHistoryEntry
 } from "@/lib/userData";
+import { sendBrowserNotification } from "@/lib/browserNotifications";
 
 type ReportResponse = {
   checkedUrl: string;
@@ -98,6 +105,21 @@ function getGradeNarrative(comparison: ComparisonReport) {
   return "Both sites have the same overall score.";
 }
 
+function selectComparisonCheckedAt(comparison: ComparisonReport) {
+  const siteATime = new Date(comparison.siteA.checkedAt).getTime();
+  const siteBTime = new Date(comparison.siteB.checkedAt).getTime();
+  if (!Number.isFinite(siteATime) && !Number.isFinite(siteBTime)) {
+    return new Date().toISOString();
+  }
+  if (!Number.isFinite(siteATime)) {
+    return new Date(siteBTime).toISOString();
+  }
+  if (!Number.isFinite(siteBTime)) {
+    return new Date(siteATime).toISOString();
+  }
+  return new Date(Math.max(siteATime, siteBTime)).toISOString();
+}
+
 function buildRecommendation(
   siteAHeader: HeaderResult,
   siteBHeader: HeaderResult,
@@ -154,16 +176,176 @@ async function requestReport(targetUrl: string): Promise<ReportResponse> {
 
 export function ComparePageClient() {
   const { notify } = useToast();
-  const { status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [urlA, setUrlA] = useState("");
   const [urlB, setUrlB] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
+  const [comparisonHistory, setComparisonHistory] = useState<ComparisonHistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(true);
+  const [historyBootstrapped, setHistoryBootstrapped] = useState(false);
+  const [historyServerReady, setHistoryServerReady] = useState(false);
+  const [syncedHistoryUserKey, setSyncedHistoryUserKey] = useState<string | null>(null);
+  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
 
   const isAuthenticated = sessionStatus === "authenticated";
+  const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const siteALabel = useMemo(() => extractHost(urlA || comparison?.siteA.checkedUrl || "Site A"), [comparison, urlA]);
   const siteBLabel = useMemo(() => extractHost(urlB || comparison?.siteB.checkedUrl || "Site B"), [comparison, urlB]);
+
+  useEffect(() => {
+    try {
+      const rawComparisonHistory = localStorage.getItem(COMPARISON_HISTORY_STORAGE_KEY);
+      const parsed = rawComparisonHistory ? (JSON.parse(rawComparisonHistory) as unknown) : [];
+      const localEntries = Array.isArray(parsed)
+        ? normalizeComparisonHistoryEntries(parsed.filter(isComparisonHistoryEntry))
+        : [];
+      setComparisonHistory(localEntries);
+    } catch {
+      setComparisonHistory([]);
+    } finally {
+      setHistoryBootstrapped(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawValue = localStorage.getItem(BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY);
+      setBrowserNotificationsEnabled(rawValue === "true");
+    } catch {
+      setBrowserNotificationsEnabled(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!historyBootstrapped) return;
+    try {
+      if (comparisonHistory.length === 0) {
+        localStorage.removeItem(COMPARISON_HISTORY_STORAGE_KEY);
+      } else {
+        localStorage.setItem(COMPARISON_HISTORY_STORAGE_KEY, JSON.stringify(comparisonHistory));
+      }
+    } catch {
+      // Ignore storage failures in private mode.
+    }
+  }, [comparisonHistory, historyBootstrapped]);
+
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setHistoryServerReady(false);
+    setSyncedHistoryUserKey(null);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !historyBootstrapped) return;
+    if (syncedHistoryUserKey === currentUserKey) return;
+
+    let cancelled = false;
+    const localHistory = comparisonHistory;
+
+    async function syncLocalAndRemoteHistory() {
+      try {
+        const response = await fetch("/api/user-data", { method: "GET", cache: "no-store" });
+        const payload = response.ok
+          ? ((await response.json()) as {
+              comparisonHistory?: unknown;
+              browserNotificationsEnabled?: unknown;
+            })
+          : null;
+
+        const serverHistory =
+          payload && Array.isArray(payload.comparisonHistory)
+            ? normalizeComparisonHistoryEntries(payload.comparisonHistory)
+            : [];
+        const mergedHistory = mergeComparisonHistories(localHistory, serverHistory);
+        const serverNotificationsEnabled =
+          payload && typeof payload.browserNotificationsEnabled === "boolean"
+            ? payload.browserNotificationsEnabled
+            : null;
+
+        if (cancelled) return;
+        setComparisonHistory(mergedHistory);
+        if (serverNotificationsEnabled !== null) {
+          setBrowserNotificationsEnabled(serverNotificationsEnabled);
+          try {
+            localStorage.setItem(
+              BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
+              serverNotificationsEnabled ? "true" : "false"
+            );
+          } catch {
+            // Ignore storage failures.
+          }
+        }
+
+        await fetch("/api/user-data", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ comparisonHistory: mergedHistory })
+        });
+      } finally {
+        if (!cancelled) {
+          setHistoryServerReady(true);
+          setSyncedHistoryUserKey(currentUserKey);
+        }
+      }
+    }
+
+    void syncLocalAndRemoteHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    comparisonHistory,
+    currentUserKey,
+    historyBootstrapped,
+    isAuthenticated,
+    syncedHistoryUserKey
+  ]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserKey || !historyServerReady) return;
+    if (syncedHistoryUserKey !== currentUserKey) return;
+
+    void fetch("/api/user-data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comparisonHistory })
+    }).catch(() => {
+      // Keep local history if server sync fails.
+    });
+  }, [
+    comparisonHistory,
+    currentUserKey,
+    historyServerReady,
+    isAuthenticated,
+    syncedHistoryUserKey
+  ]);
+
+  const addComparisonToHistory = useCallback((nextComparison: ComparisonReport) => {
+    const checkedAt = selectComparisonCheckedAt(nextComparison);
+    const nextEntry: ComparisonHistoryEntry = {
+      id: `${checkedAt}-${nextComparison.siteA.checkedUrl}-${nextComparison.siteB.checkedUrl}`,
+      siteAUrl: nextComparison.siteA.checkedUrl,
+      siteAGrade: nextComparison.siteA.grade,
+      siteBUrl: nextComparison.siteB.checkedUrl,
+      siteBGrade: nextComparison.siteB.grade,
+      checkedAt
+    };
+    setComparisonHistory((previous) => normalizeComparisonHistoryEntries([nextEntry, ...previous]));
+  }, []);
+
+  const clearComparisonHistory = useCallback(() => {
+    setComparisonHistory([]);
+    if (!isAuthenticated) return;
+    void fetch("/api/user-data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comparisonHistory: [] })
+    }).catch(() => {
+      // Keep local clear if server sync fails.
+    });
+  }, [isAuthenticated]);
 
   const saveReportsToHistory = useCallback(
     async (reports: ReportResponse[]) => {
@@ -261,23 +443,29 @@ export function ComparePageClient() {
       );
   }, [comparison, siteALabel, siteBLabel]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!normalizeUrl(urlA) || !normalizeUrl(urlB)) {
+  const runComparisonCheck = useCallback(async (siteAUrl: string, siteBUrl: string) => {
+    if (!normalizeUrl(siteAUrl) || !normalizeUrl(siteBUrl)) {
       setError("Please enter both URLs before comparing.");
       return;
     }
-
     setLoading(true);
     setError(null);
     setComparison(null);
 
     try {
-      const [siteA, siteB] = await Promise.all([requestReport(urlA), requestReport(urlB)]);
+      const [siteA, siteB] = await Promise.all([requestReport(siteAUrl), requestReport(siteBUrl)]);
       const nextComparison = { siteA, siteB };
       setComparison(nextComparison);
       await saveReportsToHistory([siteA, siteB]);
+      addComparisonToHistory(nextComparison);
       notify({ tone: "success", message: "Comparison complete." });
+
+      if (browserNotificationsEnabled) {
+        sendBrowserNotification("Comparison complete", {
+          body: `${extractHost(siteA.checkedUrl)} (${siteA.grade}) vs ${extractHost(siteB.checkedUrl)} (${siteB.grade})`,
+          tag: "comparison-complete"
+        });
+      }
     } catch (comparisonError) {
       const message = comparisonError instanceof Error ? comparisonError.message : "Comparison failed.";
       setError(message);
@@ -285,6 +473,17 @@ export function ComparePageClient() {
     } finally {
       setLoading(false);
     }
+  }, [addComparisonToHistory, browserNotificationsEnabled, notify, saveReportsToHistory]);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runComparisonCheck(urlA, urlB);
+  }
+
+  function onHistoryEntryClick(entry: ComparisonHistoryEntry) {
+    setUrlA(entry.siteAUrl);
+    setUrlB(entry.siteBUrl);
+    void runComparisonCheck(entry.siteAUrl, entry.siteBUrl);
   }
 
   return (
@@ -357,6 +556,69 @@ export function ComparePageClient() {
             {error}
           </p>
         )}
+
+        <section className="mt-6 rounded-xl border border-slate-800/90 bg-slate-950/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((open) => !open)}
+              aria-expanded={historyOpen}
+              aria-controls="recent-comparisons-list"
+              className="text-sm font-medium text-slate-200 transition hover:text-sky-200"
+            >
+              Recent Comparisons ({comparisonHistory.length}) {historyOpen ? "−" : "+"}
+            </button>
+            <button
+              type="button"
+              onClick={clearComparisonHistory}
+              disabled={comparisonHistory.length === 0}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear history
+            </button>
+          </div>
+          {historyOpen && (
+            <div id="recent-comparisons-list" className="border-t border-slate-800/90 px-4 py-3">
+              {comparisonHistory.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No comparisons yet. Run a comparison to store your latest side-by-side checks.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {comparisonHistory.map((entry) => (
+                    <li key={entry.id}>
+                      <button
+                        type="button"
+                        onClick={() => onHistoryEntryClick(entry)}
+                        disabled={loading}
+                        className="w-full rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm text-slate-100">{entry.siteAUrl}</p>
+                            <p className="truncate text-xs text-slate-500">{entry.siteBUrl}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {new Date(entry.checkedAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-lg font-semibold ${gradeColor(entry.siteAGrade)}`}>
+                              {entry.siteAGrade}
+                            </span>
+                            <span className="text-slate-500">vs</span>
+                            <span className={`text-lg font-semibold ${gradeColor(entry.siteBGrade)}`}>
+                              {entry.siteBGrade}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
 
         {comparison && (
           <div className="mt-6 space-y-5">

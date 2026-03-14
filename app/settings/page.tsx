@@ -41,6 +41,7 @@ export default async function SettingsPage() {
         initialAlertEmail={userData.alertEmail}
         initialNotificationOnGradeChange={userData.notificationOnGradeChange}
         initialNotificationFrequency={userData.notificationFrequency}
+        initialBrowserNotificationsEnabled={userData.browserNotificationsEnabled}
         lastUpdatedAt={userData.updatedAt}
       />
     </main>
