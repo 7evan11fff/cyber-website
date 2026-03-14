@@ -3762,6 +3762,7 @@ export default function Home() {
                     key={header.key}
                     cardId={`header-card-single-${header.key}`}
                     header={header}
+                    detectedFramework={report.framework?.detected}
                     animationDelayMs={index * 55}
                     shortcutNumber={index < 6 ? index + 1 : undefined}
                     onSelect={openHeaderDetailModal}
@@ -3855,6 +3856,7 @@ export default function Home() {
                       key={`a-${header.key}`}
                       cardId={`header-card-site-a-${header.key}`}
                       header={header}
+                      detectedFramework={comparison.siteA.framework?.detected}
                       highlighted={differingHeaderKeys.has(header.key)}
                       animationDelayMs={index * 45}
                       shortcutNumber={index < 6 ? index + 1 : undefined}
@@ -3871,6 +3873,7 @@ export default function Home() {
                       key={`b-${header.key}`}
                       cardId={`header-card-site-b-${header.key}`}
                       header={header}
+                      detectedFramework={comparison.siteB.framework?.detected}
                       highlighted={differingHeaderKeys.has(header.key)}
                       animationDelayMs={index * 45}
                       shortcutNumber={index < 6 ? index + 1 : undefined}

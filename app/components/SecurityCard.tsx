@@ -1,5 +1,7 @@
 "use client";
 
+import { FixSuggestion } from "@/app/components/FixSuggestion";
+import type { DetectedFramework } from "@/lib/frameworkDetection";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
 const statusStyles: Record<HeaderResult["status"], string> = {
@@ -10,6 +12,7 @@ const statusStyles: Record<HeaderResult["status"], string> = {
 
 type SecurityCardProps = {
   header: HeaderResult;
+  detectedFramework?: DetectedFramework | null;
   highlighted?: boolean;
   animationDelayMs?: number;
   shortcutNumber?: number;
@@ -19,6 +22,7 @@ type SecurityCardProps = {
 
 export function SecurityCard({
   header,
+  detectedFramework,
   highlighted = false,
   animationDelayMs = 0,
   shortcutNumber,
@@ -88,6 +92,7 @@ export function SecurityCard({
       <p className="mt-3 text-sm text-slate-300">
         <span className="font-medium text-slate-200">Recommendation:</span> {header.guidance}
       </p>
+      {header.status !== "good" && <FixSuggestion header={header} detectedFramework={detectedFramework} />}
     </article>
   );
 }
