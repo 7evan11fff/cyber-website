@@ -68,7 +68,7 @@ test("api docs playground shows friendly rate-limit errors", async ({ page }) =>
   await page.getByLabel("URL to scan in API playground").fill("https://example.com");
   await page.getByRole("button", { name: "Run API playground request" }).click();
 
-  await expect(page.getByText("Rate limit reached. Please wait a moment before trying again.")).toBeVisible();
+  await expect(page.getByText("Too many requests in a short time. Please wait a moment, then try again.")).toBeVisible();
   await expect(page.getByText("Rate limit:")).toContainText("0");
 });
 
