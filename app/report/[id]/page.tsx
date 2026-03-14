@@ -53,7 +53,7 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
           </div>
         </div>
         <div className="mt-4 grid gap-3 text-sm text-slate-300 sm:grid-cols-3">
-          <p>
+          <p className="break-all">
             <span className="text-slate-500">Final URL:</span> {report.finalUrl}
           </p>
           <p>
@@ -66,7 +66,10 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
             <p className="sm:col-span-3">
               <span className="text-slate-500">Detected stack:</span> {report.framework.detected.label} (
               {report.framework.detected.reason}){" "}
-              <Link href={quickFixesHref} className="text-sky-300 transition hover:text-sky-200">
+              <Link
+                href={quickFixesHref}
+                className="mt-2 inline-flex rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-sky-300 transition hover:border-sky-500/60 hover:text-sky-200 sm:mt-0 sm:ml-1"
+              >
                 Open quick fixes
               </Link>
             </p>
@@ -92,7 +95,7 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
               </span>
             </div>
             <p className="mt-2 text-sm text-slate-300">{header.whyItMatters}</p>
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 break-all text-xs text-slate-400">
               <span className="text-slate-500">Value:</span> {header.value ?? "Missing"}
             </p>
             <p className="mt-2 text-sm text-slate-300">
@@ -127,7 +130,31 @@ function CompareReportSection({ comparison }: { comparison: SharedComparisonRepo
         </article>
       </section>
 
-      <section className="mt-5 overflow-x-auto rounded-2xl border border-slate-800/90 bg-slate-950/60">
+      <section className="mt-5 space-y-3 sm:hidden">
+        {comparison.siteA.results.map((siteAHeader) => {
+          const siteBHeader = siteBByKey.get(siteAHeader.key);
+          if (!siteBHeader) return null;
+          return (
+            <article key={siteAHeader.key} className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <p className="text-sm font-semibold text-slate-100">{siteAHeader.label}</p>
+              <div className="mt-3 space-y-2">
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{siteAName}</p>
+                  <p className="mt-1 text-sm text-slate-200">{siteAHeader.status}</p>
+                  <p className="mt-1 break-all text-xs text-slate-500">{siteAHeader.value ?? "Missing"}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{siteBName}</p>
+                  <p className="mt-1 text-sm text-slate-200">{siteBHeader.status}</p>
+                  <p className="mt-1 break-all text-xs text-slate-500">{siteBHeader.value ?? "Missing"}</p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="mt-5 hidden overflow-x-auto rounded-2xl border border-slate-800/90 bg-slate-950/60 sm:block">
         <table className="min-w-[860px] text-left text-sm">
           <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
             <tr>
@@ -145,11 +172,11 @@ function CompareReportSection({ comparison }: { comparison: SharedComparisonRepo
                   <td className="px-4 py-3 text-slate-100">{siteAHeader.label}</td>
                   <td className="px-4 py-3">
                     <span className="text-slate-300">{siteAHeader.status}</span>
-                    <p className="mt-1 text-xs text-slate-500">{siteAHeader.value ?? "Missing"}</p>
+                    <p className="mt-1 break-all text-xs text-slate-500">{siteAHeader.value ?? "Missing"}</p>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-slate-300">{siteBHeader.status}</span>
-                    <p className="mt-1 text-xs text-slate-500">{siteBHeader.value ?? "Missing"}</p>
+                    <p className="mt-1 break-all text-xs text-slate-500">{siteBHeader.value ?? "Missing"}</p>
                   </td>
                 </tr>
               );
@@ -216,9 +243,61 @@ export default async function SharedReportPage({
   }
 
   const summary = summarizeSharedPayload(shared.payload);
+  const structuredData =
+    shared.payload.mode === "single"
+      ? {
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: summary.title,
+          description: summary.description,
+          url: absoluteUrl(`/report/${shared.id}`),
+          datePublished: shared.createdAt,
+          mainEntity: {
+            "@type": "Thing",
+            name: shared.payload.report.checkedUrl,
+            additionalProperty: [
+              { "@type": "PropertyValue", name: "Grade", value: shared.payload.report.grade },
+              {
+                "@type": "PropertyValue",
+                name: "Score",
+                value: `${shared.payload.report.score}/${shared.payload.report.results.length * 2}`
+              }
+            ]
+          }
+        }
+      : {
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: summary.title,
+          description: summary.description,
+          url: absoluteUrl(`/report/${shared.id}`),
+          datePublished: shared.createdAt,
+          mainEntity: {
+            "@type": "ItemList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: shared.payload.comparison.siteA.checkedUrl,
+                additionalProperty: [
+                  { "@type": "PropertyValue", name: "Grade", value: shared.payload.comparison.siteA.grade }
+                ]
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: shared.payload.comparison.siteB.checkedUrl,
+                additionalProperty: [
+                  { "@type": "PropertyValue", name: "Grade", value: shared.payload.comparison.siteB.grade }
+                ]
+              }
+            ]
+          }
+        };
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       <SiteNav />
 
       <section className="mb-6 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70">

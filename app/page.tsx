@@ -2674,11 +2674,31 @@ export default function Home() {
                 {bulkExportState === "exported" ? "CSV exported" : "Export CSV"}
               </button>
             </div>
-            <p className="border-t border-slate-800/90 px-4 py-2 text-xs text-slate-400 sm:hidden">
-              Scroll horizontally to see all columns.
-            </p>
+            <div className="space-y-2 border-t border-slate-800/90 px-4 py-3 sm:hidden">
+              {bulkResults.map((entry, index) => (
+                <article key={`mobile-${entry.inputUrl}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <p className="break-all text-sm text-slate-200">{entry.inputUrl}</p>
+                  {entry.report && <p className="mt-1 break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
+                      Grade {entry.report?.grade ?? "--"}
+                    </span>
+                    <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
+                      Score {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                    </span>
+                    <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
+                      HTTP {entry.report?.statusCode ?? "--"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {entry.report ? new Date(entry.report.checkedAt).toLocaleString() : "Not scanned"}
+                  </p>
+                  <p className="mt-2 break-all text-xs text-slate-400">{entry.error ?? "Complete"}</p>
+                </article>
+              ))}
+            </div>
             <div
-              className="overflow-x-auto border-t border-slate-800/90"
+              className="hidden overflow-x-auto border-t border-slate-800/90 sm:block"
               role="region"
               aria-label="Bulk scan results table. Scroll horizontally on mobile."
             >
@@ -3348,9 +3368,9 @@ export default function Home() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="header-deep-dive-title"
-            className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900/95 p-5 shadow-2xl shadow-slate-950/80 sm:p-6"
+            className="relative z-10 max-h-[85dvh] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl border border-slate-700 bg-slate-900/95 p-5 shadow-2xl shadow-slate-950/80 sm:p-6"
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-4 flex items-start justify-between gap-3 border-b border-slate-800/80 bg-slate-900/95 px-5 py-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:py-5">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Header deep dive</p>
                 <h2 id="header-deep-dive-title" className="mt-1 text-xl font-semibold text-slate-100">
@@ -3416,7 +3436,7 @@ export default function Home() {
       <SiteFooter className="mt-10" />
 
       {shortcutsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4">
           <button
             type="button"
             aria-label="Close keyboard shortcuts modal"
@@ -3430,7 +3450,7 @@ export default function Home() {
             aria-modal="true"
             aria-labelledby="keyboard-shortcuts-title"
             aria-describedby="keyboard-shortcuts-description"
-            className="relative z-10 w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900/95 p-6 shadow-2xl shadow-slate-950/80"
+            className="relative z-10 max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-slate-700 bg-slate-900/95 p-6 shadow-2xl shadow-slate-950/80"
           >
             <div className="flex items-start justify-between gap-3">
               <div>

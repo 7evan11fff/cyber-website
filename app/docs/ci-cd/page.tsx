@@ -4,6 +4,8 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { buildPageMetadata } from "@/lib/seo";
 
+export const revalidate = 3600;
+
 export const metadata: Metadata = buildPageMetadata({
   title: "CI/CD Integration Guide",
   description:

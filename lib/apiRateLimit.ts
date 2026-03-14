@@ -23,6 +23,8 @@ type RateLimitHeaderState = {
   resetAt: number;
 };
 
+const DEFAULT_API_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
+
 export type ApiRateLimitResult =
   | {
       ok: true;
@@ -67,6 +69,9 @@ function applyRateLimitHeaders(response: Response, state: RateLimitHeaderState) 
   response.headers.set("X-RateLimit-Limit", String(state.limit));
   response.headers.set("X-RateLimit-Remaining", String(state.remaining));
   response.headers.set("X-RateLimit-Reset", String(Math.ceil(state.resetAt / 1000)));
+  if (!response.headers.has("Cache-Control")) {
+    response.headers.set("Cache-Control", DEFAULT_API_CACHE_CONTROL);
+  }
   return response;
 }
 

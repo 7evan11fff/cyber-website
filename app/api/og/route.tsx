@@ -35,48 +35,47 @@ export function GET(request: NextRequest) {
     180
   );
 
-  return withApiRateLimitHeaders(
-    new ImageResponse(
-      (
+  const image = new ImageResponse(
+    (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          background:
+            "radial-gradient(circle at top left, rgba(56, 189, 248, 0.35), transparent 45%), radial-gradient(circle at bottom right, rgba(14, 116, 144, 0.4), transparent 45%), #020617",
+          color: "#f8fafc",
+          padding: "64px",
+          fontFamily:
+            "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        }}
+      >
         <div
           style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            background:
-              "radial-gradient(circle at top left, rgba(56, 189, 248, 0.35), transparent 45%), radial-gradient(circle at bottom right, rgba(14, 116, 144, 0.4), transparent 45%), #020617",
-            color: "#f8fafc",
-            padding: "64px",
-            fontFamily:
-              "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: "999px",
+            border: "1px solid rgba(56, 189, 248, 0.45)",
+            background: "rgba(15, 23, 42, 0.7)",
+            color: "#7dd3fc",
+            fontSize: 22,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            padding: "12px 20px"
           }}
         >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              borderRadius: "999px",
-              border: "1px solid rgba(56, 189, 248, 0.45)",
-              background: "rgba(15, 23, 42, 0.7)",
-              color: "#7dd3fc",
-              fontSize: 22,
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              padding: "12px 20px"
-            }}
-          >
-            Security SEO Card
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ fontSize: 74, fontWeight: 700, lineHeight: 1.08 }}>{title}</div>
-            <div style={{ fontSize: 32, color: "#cbd5e1", maxWidth: 980 }}>{description}</div>
-          </div>
+          Security SEO Card
         </div>
-      ),
-      IMAGE_SIZE
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ fontSize: 74, fontWeight: 700, lineHeight: 1.08 }}>{title}</div>
+          <div style={{ fontSize: 32, color: "#cbd5e1", maxWidth: 980 }}>{description}</div>
+        </div>
+      </div>
     ),
-    rateLimitResult.state
+    IMAGE_SIZE
   );
+  image.headers.set("Cache-Control", "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400");
+  return withApiRateLimitHeaders(image, rateLimitResult.state);
 }

@@ -6,6 +6,8 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { getAllBlogPosts } from "@/lib/blogPosts";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
 
+export const revalidate = 3600;
+
 export const metadata: Metadata = buildPageMetadata({
   title: "Blog & News",
   description:

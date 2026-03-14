@@ -253,7 +253,7 @@ export default async function DashboardPage() {
                       {historyHref && (
                         <Link
                           href={historyHref}
-                          className="text-xs font-medium text-sky-300 transition hover:text-sky-200"
+                          className="inline-flex rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-sky-300 transition hover:border-sky-500/60 hover:text-sky-200"
                         >
                           View full history
                         </Link>

@@ -752,9 +752,36 @@ export function ComparePageClient() {
               <p className="mt-1 text-sm text-sky-200/90">{getGradeNarrative(comparison)}</p>
             </article>
 
-            <p className="text-xs text-slate-400 sm:hidden">Scroll horizontally to view the full comparison table.</p>
+            <section className="space-y-3 sm:hidden">
+              {tableRows.map((row) => (
+                <article key={row.key} className={`rounded-xl border p-4 ${rowClasses(row.tone)}`}>
+                  <p className="font-semibold text-slate-100">{row.label}</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{siteALabel}</p>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteA.status]}`}
+                      >
+                        {row.siteA.status}
+                      </span>
+                      <p className="mt-2 break-all text-xs text-slate-400">{row.siteA.value ?? "Missing header"}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{siteBLabel}</p>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold uppercase ring-1 ${statusClassNames[row.siteB.status]}`}
+                      >
+                        {row.siteB.status}
+                      </span>
+                      <p className="mt-2 break-all text-xs text-slate-400">{row.siteB.value ?? "Missing header"}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-300">{row.recommendation}</p>
+                </article>
+              ))}
+            </section>
             <section
-              className="overflow-x-auto rounded-xl border border-slate-800/90"
+              className="hidden overflow-x-auto rounded-xl border border-slate-800/90 sm:block"
               role="region"
               aria-label="Comparison result table. Scroll horizontally on mobile."
             >

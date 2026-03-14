@@ -675,11 +675,59 @@ export function BulkPageClient() {
                 Showing {filteredAndSortedResults.length} of {results.length} rows
               </p>
             </div>
-            <p className="border-b border-slate-800/90 px-4 py-2 text-xs text-slate-400 sm:hidden">
-              Scroll horizontally to view all columns.
-            </p>
+            <div className="space-y-2 border-b border-slate-800/90 px-4 py-3 sm:hidden">
+              {filteredAndSortedResults.length === 0 ? (
+                <p className="text-sm text-slate-400">No rows match this filter.</p>
+              ) : (
+                filteredAndSortedResults.map((entry, index) => (
+                  <article
+                    key={`mobile-${entry.inputUrl}-${index}`}
+                    className="rounded-lg border border-slate-800/90 bg-slate-950/60 p-3"
+                  >
+                    <p className="break-all text-sm text-slate-200">{entry.inputUrl}</p>
+                    {entry.report && <p className="mt-1 break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
+                        Grade {entry.report?.grade ?? "--"}
+                      </span>
+                      <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
+                        Score {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400">{entry.report ? formatCheckedAt(entry.report.checkedAt) : "--"}</p>
+                    <p className="mt-2 break-all text-xs text-slate-400">
+                      {entry.error ? entry.error : entry.missingHeaders.length > 0 ? entry.missingHeaders.join(", ") : "No missing headers"}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      {entry.reportHref ? (
+                        <Link
+                          href={entry.reportHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Open full report for ${entry.inputUrl}`}
+                          className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-sky-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                        >
+                          Open report
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-slate-500">Report unavailable</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDetailsTarget(entry)}
+                        disabled={!entry.report}
+                        aria-label={`View full scan details for ${entry.inputUrl}`}
+                        className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
             <div
-              className="overflow-x-auto"
+              className="hidden overflow-x-auto sm:block"
               role="region"
               aria-label="Bulk scan results table. Scroll horizontally on mobile."
             >
@@ -856,13 +904,19 @@ export function BulkPageClient() {
         )}
 
         {detailsTarget?.report && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="bulk-scan-details-title"
-          >
-            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+          <div className="fixed inset-0 z-50 flex items-end justify-center px-3 py-3 sm:items-center sm:px-4 sm:py-6">
+            <button
+              type="button"
+              onClick={() => setDetailsTarget(null)}
+              className="absolute inset-0 bg-slate-950/80"
+              aria-label="Close full scan details"
+            />
+            <div
+              className="relative z-10 max-h-[90dvh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bulk-scan-details-title"
+            >
               <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
                 <div>
                   <h2 id="bulk-scan-details-title" className="text-lg font-semibold text-slate-100">
@@ -901,8 +955,21 @@ export function BulkPageClient() {
                   </div>
                 </div>
 
+                <div className="mt-4 space-y-2 sm:hidden">
+                  {detailsTarget.report.results.map((header) => (
+                    <article key={header.key} className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-3">
+                      <p className="text-sm font-semibold text-slate-100">{header.label}</p>
+                      <span className="mt-2 inline-flex rounded-full border border-slate-700 bg-slate-900/70 px-2 py-1 text-xs uppercase text-slate-200">
+                        {header.status}
+                      </span>
+                      <p className="mt-2 break-all text-xs text-slate-300">{header.value ?? "Missing header"}</p>
+                      <p className="mt-2 text-xs text-slate-300">{header.guidance}</p>
+                    </article>
+                  ))}
+                </div>
+
                 <div
-                  className="mt-4 overflow-x-auto rounded-lg border border-slate-800/90"
+                  className="mt-4 hidden overflow-x-auto rounded-lg border border-slate-800/90 sm:block"
                   role="region"
                   aria-label="Detailed header status table"
                 >

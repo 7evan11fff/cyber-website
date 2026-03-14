@@ -7,6 +7,9 @@ import { getUsersWithWatchlistData, updateUserDataForUser } from "@/lib/userData
 import { sendGradeChangeWebhook } from "@/lib/webhookDelivery";
 
 export const runtime = "nodejs";
+const NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0, must-revalidate"
+};
 
 type ScanResult =
   | {
@@ -115,9 +118,19 @@ function resolveDomainForWebhook(value: string): string {
   }
 }
 
+function jsonNoStore(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE_HEADERS,
+      ...(init?.headers ?? {})
+    }
+  });
+}
+
 export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonNoStore({ error: "Unauthorized" }, { status: 401 });
   }
 
   const routeRateLimit = clampPositiveInteger(process.env.CRON_ROUTE_RATE_LIMIT_PER_MINUTE, 4, 1, 100);
@@ -125,11 +138,12 @@ export async function GET(request: Request) {
   const routeRateLimitResult = consumeRateLimit(routeRateLimitKey, routeRateLimit);
   if (!routeRateLimitResult.allowed) {
     const retryAfter = Math.max(Math.ceil((routeRateLimitResult.resetAt - Date.now()) / 1000), 1);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "Too many cron invocations. Please retry later." },
       {
         status: 429,
         headers: {
+          ...NO_STORE_HEADERS,
           "Retry-After": String(retryAfter)
         }
       }
@@ -138,7 +152,7 @@ export async function GET(request: Request) {
 
   const users = await getUsersWithWatchlistData();
   if (users.length === 0) {
-    return NextResponse.json({
+    return jsonNoStore({
       ok: true,
       message: "No users with watchlist entries.",
       totals: {
@@ -318,7 +332,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({
+  return jsonNoStore({
     ok: true,
     totals: {
       usersScanned: users.length,

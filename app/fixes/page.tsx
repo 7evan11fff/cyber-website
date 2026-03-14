@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Suspense } from "react";
-import { QuickFixesPageClient } from "@/app/components/QuickFixesPageClient";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { buildPageMetadata } from "@/lib/seo";
+
+const QuickFixesPageClient = dynamic(
+  () => import("@/app/components/QuickFixesPageClient").then((module) => module.QuickFixesPageClient),
+  {
+    suspense: true
+  }
+);
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Quick Fixes",
@@ -34,8 +41,14 @@ export default function FixesPage() {
 
       <Suspense
         fallback={
-          <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 text-sm text-slate-300">
-            Loading quick fixes...
+          <section className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-6" aria-hidden="true">
+            <div className="skeleton-shimmer h-6 w-56 rounded" />
+            <div className="skeleton-shimmer mt-3 h-4 w-full rounded" />
+            <div className="skeleton-shimmer mt-2 h-4 w-5/6 rounded" />
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="skeleton-shimmer h-40 rounded-xl" />
+              <div className="skeleton-shimmer h-40 rounded-xl" />
+            </div>
           </section>
         }
       >

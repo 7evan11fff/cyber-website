@@ -12,12 +12,26 @@ import { buildPageMetadata } from "@/lib/seo";
 import { getDomainKeyFromUrl } from "@/lib/userData";
 import { getUserDataForUser, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
-export const metadata: Metadata = buildPageMetadata({
-  title: "Watchlist history",
-  description: "Detailed watchlist trend history for a monitored domain.",
-  path: "/dashboard",
-  robots: { index: false, follow: false, googleBot: { index: false, follow: false } }
-});
+export function generateMetadata({
+  params
+}: {
+  params: { domain: string };
+}): Metadata {
+  const canonicalDomain = (() => {
+    try {
+      return decodeURIComponent(params.domain);
+    } catch {
+      return params.domain;
+    }
+  })();
+
+  return buildPageMetadata({
+    title: "Watchlist history",
+    description: "Detailed watchlist trend history for a monitored domain.",
+    path: `/dashboard/history/${encodeURIComponent(canonicalDomain)}`,
+    robots: { index: false, follow: false, googleBot: { index: false, follow: false } }
+  });
+}
 
 const toneByTrend: Record<
   TrendDirection,
@@ -201,31 +215,47 @@ export default async function WatchlistHistoryPage({
           <p className="mt-4 text-sm text-slate-400">No scans recorded for this domain.</p>
         ) : (
           <>
-            <p className="mt-2 text-xs text-slate-400 sm:hidden">Scroll horizontally to view all table columns.</p>
-            <div className="mt-4 overflow-x-auto" role="region" aria-label="Historical scan table for this domain">
+            <div className="mt-4 space-y-2 sm:hidden">
+              {scansNewestFirst.map((entry) => {
+                const change = changeByTimestamp.get(entry.checkedAt);
+                return (
+                  <article
+                    key={`${entry.checkedAt}-${entry.grade}`}
+                    className="rounded-lg border border-slate-800/90 bg-slate-950/60 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-slate-400">{new Date(entry.checkedAt).toLocaleString()}</p>
+                      <p className="font-semibold text-sky-200">Grade {entry.grade}</p>
+                    </div>
+                    <p className={`mt-2 text-xs ${change?.className ?? "text-slate-500"}`}>{change?.text ?? "No change"}</p>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="mt-4 hidden overflow-x-auto sm:block" role="region" aria-label="Historical scan table for this domain">
               <table className="min-w-[560px] divide-y divide-slate-800 text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                  <th className="px-3 py-2 font-medium">Date</th>
-                  <th className="px-3 py-2 font-medium">Grade</th>
-                  <th className="px-3 py-2 font-medium">Change</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {scansNewestFirst.map((entry) => {
-                  const change = changeByTimestamp.get(entry.checkedAt);
-                  return (
-                    <tr key={`${entry.checkedAt}-${entry.grade}`}>
-                      <td className="px-3 py-2 text-slate-300">{new Date(entry.checkedAt).toLocaleString()}</td>
-                      <td className="px-3 py-2 font-semibold text-sky-200">{entry.grade}</td>
-                      <td className={`px-3 py-2 text-xs ${change?.className ?? "text-slate-500"}`}>
-                        {change?.text ?? "No change"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    <th className="px-3 py-2 font-medium">Grade</th>
+                    <th className="px-3 py-2 font-medium">Change</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {scansNewestFirst.map((entry) => {
+                    const change = changeByTimestamp.get(entry.checkedAt);
+                    return (
+                      <tr key={`${entry.checkedAt}-${entry.grade}`}>
+                        <td className="px-3 py-2 text-slate-300">{new Date(entry.checkedAt).toLocaleString()}</td>
+                        <td className="px-3 py-2 font-semibold text-sky-200">{entry.grade}</td>
+                        <td className={`px-3 py-2 text-xs ${change?.className ?? "text-slate-500"}`}>
+                          {change?.text ?? "No change"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </>
         )}

@@ -53,69 +53,68 @@ export function GET(request: NextRequest, { params }: { params: { domain: string
   const score = normalizeScore(searchParams.get("score"));
   const palette = GRADE_COLORS[grade];
 
-  return withApiRateLimitHeaders(
-    new ImageResponse(
-      (
+  const image = new ImageResponse(
+    (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          background:
+            "radial-gradient(circle at top left, rgba(56, 189, 248, 0.32), transparent 45%), radial-gradient(circle at bottom right, rgba(14, 116, 144, 0.36), transparent 46%), #020617",
+          color: "#f8fafc",
+          padding: "64px",
+          fontFamily:
+            "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        }}
+      >
         <div
           style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            background:
-              "radial-gradient(circle at top left, rgba(56, 189, 248, 0.32), transparent 45%), radial-gradient(circle at bottom right, rgba(14, 116, 144, 0.36), transparent 46%), #020617",
-            color: "#f8fafc",
-            padding: "64px",
-            fontFamily:
-              "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: "999px",
+            border: "1px solid rgba(56, 189, 248, 0.45)",
+            background: "rgba(15, 23, 42, 0.74)",
+            color: "#7dd3fc",
+            fontSize: 20,
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            padding: "10px 18px"
           }}
         >
+          Security Header Scan
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 30 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: "74%" }}>
+            <div style={{ fontSize: 32, color: "#cbd5e1", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              {SITE_NAME}
+            </div>
+            <div style={{ fontSize: 68, lineHeight: 1.06, fontWeight: 700 }}>{domain}</div>
+            <div style={{ fontSize: 30, color: "#cbd5e1" }}>Score {score} on security headers</div>
+          </div>
           <div
             style={{
-              display: "inline-flex",
+              width: 220,
+              height: 220,
+              borderRadius: "9999px",
+              border: `4px solid ${palette.border}`,
+              background: palette.background,
+              display: "flex",
               alignItems: "center",
-              borderRadius: "999px",
-              border: "1px solid rgba(56, 189, 248, 0.45)",
-              background: "rgba(15, 23, 42, 0.74)",
-              color: "#7dd3fc",
-              fontSize: 20,
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              padding: "10px 18px"
+              justifyContent: "center",
+              color: palette.text,
+              boxShadow: "0 22px 40px rgba(2, 6, 23, 0.55)"
             }}
           >
-            Security Header Scan
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 30 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: "74%" }}>
-              <div style={{ fontSize: 32, color: "#cbd5e1", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                {SITE_NAME}
-              </div>
-              <div style={{ fontSize: 68, lineHeight: 1.06, fontWeight: 700 }}>{domain}</div>
-              <div style={{ fontSize: 30, color: "#cbd5e1" }}>Score {score} on security headers</div>
-            </div>
-            <div
-              style={{
-                width: 220,
-                height: 220,
-                borderRadius: "9999px",
-                border: `4px solid ${palette.border}`,
-                background: palette.background,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: palette.text,
-                boxShadow: "0 22px 40px rgba(2, 6, 23, 0.55)"
-              }}
-            >
-              <div style={{ fontSize: 112, fontWeight: 700, lineHeight: 1 }}>{grade}</div>
-            </div>
+            <div style={{ fontSize: 112, fontWeight: 700, lineHeight: 1 }}>{grade}</div>
           </div>
         </div>
-      ),
-      IMAGE_SIZE
+      </div>
     ),
-    rateLimitResult.state
+    IMAGE_SIZE
   );
+  image.headers.set("Cache-Control", "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400");
+  return withApiRateLimitHeaders(image, rateLimitResult.state);
 }

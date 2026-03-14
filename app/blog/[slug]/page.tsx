@@ -13,6 +13,7 @@ type BlogPostPageProps = {
 };
 
 export const dynamicParams = false;
+export const revalidate = 3600;
 
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
