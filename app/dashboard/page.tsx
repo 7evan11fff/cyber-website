@@ -9,6 +9,7 @@ import { MiniScoreTrendChart } from "@/app/components/MiniScoreTrendChart";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteNav } from "@/app/components/SiteNav";
 import { TrendChart } from "@/app/components/TrendChart";
+import { WatchlistTrendRangeChart } from "@/app/components/WatchlistTrendRangeChart";
 import { WatchlistSchedulePanel } from "@/app/components/WatchlistSchedulePanel";
 import { authOptions } from "@/lib/auth";
 import { getTrendDirection, gradeToScore } from "@/lib/gradeTrends";
@@ -175,8 +176,26 @@ export default async function DashboardPage() {
 
       <section className="lazy-section grid gap-6 lg:grid-cols-2">
         <article
-          className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60"
+          className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60 lg:col-span-2"
           style={asStaggerStyle(0)}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-100">Watchlist historical trends</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Follow each monitored domain with 7d, 30d, and 90d grade trajectories.
+              </p>
+            </div>
+            <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
+              {userData.watchlist.length} monitored
+            </span>
+          </div>
+          <WatchlistTrendRangeChart watchlist={userData.watchlist} history={userData.history} className="mt-4" />
+        </article>
+
+        <article
+          className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60"
+          style={asStaggerStyle(80)}
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">My watchlist</h2>
@@ -271,7 +290,7 @@ export default async function DashboardPage() {
 
         <article
           className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60"
-          style={asStaggerStyle(80)}
+          style={asStaggerStyle(160)}
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Scan history</h2>
@@ -315,7 +334,7 @@ export default async function DashboardPage() {
 
         <article
           className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60"
-          style={asStaggerStyle(160)}
+          style={asStaggerStyle(240)}
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Quick actions</h2>
@@ -348,7 +367,7 @@ export default async function DashboardPage() {
 
         <article
           className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60"
-          style={asStaggerStyle(240)}
+          style={asStaggerStyle(320)}
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Security trend (7 days)</h2>
@@ -397,7 +416,7 @@ export default async function DashboardPage() {
 
         <article
           className="motion-card stagger-card-enter rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60 lg:col-span-2"
-          style={asStaggerStyle(320)}
+          style={asStaggerStyle(400)}
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Recent scans across the platform</h2>

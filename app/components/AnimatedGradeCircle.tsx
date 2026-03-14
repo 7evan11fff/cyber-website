@@ -68,7 +68,7 @@ export function AnimatedGradeCircle({
   );
 
   return (
-    <div className="grade-badge-in relative mx-auto h-28 w-28 sm:h-36 sm:w-36">
+    <div className="grade-badge-in grade-badge-glow relative mx-auto h-28 w-28 sm:h-36 sm:w-36">
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         Grade {grade} with score {displayScore} out of {safeTotal}
       </p>

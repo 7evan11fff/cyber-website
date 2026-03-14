@@ -37,6 +37,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
+  const [quickScanUrl, setQuickScanUrl] = useState("");
   const [teamSwitcherItems, setTeamSwitcherItems] = useState<
     Array<{ slug: string; name: string; role: "owner" | "admin" | "member" }>
   >([]);
@@ -80,6 +81,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const closeQuickSearch = useCallback(() => {
     setQuickSearchOpen(false);
     setQuickSearchQuery("");
+    setQuickScanUrl("");
   }, []);
 
   const openQuickSearch = useCallback(() => {
@@ -107,12 +109,27 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
     },
     [router]
   );
+  const runQuickUrlScan = useCallback(() => {
+    const target = quickScanUrl.trim();
+    if (!target) return;
+    closeQuickSearch();
+    if (pathname === "/") {
+      window.dispatchEvent(
+        new CustomEvent("shc:quick-url-scan", {
+          detail: { url: target }
+        })
+      );
+      return;
+    }
+    router.push(`/?rescan=${encodeURIComponent(target)}`);
+  }, [closeQuickSearch, pathname, quickScanUrl, router]);
 
   useEffect(() => {
     setProviderMenuOpen(false);
     setMobileMenuOpen(false);
     setQuickSearchOpen(false);
     setQuickSearchQuery("");
+    setQuickScanUrl("");
   }, [pathname]);
 
   useEffect(() => {
@@ -594,6 +611,36 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
               />
             </form>
+            <form
+              className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                runQuickUrlScan();
+              }}
+            >
+              <label htmlFor="quick-scan-url" className="text-xs font-medium uppercase tracking-[0.12em] text-sky-300">
+                Quick URL scan
+              </label>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="quick-scan-url"
+                  type="text"
+                  value={quickScanUrl}
+                  onChange={(event) => setQuickScanUrl(event.target.value)}
+                  placeholder="example.com"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+                >
+                  Scan now
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Paste any URL and jump straight into an instant scan report.
+              </p>
+            </form>
             <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
               {quickSearchResults.length === 0 ? (
                 <li className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-400">
@@ -615,7 +662,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               )}
             </ul>
             <p id="quick-search-shortcut" className="mt-3 text-xs text-slate-500">
-              Shortcut: press <span className="text-slate-300">Cmd/Ctrl+K</span> from any page.
+              Shortcut: press <span className="text-slate-300">Cmd/Ctrl+K</span> from any page to search or quick scan.
             </p>
           </div>
         </div>

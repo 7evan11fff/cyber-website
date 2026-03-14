@@ -130,6 +130,11 @@ type LaunchFeature = {
   description: string;
   cta: string;
 };
+type HowItWorksStep = {
+  title: string;
+  description: string;
+  cta: string;
+};
 type TrustedByMetric = {
   label: string;
   value: string;
@@ -197,6 +202,23 @@ const LAUNCH_FEATURES: LaunchFeature[] = [
     cta: "Read API docs"
   }
 ];
+const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
+  {
+    title: "Enter URL",
+    description: "Paste any production, staging, or preview domain and start in one click.",
+    cta: "Use Cmd/Ctrl+K for quick scan"
+  },
+  {
+    title: "Instant scan",
+    description: "We fetch headers in seconds and score protections against modern best practices.",
+    cta: "Live progress + grade reveal"
+  },
+  {
+    title: "Get report",
+    description: "Review fixes, export results, and monitor watchlist trends for regressions over time.",
+    cta: "Share links, CSV, and dashboard history"
+  }
+];
 const INTEGRATE_CLI_SNIPPET = `px @security-header-checker/cli https://example.com --fail-under B
 px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_HEADERS_API_KEY"`;
 const INTEGRATE_ACTION_SNIPPET = `- name: Security header scan
@@ -248,7 +270,7 @@ const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
   { keys: "/", action: "Focus the URL input" },
   { keys: "Cmd/Ctrl + Enter", action: "Run scan in active tab" },
-  { keys: "Cmd/Ctrl + K", action: "Focus the URL input" },
+  { keys: "Cmd/Ctrl + K", action: "Focus URL on scanner or open quick URL scan from any page" },
   { keys: "1-6", action: "Jump to visible header result cards" },
   { keys: "Arrow keys", action: "Move between focused header result cards" },
   { keys: "Enter (on card)", action: "Open focused header card deep dive" },
@@ -1959,6 +1981,26 @@ export default function Home() {
     void runSingleCheck(rescanTarget);
   }, [runSingleCheck]);
 
+  useEffect(() => {
+    const onQuickUrlScan = (event: Event) => {
+      if (loading) return;
+      const customEvent = event as CustomEvent<{ url?: unknown }>;
+      const target =
+        customEvent.detail && typeof customEvent.detail.url === "string" ? customEvent.detail.url.trim() : "";
+      if (!target) return;
+      setMode("single");
+      setUrl(target);
+      trackEvent("quick_url_scan", {
+        source: "site-nav-shortcut",
+        domain: extractDomainFromUrl(target) ?? target
+      });
+      scrollToScanInput();
+      void runSingleCheck(target);
+    };
+    window.addEventListener("shc:quick-url-scan", onQuickUrlScan as EventListener);
+    return () => window.removeEventListener("shc:quick-url-scan", onQuickUrlScan as EventListener);
+  }, [loading, runSingleCheck, scrollToScanInput]);
+
   async function onCopyReport() {
     if (!report) return;
 
@@ -2414,6 +2456,7 @@ export default function Home() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
+      if (event.defaultPrevented) return;
       const isTypingTarget = isTextInputLikeTarget(event.target);
 
       if (event.key === "Escape") {
@@ -2571,11 +2614,11 @@ export default function Home() {
       </a>
       <ScannerOnboardingTour onJumpToWorkbench={scrollToScanInput} />
 
-      <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
-        <div className="grid gap-6 md:grid-cols-[1fr_minmax(280px,360px)] md:items-center">
+      <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-5 shadow-2xl shadow-slate-950/70 backdrop-blur sm:p-6">
+        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Product launch edition</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-5xl">
+            <h1 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-4xl lg:text-5xl">
               Ship safer websites with instant security header checks
             </h1>
             <p className="mt-4 max-w-2xl text-slate-300">
@@ -2599,7 +2642,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="pressable rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                  className="pressable w-full rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 sm:w-auto"
                 >
                   {loading ? "Scanning..." : "Try the scanner"}
                 </button>
@@ -2620,30 +2663,60 @@ export default function Home() {
               <button
                 type="button"
                 onClick={scrollToScanInput}
-                className="pressable rounded-lg bg-sky-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-950 transition hover:bg-sky-400"
+                className="pressable w-full rounded-lg bg-sky-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-950 transition hover:bg-sky-400 sm:w-auto"
               >
                 Start scanning now
               </button>
               <a
                 href="#feature-cards"
-                className="pressable rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                className="pressable w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 sm:w-auto"
               >
                 Explore features
               </a>
               <button
                 type="button"
                 onClick={openShortcutsModal}
-                className="pressable rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                className="pressable w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 sm:w-auto"
               >
                 Keyboard shortcuts (?)
               </button>
             </div>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 md:pl-2">
             <HeroShieldIcon />
             <HeroScanTypewriter domains={HERO_TYPEWRITER_DOMAINS} />
           </div>
         </div>
+      </section>
+
+      <section
+        id="how-it-works"
+        data-reveal-id="how-it-works"
+        className={`${revealClass("how-it-works")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">How it works</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">
+              Enter URL, scan instantly, ship with confidence
+            </h2>
+          </div>
+          <p className="max-w-xl text-sm text-slate-300">
+            A simple 3-step flow designed for developers, DevOps, and security teams who need fast decisions.
+          </p>
+        </div>
+        <ol className="mt-5 grid gap-3 md:grid-cols-3">
+          {HOW_IT_WORKS_STEPS.map((step, index) => (
+            <li key={step.title} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-500/40 bg-sky-500/10 text-xs font-semibold text-sky-200">
+                {index + 1}
+              </span>
+              <h3 className="mt-3 text-base font-semibold text-slate-100">{step.title}</h3>
+              <p className="mt-2 text-sm text-slate-300">{step.description}</p>
+              <p className="mt-4 text-xs uppercase tracking-[0.12em] text-sky-300">{step.cta}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section
@@ -2855,7 +2928,7 @@ export default function Home() {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <p>
             Shortcuts: <span className="text-slate-300">Cmd/Ctrl+Enter</span> scan,{" "}
-            <span className="text-slate-300">Cmd/Ctrl+K</span> focus URL,{" "}
+            <span className="text-slate-300">Cmd/Ctrl+K</span> quick scan/focus URL,{" "}
             <span className="text-slate-300">1-6</span> jump headers,{" "}
             <span className="text-slate-300">Ctrl+P</span> PDF.
           </p>
@@ -3314,6 +3387,11 @@ export default function Home() {
             <p className="mt-1 text-sm text-slate-300">
               Start with one of these suggested sites, or paste your own domain above.
             </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-400">
+              <li>Press Cmd/Ctrl+K from anywhere to open quick URL scan.</li>
+              <li>Use Compare mode for staging vs production checks.</li>
+              <li>Save your first report to the watchlist for trend history.</li>
+            </ul>
             <div className="mt-3 flex flex-wrap gap-2">
               {EMPTY_STATE_SUGGESTIONS.map((site) => (
                 <button

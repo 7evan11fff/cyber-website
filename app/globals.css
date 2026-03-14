@@ -255,6 +255,7 @@ html[data-theme="light"] .scan-pulse-skeleton {
   .page-transition-shell,
   .stagger-card-enter,
   .grade-badge-in,
+  .grade-badge-glow,
   .chart-line-reveal,
   .chart-point-reveal,
   .toast-item,
@@ -275,6 +276,10 @@ html[data-theme="light"] .scan-pulse-skeleton {
   .motion-card,
   .pressable {
     transition: none !important;
+  }
+
+  .grade-badge-glow::after {
+    animation: none !important;
   }
 }
 
@@ -357,6 +362,33 @@ html[data-theme="light"] .scan-pulse-skeleton {
   opacity: 0;
   animation: grade-badge-in 520ms cubic-bezier(0.2, 0.95, 0.26, 1) forwards;
   will-change: transform, opacity;
+}
+
+@keyframes grade-badge-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(56, 189, 248, 0.05));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
+  }
+}
+
+.grade-badge-glow {
+  isolation: isolate;
+  position: relative;
+}
+
+.grade-badge-glow::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45), rgba(56, 189, 248, 0) 68%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+  animation: grade-badge-glow 2.1s ease-in-out infinite;
 }
 
 @keyframes chart-line-reveal {
