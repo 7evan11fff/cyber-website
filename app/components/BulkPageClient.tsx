@@ -7,7 +7,7 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { trackEvent } from "@/lib/analytics";
-import type { HeaderResult } from "@/lib/securityHeaders";
+import { getAllHeaderInfo, type HeaderResult } from "@/lib/securityHeaders";
 import { BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY } from "@/lib/userData";
 import { sendBrowserNotification } from "@/lib/browserNotifications";
 
@@ -55,6 +55,7 @@ const gradeClassNames: Record<string, string> = {
   D: "text-orange-300",
   F: "text-rose-300"
 };
+const CSV_DEFAULT_HEADER_LABELS = getAllHeaderInfo().map((entry) => entry.label);
 
 function gradeColor(grade: string) {
   return gradeClassNames[grade] ?? "text-slate-200";
@@ -107,7 +108,7 @@ function gradeValue(entry: BulkScanResult) {
   return GRADE_RANK[entry.report.grade] ?? 0;
 }
 
-function toExportRow(entry: BulkScanResult): [string, string, string, string, string] {
+function toMarkdownExportRow(entry: BulkScanResult): [string, string, string, string, string] {
   const report = entry.report;
   if (!report) {
     return [
@@ -125,10 +126,39 @@ function toExportRow(entry: BulkScanResult): [string, string, string, string, st
   return [report.finalUrl || entry.inputUrl, report.grade, score, missingHeaders, formatCheckedAt(report.checkedAt)];
 }
 
+function collectCsvHeaderLabels(entries: BulkScanResult[]): string[] {
+  const seen = new Set<string>(CSV_DEFAULT_HEADER_LABELS);
+  const labels: string[] = [...CSV_DEFAULT_HEADER_LABELS];
+
+  for (const entry of entries) {
+    if (!entry.report) continue;
+    for (const header of entry.report.results) {
+      if (seen.has(header.label)) continue;
+      seen.add(header.label);
+      labels.push(header.label);
+    }
+  }
+
+  return labels;
+}
+
+function toCsvExportRow(entry: BulkScanResult, headerLabels: string[]): string[] {
+  const report = entry.report;
+  if (!report) {
+    return [entry.inputUrl, "--", "--", ...headerLabels.map(() => "--")];
+  }
+
+  const score = `${report.score}/${report.results.length * 2}`;
+  const statusByLabel = new Map(report.results.map((result) => [result.label, result.status]));
+  const perHeaderStatus = headerLabels.map((label) => statusByLabel.get(label) ?? "--");
+
+  return [report.finalUrl || entry.inputUrl, report.grade, score, ...perHeaderStatus];
+}
+
 function buildMarkdownTable(entries: BulkScanResult[]): string {
   const header = ["URL", "Grade", "Score", "Missing Headers", "Checked At"];
   const separator = ["---", "---", "---", "---", "---"];
-  const rows = entries.map((entry) => toExportRow(entry));
+  const rows = entries.map((entry) => toMarkdownExportRow(entry));
 
   return [
     `| ${header.join(" | ")} |`,
@@ -502,8 +532,9 @@ export function BulkPageClient() {
     if (results.length === 0) return;
 
     try {
-      const headerRow = ["URL", "Grade", "Score", "Missing Headers", "Checked At"];
-      const dataRows = results.map((entry) => toExportRow(entry));
+      const headerLabels = collectCsvHeaderLabels(results);
+      const headerRow = ["URL", "Grade", "Score", ...headerLabels.map((label) => `${label} Status`)];
+      const dataRows = results.map((entry) => toCsvExportRow(entry, headerLabels));
       const csvContent = [headerRow, ...dataRows]
         .map((row) => row.map((cell) => escapeCsvCell(cell)).join(","))
         .join("\n");
@@ -519,10 +550,10 @@ export function BulkPageClient() {
       URL.revokeObjectURL(objectUrl);
 
       setBulkExportState("exported");
-      notify({ tone: "success", message: "Bulk scan results downloaded as CSV." });
+      notify({ tone: "success", message: "Bulk scan results exported as CSV." });
     } catch {
       setBulkExportState("error");
-      notify({ tone: "error", message: "Could not download CSV. Please try again." });
+      notify({ tone: "error", message: "Could not export CSV. Please try again." });
     } finally {
       window.setTimeout(() => setBulkExportState("idle"), 2500);
     }
@@ -884,10 +915,10 @@ export function BulkPageClient() {
               <button
                 type="button"
                 onClick={onDownloadCsv}
-                aria-label="Download bulk scan results as CSV"
+                aria-label="Export bulk scan results as CSV"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
               >
-                {bulkExportState === "exported" ? "CSV downloaded" : "Download CSV"}
+                {bulkExportState === "exported" ? "CSV exported" : "Export CSV"}
               </button>
               <button
                 type="button"
@@ -897,7 +928,7 @@ export function BulkPageClient() {
               >
                 {bulkCopyState === "copied" ? "Markdown copied" : "Markdown Copy"}
               </button>
-              {bulkExportState === "error" && <p className="text-xs text-rose-300">Could not download CSV. Try again.</p>}
+              {bulkExportState === "error" && <p className="text-xs text-rose-300">Could not export CSV. Try again.</p>}
               {bulkCopyState === "error" && <p className="text-xs text-rose-300">Could not copy markdown table. Try again.</p>}
             </div>
           </section>

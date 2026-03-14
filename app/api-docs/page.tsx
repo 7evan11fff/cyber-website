@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ApiDocsPlayground } from "@/app/components/ApiDocsPlayground";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { buildPageMetadata } from "@/lib/seo";
@@ -189,6 +190,8 @@ export default function ApiDocsPage() {
           <CodeBlock code={RESPONSE_EXAMPLE} />
         </article>
       </section>
+
+      <ApiDocsPlayground />
 
       <p className="mt-6 text-sm text-slate-300">
         Need broader endpoint coverage?{" "}
