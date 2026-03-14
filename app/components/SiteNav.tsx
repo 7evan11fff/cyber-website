@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/blog", label: "Blog" },
   { href: "/changelog", label: "Changelog" },
   { href: "/api-docs", label: "API Docs" },
   { href: "/security-headers-guide", label: "Header Guide" },
@@ -84,7 +85,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           {NAV_LINKS.map((link) => {
             const active =
               pathname === link.href ||
-              (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api")));
+              (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
+              (link.href === "/blog" && pathname.startsWith("/blog/"));
             return (
               <Link
                 key={link.href}
@@ -185,7 +187,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
             {NAV_LINKS.map((link) => {
               const active =
                 pathname === link.href ||
-                (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api")));
+                (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
+                (link.href === "/blog" && pathname.startsWith("/blog/"));
               return (
                 <Link
                   key={`mobile-${link.href}`}
