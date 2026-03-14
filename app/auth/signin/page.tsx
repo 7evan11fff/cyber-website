@@ -78,7 +78,12 @@ function SignInContent() {
             {pendingProvider === "google" ? "Connecting..." : "Continue with Google"}
           </button>
         </div>
-        {status === "loading" && <p className="mt-3 text-xs text-slate-400">Checking your session…</p>}
+        {status === "loading" && (
+          <div className="mt-3 space-y-2" aria-live="polite" aria-label="Checking your session">
+            <div className="skeleton-shimmer h-3 w-36 rounded" />
+            <div className="skeleton-shimmer h-3 w-24 rounded" />
+          </div>
+        )}
         <p className="mt-5 text-xs text-slate-500">
           Having trouble? Make sure provider credentials are configured in environment variables.
         </p>
@@ -98,7 +103,16 @@ function SignInFallback() {
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <SiteNav />
       <section className="mx-auto mt-12 w-full max-w-xl rounded-2xl border border-slate-800/90 bg-slate-900/80 p-8 shadow-2xl shadow-slate-950/60">
-        <p className="text-sm text-slate-300">Loading sign-in options...</p>
+        <div className="space-y-3" aria-live="polite" aria-label="Loading sign-in options">
+          <div className="skeleton-shimmer h-3 w-28 rounded" />
+          <div className="skeleton-shimmer h-8 w-3/4 rounded" />
+          <div className="skeleton-shimmer h-4 w-full rounded" />
+          <div className="skeleton-shimmer h-4 w-5/6 rounded" />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="skeleton-shimmer h-11 rounded-xl" />
+            <div className="skeleton-shimmer h-11 rounded-xl" />
+          </div>
+        </div>
       </section>
     </main>
   );

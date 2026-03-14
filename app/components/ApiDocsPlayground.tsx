@@ -261,13 +261,27 @@ export function ApiDocsPlayground() {
           <p className="mb-2 text-xs text-slate-500" aria-live="polite">
             Last status: {lastStatusCode ?? "--"}
           </p>
-          <pre
-            className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200"
-            aria-label="API response output"
-            aria-live="polite"
-          >
-            <code>{responseReady ? formattedResponse : "Run a request to see the live response payload."}</code>
-          </pre>
+          {loading ? (
+            <div
+              className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/80 p-4"
+              aria-live="polite"
+              aria-label="Loading API response"
+            >
+              <div className="skeleton-shimmer h-3 w-32 rounded" />
+              <div className="skeleton-shimmer h-3 w-full rounded" />
+              <div className="skeleton-shimmer h-3 w-11/12 rounded" />
+              <div className="skeleton-shimmer h-3 w-full rounded" />
+              <div className="skeleton-shimmer h-3 w-4/5 rounded" />
+            </div>
+          ) : (
+            <pre
+              className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200"
+              aria-label="API response output"
+              aria-live="polite"
+            >
+              <code>{responseReady ? formattedResponse : "Run a request to see the live response payload."}</code>
+            </pre>
+          )}
         </div>
       </div>
     </section>

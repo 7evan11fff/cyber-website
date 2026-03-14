@@ -252,8 +252,12 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               </button>
             </div>
           ) : status === "loading" ? (
-            <span className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-400">
-              Loading...
+            <span
+              className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2"
+              aria-label="Loading account actions"
+              aria-live="polite"
+            >
+              <span className="skeleton-shimmer h-2.5 w-20 rounded" />
             </span>
           ) : (
             <div ref={providerMenuRef} className="relative">
@@ -367,6 +371,15 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                   Sign out
                 </button>
               </>
+            ) : status === "loading" ? (
+              <div className="grid gap-2" aria-live="polite" aria-label="Loading mobile account actions">
+                <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-3">
+                  <div className="skeleton-shimmer h-2.5 w-24 rounded" />
+                </div>
+                <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-3">
+                  <div className="skeleton-shimmer h-2.5 w-28 rounded" />
+                </div>
+              </div>
             ) : (
               <div className="grid gap-2">
                 <button

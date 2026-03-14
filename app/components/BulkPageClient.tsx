@@ -243,9 +243,9 @@ function BulkResultsSkeleton({ rows = 5 }: { rows?: number }) {
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="flex items-center gap-2 border-b border-slate-800/90 px-4 py-3 text-xs uppercase tracking-[0.12em] text-slate-400">
-        <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
-        Running scans...
+      <div className="flex items-center gap-2 border-b border-slate-800/90 px-4 py-3">
+        <div className="skeleton-shimmer h-3 w-20 rounded" />
+        <div className="skeleton-shimmer h-3 w-24 rounded" />
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[760px] text-left text-sm">
@@ -262,19 +262,19 @@ function BulkResultsSkeleton({ rows = 5 }: { rows?: number }) {
             {Array.from({ length: rows }).map((_, index) => (
               <tr key={`skeleton-row-${index}`} className="border-t border-slate-800/70">
                 <td className="px-4 py-3">
-                  <div className="h-4 w-56 animate-pulse rounded bg-slate-800/80" />
+                  <div className="skeleton-shimmer h-4 w-56 rounded" />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="h-4 w-10 animate-pulse rounded bg-slate-800/80" />
+                  <div className="skeleton-shimmer h-4 w-10 rounded" />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="h-4 w-16 animate-pulse rounded bg-slate-800/80" />
+                  <div className="skeleton-shimmer h-4 w-16 rounded" />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="h-4 w-40 animate-pulse rounded bg-slate-800/80" />
+                  <div className="skeleton-shimmer h-4 w-40 rounded" />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+                  <div className="skeleton-shimmer h-4 w-24 rounded" />
                 </td>
               </tr>
             ))}
@@ -655,8 +655,9 @@ export function BulkPageClient() {
             </button>
             {loading && (
               <span className="inline-flex items-center gap-2 text-xs text-slate-300" aria-live="polite">
-                <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
-                Collecting reports... {bulkProgressPercent}%
+                <span className="skeleton-shimmer h-2.5 w-20 rounded" aria-hidden="true" />
+                <span className="skeleton-shimmer h-2.5 w-16 rounded" aria-hidden="true" />
+                <span className="sr-only">Collecting reports... {bulkProgressPercent}%</span>
               </span>
             )}
             <p className="text-xs text-slate-500">{isAuthenticated ? "Signed in: higher per-minute limit." : "Not signed in: standard per-minute limit."}</p>

@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
+import { HeroScanTypewriter } from "@/app/components/HeroScanTypewriter";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -160,6 +161,7 @@ type SharePathCache = {
 };
 
 const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
+const HERO_TYPEWRITER_DOMAINS = ["stripe.com", "github.com", "shopify.com", "cloudflare.com"];
 const EMPTY_STATE_SUGGESTIONS = ["owasp.org", "mozilla.org", "cloudflare.com", "wikipedia.org"];
 const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
@@ -2562,7 +2564,7 @@ export default function Home() {
       <ScannerOnboardingTour onJumpToWorkbench={scrollToScanInput} />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
-        <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
+        <div className="grid gap-6 md:grid-cols-[1fr_minmax(280px,360px)] md:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Product launch edition</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-5xl">
@@ -2589,7 +2591,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                  className="pressable rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
                 >
                   {loading ? "Scanning..." : "Try the scanner"}
                 </button>
@@ -2610,19 +2612,29 @@ export default function Home() {
               <button
                 type="button"
                 onClick={scrollToScanInput}
-                className="rounded-lg bg-sky-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-950 transition hover:bg-sky-400"
+                className="pressable rounded-lg bg-sky-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-950 transition hover:bg-sky-400"
               >
                 Start scanning now
               </button>
               <a
                 href="#feature-cards"
-                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                className="pressable rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 Explore features
               </a>
+              <button
+                type="button"
+                onClick={openShortcutsModal}
+                className="pressable rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Keyboard shortcuts (?)
+              </button>
             </div>
           </div>
-          <HeroShieldIcon />
+          <div className="space-y-4">
+            <HeroShieldIcon />
+            <HeroScanTypewriter domains={HERO_TYPEWRITER_DOMAINS} />
+          </div>
         </div>
       </section>
 

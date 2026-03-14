@@ -192,22 +192,22 @@ function buildRecommendation(
 function ComparisonResultsSkeleton() {
   return (
     <div className="mt-6 space-y-5" aria-live="polite" aria-busy="true">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-slate-400">
-        <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
-        Comparing headers...
+      <div className="flex items-center gap-2">
+        <div className="skeleton-shimmer h-3 w-20 rounded" />
+        <div className="skeleton-shimmer h-3 w-32 rounded" />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
-          <div className="h-3 w-14 animate-pulse rounded bg-slate-800/80" />
-          <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-slate-800/80" />
-          <div className="mt-4 h-10 w-12 animate-pulse rounded bg-slate-800/80" />
-          <div className="mt-3 h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+          <div className="skeleton-shimmer h-3 w-14 rounded" />
+          <div className="skeleton-shimmer mt-3 h-4 w-3/4 rounded" />
+          <div className="skeleton-shimmer mt-4 h-10 w-12 rounded" />
+          <div className="skeleton-shimmer mt-3 h-4 w-24 rounded" />
         </article>
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
-          <div className="h-3 w-14 animate-pulse rounded bg-slate-800/80" />
-          <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-slate-800/80" />
-          <div className="mt-4 h-10 w-12 animate-pulse rounded bg-slate-800/80" />
-          <div className="mt-3 h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+          <div className="skeleton-shimmer h-3 w-14 rounded" />
+          <div className="skeleton-shimmer mt-3 h-4 w-3/4 rounded" />
+          <div className="skeleton-shimmer mt-4 h-10 w-12 rounded" />
+          <div className="skeleton-shimmer mt-3 h-4 w-24 rounded" />
         </article>
       </div>
       <div className="overflow-hidden rounded-xl border border-slate-800/90">
@@ -215,10 +215,10 @@ function ComparisonResultsSkeleton() {
         <div className="space-y-0">
           {Array.from({ length: 6 }).map((_, index) => (
             <div key={`compare-skeleton-${index}`} className="grid grid-cols-4 gap-3 border-t border-slate-800/70 px-4 py-3">
-              <div className="h-4 w-24 animate-pulse rounded bg-slate-800/80" />
-              <div className="h-4 w-20 animate-pulse rounded bg-slate-800/80" />
-              <div className="h-4 w-20 animate-pulse rounded bg-slate-800/80" />
-              <div className="h-4 w-40 animate-pulse rounded bg-slate-800/80" />
+              <div className="skeleton-shimmer h-4 w-24 rounded" />
+              <div className="skeleton-shimmer h-4 w-20 rounded" />
+              <div className="skeleton-shimmer h-4 w-20 rounded" />
+              <div className="skeleton-shimmer h-4 w-40 rounded" />
             </div>
           ))}
         </div>
@@ -638,8 +638,9 @@ export function ComparePageClient() {
             </button>
             {loading && (
               <span className="inline-flex items-center gap-2 text-xs text-slate-300" aria-live="polite">
-                <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
-                Running two scans...
+                <span className="skeleton-shimmer h-2.5 w-12 rounded" aria-hidden="true" />
+                <span className="skeleton-shimmer h-2.5 w-24 rounded" aria-hidden="true" />
+                <span className="sr-only">Running two scans...</span>
               </span>
             )}
             <p className="text-xs text-slate-500">
@@ -689,8 +690,8 @@ export function ComparePageClient() {
             <div id="recent-comparisons-list" className="border-t border-slate-800/90 px-4 py-3">
               {!historyBootstrapped ? (
                 <div className="space-y-2">
-                  <div className="h-4 w-48 animate-pulse rounded bg-slate-800/80" />
-                  <div className="h-4 w-64 animate-pulse rounded bg-slate-800/80" />
+                  <div className="skeleton-shimmer h-4 w-48 rounded" />
+                  <div className="skeleton-shimmer h-4 w-64 rounded" />
                 </div>
               ) : comparisonHistory.length === 0 ? (
                 <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">

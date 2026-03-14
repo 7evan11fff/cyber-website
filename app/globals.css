@@ -183,6 +183,41 @@ html[data-theme="light"] .scan-pulse-skeleton {
   animation: progress-pulse 1.4s ease-in-out infinite;
 }
 
+@keyframes typewriter-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.typewriter-caret {
+  animation: typewriter-caret-blink 1s steps(1, end) infinite;
+}
+
+@keyframes hero-scan-progress {
+  0% {
+    transform: translateX(-55%);
+    width: 35%;
+  }
+  50% {
+    transform: translateX(45%);
+    width: 48%;
+  }
+  100% {
+    transform: translateX(165%);
+    width: 35%;
+  }
+}
+
+.hero-scan-progress {
+  animation: hero-scan-progress 1.8s ease-in-out infinite;
+  will-change: transform, width;
+}
+
 .reveal-section {
   opacity: 1;
   transform: none;
@@ -230,6 +265,8 @@ html[data-theme="light"] .scan-pulse-skeleton {
   .skeleton-shimmer,
   .scan-pulse-skeleton,
   .progress-pulse,
+  .typewriter-caret,
+  .hero-scan-progress,
   .success-checkmark {
     animation: none !important;
     transform: none !important;
