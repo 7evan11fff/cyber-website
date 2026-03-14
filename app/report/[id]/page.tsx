@@ -189,9 +189,14 @@ export async function generateMetadata({
     height: 630,
     alt: summary.title
   };
+  const existingOpenGraphImages = metadata.openGraph?.images
+    ? Array.isArray(metadata.openGraph.images)
+      ? metadata.openGraph.images
+      : [metadata.openGraph.images]
+    : [];
   metadata.openGraph = {
     ...metadata.openGraph,
-    images: [image, ...(metadata.openGraph?.images ?? [])]
+    images: [image, ...existingOpenGraphImages]
   };
   metadata.twitter = {
     ...metadata.twitter,
