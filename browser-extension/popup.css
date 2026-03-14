@@ -1,0 +1,272 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+  max-width: 420px;
+  background: linear-gradient(160deg, #020617 0%, #0f172a 65%, #082f49 100%);
+  color: #e2e8f0;
+  font: 13px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.popup {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.header {
+  padding: 2px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #7dd3fc;
+}
+
+.title {
+  margin: 3px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.panel {
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.78);
+  padding: 10px;
+}
+
+.panel--compact {
+  padding: 8px 10px;
+}
+
+.url {
+  margin: 0 0 8px;
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.grade {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  border: 1px solid rgba(100, 116, 139, 0.85);
+  background: rgba(30, 41, 59, 0.7);
+}
+
+.grade--neutral {
+  color: #e2e8f0;
+}
+
+.grade--A {
+  color: #10b981;
+}
+
+.grade--B {
+  color: #84cc16;
+}
+
+.grade--C {
+  color: #f59e0b;
+}
+
+.grade--D {
+  color: #fb7185;
+}
+
+.grade--F {
+  color: #ef4444;
+}
+
+.summary__headline {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.summary__meta {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #cbd5e1;
+}
+
+.meta-chip {
+  border: 1px solid rgba(51, 65, 85, 0.95);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.result-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  max-height: 188px;
+  overflow-y: auto;
+}
+
+.result-item {
+  border: 1px solid rgba(51, 65, 85, 0.85);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(2, 6, 23, 0.6);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.result-label {
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.status-chip {
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid rgba(71, 85, 105, 0.8);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.status-chip--good {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.15);
+  color: #86efac;
+}
+
+.status-chip--weak {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.16);
+  color: #fcd34d;
+}
+
+.status-chip--missing {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+
+details summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+input[type="url"] {
+  border: 1px solid rgba(51, 65, 85, 1);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.75);
+  color: #f8fafc;
+  padding: 8px;
+  width: 100%;
+}
+
+input[type="url"]:focus {
+  outline: 2px solid rgba(56, 189, 248, 0.5);
+  outline-offset: 1px;
+}
+
+.hint {
+  margin: 8px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.button {
+  appearance: none;
+  border-radius: 9px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.button--primary {
+  border-color: rgba(56, 189, 248, 0.65);
+  background: rgba(14, 165, 233, 0.2);
+  color: #e0f2fe;
+}
+
+.button--secondary {
+  border-color: rgba(71, 85, 105, 0.9);
+  background: rgba(15, 23, 42, 0.75);
+  color: #cbd5e1;
+}
+
+.button:hover {
+  filter: brightness(1.08);
+}
+
+.button:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.7);
+  outline-offset: 2px;
+}

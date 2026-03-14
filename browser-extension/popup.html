@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Security Header Checker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="header">
+        <p class="eyebrow">Security Header Checker</p>
+        <h1 class="title">Current page scan</h1>
+      </header>
+
+      <section class="panel" aria-live="polite">
+        <p id="urlText" class="url">Loading active tab...</p>
+        <div class="summary">
+          <div id="gradePill" class="grade grade--neutral">--</div>
+          <div>
+            <p id="summaryText" class="summary__headline">Scanning…</p>
+            <p id="summaryMeta" class="summary__meta">Calling /api/check</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>Header breakdown</h2>
+          <span id="headerCount" class="meta-chip">0 headers</span>
+        </div>
+        <ul id="resultsList" class="result-list" aria-live="polite"></ul>
+      </section>
+
+      <section class="panel panel--compact">
+        <details>
+          <summary>API endpoint settings</summary>
+          <label class="field">
+            API origin
+            <input id="apiOriginInput" type="url" spellcheck="false" placeholder="https://security-header-checker.vercel.app" />
+          </label>
+          <button id="saveApiOriginButton" class="button button--secondary" type="button">Save endpoint</button>
+          <p class="hint">Must point to a deployed app with <code>/api/check</code>.</p>
+        </details>
+      </section>
+
+      <footer class="actions">
+        <button id="rescanButton" class="button button--secondary" type="button">Rescan</button>
+        <a id="fullReportLink" class="button button--primary" target="_blank" rel="noreferrer">View Full Report</a>
+      </footer>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

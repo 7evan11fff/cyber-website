@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Security Header Checker",
+  "description": "Shows the current page's security header grade and a quick breakdown.",
+  "version": "1.0.0",
+  "action": {
+    "default_title": "Security Header Checker",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["activeTab", "tabs", "storage"],
+  "host_permissions": ["https://security-header-checker.vercel.app/*", "http://localhost:3000/*"]
+}
