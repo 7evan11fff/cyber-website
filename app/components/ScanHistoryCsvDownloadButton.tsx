@@ -1,24 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { getAllHeaderInfo } from "@/lib/securityHeaders";
+import { useState } from "react";
+import { useToast } from "@/app/components/ToastProvider";
+import { buildScanHistoryCsv } from "@/lib/scanHistoryCsv";
 import type { ScanHistoryEntry } from "@/lib/userData";
-
-function escapeCsvCell(value: string): string {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, "\"\"")}"`;
-  }
-  return value;
-}
-
-function extractDomain(value: string): string {
-  try {
-    const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
-    return new URL(withProtocol).hostname || value;
-  } catch {
-    return value;
-  }
-}
 
 export function ScanHistoryCsvDownloadButton({
   entries,
@@ -27,38 +12,16 @@ export function ScanHistoryCsvDownloadButton({
   entries: ScanHistoryEntry[];
   fileNamePrefix?: string;
 }) {
-  const [exportState, setExportState] = useState<"idle" | "exported" | "error">("idle");
-  const headerDefinitions = useMemo(() => getAllHeaderInfo().map((header) => ({ key: header.key, label: header.label })), []);
+  const { notify } = useToast();
+  const [exportState, setExportState] = useState<"idle" | "preparing" | "exported" | "error">("idle");
 
   function onDownloadCsv() {
-    if (entries.length === 0) return;
+    if (entries.length === 0 || exportState === "preparing") return;
+    setExportState("preparing");
 
     try {
-      const headerRow = [
-        "Domain",
-        "Date",
-        "Grade",
-        "Score",
-        ...headerDefinitions.map((header) => `${header.label} status`)
-      ];
-      const dataRows = entries.map((entry) => {
-        const statuses = entry.headerStatuses ?? {};
-        return [
-          extractDomain(entry.url),
-          entry.checkedAt,
-          entry.grade,
-          typeof entry.score === "number" && typeof entry.maxScore === "number"
-            ? `${entry.score}/${entry.maxScore}`
-            : "",
-          ...headerDefinitions.map((header) => statuses[header.key] ?? "")
-        ];
-      });
-
-      const csvContent = [headerRow, ...dataRows]
-        .map((row) => row.map((cell) => escapeCsvCell(String(cell))).join(","))
-        .join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const csvContent = buildScanHistoryCsv(entries);
+      const blob = new Blob(["\uFEFF", csvContent], { type: "text/csv;charset=utf-8;" });
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
@@ -69,8 +32,10 @@ export function ScanHistoryCsvDownloadButton({
       URL.revokeObjectURL(objectUrl);
 
       setExportState("exported");
+      notify({ tone: "success", message: "Scan history exported as CSV." });
     } catch {
       setExportState("error");
+      notify({ tone: "error", message: "Could not export scan history CSV. Please try again." });
     } finally {
       window.setTimeout(() => setExportState("idle"), 2500);
     }
@@ -80,11 +45,17 @@ export function ScanHistoryCsvDownloadButton({
     <button
       type="button"
       onClick={onDownloadCsv}
-      disabled={entries.length === 0}
+      disabled={entries.length === 0 || exportState === "preparing"}
       aria-label="Download scan history as CSV"
       className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      {exportState === "exported" ? "CSV downloaded" : exportState === "error" ? "CSV failed" : "Download CSV"}
+      {exportState === "preparing"
+        ? "Preparing CSV..."
+        : exportState === "exported"
+          ? "CSV downloaded"
+          : exportState === "error"
+            ? "CSV failed"
+            : "Download CSV"}
     </button>
   );
 }

@@ -11,6 +11,7 @@ import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
 import { HeroScanTypewriter } from "@/app/components/HeroScanTypewriter";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
+import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
@@ -3429,6 +3430,7 @@ export default function Home() {
                 Swipe left/right to move through recent scans ({activeHistoryIndex + 1}/{scanHistory.length})
               </p>
             )}
+            <ScanHistoryCsvDownloadButton entries={scanHistory} fileNamePrefix="scanner-scan-history" />
             <button
               type="button"
               onClick={clearHistory}
