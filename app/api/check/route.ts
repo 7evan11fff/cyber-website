@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { authOptions } from "@/lib/auth";
+import { recordPublicScan } from "@/lib/publicStatsStore";
 import { runSecurityScan } from "@/lib/securityReport";
 import { getUserByApiKey, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
@@ -92,6 +93,49 @@ function toFriendlyCheckErrorMessage(error: unknown): string {
   return "Unable to check headers right now.";
 }
 
+const CORS_ALLOWED_METHODS = "POST, OPTIONS";
+const CORS_ALLOWED_HEADERS = "Content-Type, Authorization, X-API-Key";
+
+function getAllowedCorsOrigin(request: Request): string | null {
+  const origin = request.headers.get("origin")?.trim();
+  if (!origin) {
+    return null;
+  }
+
+  if (origin.startsWith("chrome-extension://")) {
+    return origin;
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!siteUrl) {
+    return null;
+  }
+
+  try {
+    const allowedOrigin = new URL(siteUrl).origin;
+    return origin === allowedOrigin ? origin : null;
+  } catch {
+    return null;
+  }
+}
+
+function withCorsHeaders(response: Response, request: Request): Response {
+  const origin = getAllowedCorsOrigin(request);
+  if (!origin) {
+    return response;
+  }
+  response.headers.set("Access-Control-Allow-Origin", origin);
+  response.headers.set("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+  response.headers.set("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
+  response.headers.set("Access-Control-Max-Age", "86400");
+  response.headers.append("Vary", "Origin");
+  return response;
+}
+
+export async function OPTIONS(request: Request) {
+  return withCorsHeaders(new NextResponse(null, { status: 204 }), request);
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const sessionUserKey = getUserKeyFromSessionUser(session?.user);
@@ -110,14 +154,17 @@ export async function POST(request: Request) {
         }
       });
       if (!invalidApiKeyLimitResult.ok) {
-        return invalidApiKeyLimitResult.response;
+        return withCorsHeaders(invalidApiKeyLimitResult.response, request);
       }
-      return withApiRateLimitHeaders(
-        NextResponse.json(
-          { error: "API key not recognized. Double-check the key and try again." },
-          { status: 401 }
+      return withCorsHeaders(
+        withApiRateLimitHeaders(
+          NextResponse.json(
+            { error: "API key not recognized. Double-check the key and try again." },
+            { status: 401 }
+          ),
+          invalidApiKeyLimitResult.state
         ),
-        invalidApiKeyLimitResult.state
+        request
       );
     }
     authenticatedUserKey = apiKeyOwner.userKey;
@@ -139,11 +186,11 @@ export async function POST(request: Request) {
     authenticatedLimit: authenticatedViaApiKey ? apiKeyAuthenticatedLimit : undefined
   });
   if (!rateLimitResult.ok) {
-    return rateLimitResult.response;
+    return withCorsHeaders(rateLimitResult.response, request);
   }
 
   const respond = (body: unknown, init?: ResponseInit) =>
-    withApiRateLimitHeaders(NextResponse.json(body, init), rateLimitResult.state);
+    withCorsHeaders(withApiRateLimitHeaders(NextResponse.json(body, init), rateLimitResult.state), request);
 
   try {
     const body = (await request.json().catch(() => null)) as unknown;
@@ -155,6 +202,9 @@ export async function POST(request: Request) {
 
     const inputUrl = parsedBody.data.url;
     const report = await runSecurityScan(inputUrl, parsedBody.data.options);
+    await recordPublicScan(report).catch(() => {
+      // Public stats should not block scan responses.
+    });
     return respond(report);
   } catch (error) {
     if (!(error instanceof Error && error.name === "AbortError")) {

@@ -9,7 +9,8 @@ const {
   mockRunSecurityScan,
   mockGetUserByApiKey,
   mockGetUserKeyFromSessionUser,
-  mockSentryCaptureException
+  mockSentryCaptureException,
+  mockRecordPublicScan
 } = vi.hoisted(() => ({
   mockGetServerSession: vi.fn(),
   mockEnforceApiRateLimit: vi.fn(),
@@ -17,7 +18,8 @@ const {
   mockRunSecurityScan: vi.fn(),
   mockGetUserByApiKey: vi.fn(),
   mockGetUserKeyFromSessionUser: vi.fn(),
-  mockSentryCaptureException: vi.fn()
+  mockSentryCaptureException: vi.fn(),
+  mockRecordPublicScan: vi.fn()
 }));
 
 vi.mock("next-auth", () => ({
@@ -37,6 +39,10 @@ vi.mock("@/lib/securityReport", () => ({
   runSecurityScan: mockRunSecurityScan
 }));
 
+vi.mock("@/lib/publicStatsStore", () => ({
+  recordPublicScan: mockRecordPublicScan
+}));
+
 vi.mock("@/lib/userDataStore", () => ({
   getUserByApiKey: mockGetUserByApiKey,
   getUserKeyFromSessionUser: mockGetUserKeyFromSessionUser
@@ -46,7 +52,7 @@ vi.mock("@sentry/nextjs", () => ({
   captureException: mockSentryCaptureException
 }));
 
-import { POST } from "@/app/api/check/route";
+import { OPTIONS, POST } from "@/app/api/check/route";
 
 describe("POST /api/check", () => {
   beforeEach(() => {
@@ -56,6 +62,7 @@ describe("POST /api/check", () => {
     mockGetUserKeyFromSessionUser.mockReturnValue(null);
     mockGetUserByApiKey.mockResolvedValue(null);
     mockEnforceApiRateLimit.mockReturnValue({ ok: true, state: { limit: 10, remaining: 9 } });
+    mockRecordPublicScan.mockResolvedValue(undefined);
     mockRunSecurityScan.mockResolvedValue({
       checkedUrl: "https://example.com/",
       finalUrl: "https://example.com/",
@@ -104,6 +111,7 @@ describe("POST /api/check", () => {
 
     expect(response.status).toBe(200);
     expect(mockRunSecurityScan).toHaveBeenCalledWith("example.com", undefined);
+    expect(mockRecordPublicScan).toHaveBeenCalledTimes(1);
     await expect(response.json()).resolves.toMatchObject({
       checkedUrl: "https://example.com/",
       grade: "A"
@@ -227,5 +235,23 @@ describe("POST /api/check", () => {
       "shc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     );
     expect(mockRunSecurityScan).toHaveBeenCalledWith("example.com", undefined);
+  });
+
+  it("responds to CORS preflight requests for extension origins", async () => {
+    const response = await OPTIONS(
+      new Request("http://localhost/api/check", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop",
+          "Access-Control-Request-Method": "POST"
+        }
+      })
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
+    );
+    expect(response.headers.get("access-control-allow-methods")).toContain("POST");
   });
 });

@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/badge", label: "Badge" },
   { href: "/fixes", label: "Fixes" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/stats", label: "Stats" },
   { href: "/teams", label: "Teams" },
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },
