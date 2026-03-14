@@ -301,6 +301,44 @@ export function SettingsForm({
     }
   }
 
+  async function onTestWebhook(target: { id?: string; url?: string }) {
+    if (!target.id && !target.url) {
+      notify({ tone: "error", message: "Provide a webhook to test." });
+      return;
+    }
+
+    setWebhookActionInFlight(true);
+    try {
+      const response = await fetch("/api/webhooks/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(target)
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { sent?: unknown; kind?: unknown; error?: unknown }
+        | null;
+      if (!response.ok || !payload || payload.sent !== true) {
+        throw new Error(
+          payload && typeof payload.error === "string"
+            ? payload.error
+            : "Unable to send webhook test notification."
+        );
+      }
+      const destinationKind = typeof payload.kind === "string" ? payload.kind : "webhook";
+      notify({
+        tone: "success",
+        message: `Test ${destinationKind} notification delivered.`
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to send webhook test notification."
+      });
+    } finally {
+      setWebhookActionInFlight(false);
+    }
+  }
+
   async function onGenerateApiKey() {
     setApiKeyActionInFlight(true);
     try {
@@ -475,7 +513,7 @@ export function SettingsForm({
                 the Check API for CI/CD jobs.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={apiKeyActionInFlight}
@@ -512,7 +550,8 @@ export function SettingsForm({
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
           <p className="text-sm font-medium text-slate-100">Webhook endpoints</p>
           <p className="mt-1 text-xs text-slate-500">
-            Receive POST notifications when a watchlist domain grade changes in scheduled scans.
+            Receive notifications when a watchlist domain grade changes in scheduled scans. Slack and Discord webhook
+            URLs are auto-formatted, and other URLs receive generic JSON payloads.
           </p>
 
           <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={onAddWebhook}>
@@ -534,6 +573,14 @@ export function SettingsForm({
               className="rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {webhookActionInFlight ? "Saving..." : "Add webhook"}
+            </button>
+            <button
+              type="button"
+              disabled={webhookActionInFlight}
+              onClick={() => void onTestWebhook({ url: webhookUrlInput.trim() })}
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-emerald-500/60 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {webhookActionInFlight ? "Testing..." : "Test webhook"}
             </button>
           </form>
 
@@ -562,6 +609,14 @@ export function SettingsForm({
                           className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                         >
                           {copiedValueKey === copyKey ? "Copied" : "Copy"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={webhookActionInFlight}
+                          onClick={() => void onTestWebhook({ id: webhook.id })}
+                          className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 transition hover:border-emerald-500/60 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Test
                         </button>
                         <button
                           type="button"

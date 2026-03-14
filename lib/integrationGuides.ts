@@ -169,7 +169,7 @@ const JENKINSFILE_EXAMPLE = `pipeline {
 
 const WATCHLIST_WEBHOOK_PAYLOAD_EXAMPLE = `{
   "domain": "example.com",
-  "previousGrade": "A",
+  "oldGrade": "A",
   "newGrade": "C",
   "timestamp": "2026-03-14T09:30:00.000Z"
 }`;
@@ -180,7 +180,7 @@ const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL!;
 
 type WatchlistPayload = {
   domain: string;
-  previousGrade: string;
+  oldGrade: string;
   newGrade: string;
   timestamp: string;
 };
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
   const text = [
     ":shield: *Security Header grade changed*",
     \`Domain: \${payload.domain}\`,
-    \`From: \${payload.previousGrade} -> \${payload.newGrade}\`,
+    \`From: \${payload.oldGrade} -> \${payload.newGrade}\`,
     \`At: \${payload.timestamp}\`
   ].join("\\n");
 
@@ -237,7 +237,7 @@ const TEAMS_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL!;
 
 type WatchlistPayload = {
   domain: string;
-  previousGrade: string;
+  oldGrade: string;
   newGrade: string;
   timestamp: string;
 };
@@ -258,7 +258,7 @@ export async function POST(request: Request) {
             { type: "TextBlock", text: "Security Header Grade Changed", weight: "Bolder", size: "Medium" },
             { type: "FactSet", facts: [
               { title: "Domain", value: payload.domain },
-              { title: "Previous", value: payload.previousGrade },
+              { title: "Previous", value: payload.oldGrade },
               { title: "Current", value: payload.newGrade },
               { title: "Time", value: payload.timestamp }
             ]}
@@ -291,7 +291,7 @@ const PAGERDUTY_EVENT_EXAMPLE = `{
     "timestamp": "2026-03-14T09:30:00.000Z",
     "custom_details": {
       "domain": "example.com",
-      "previousGrade": "A",
+      "oldGrade": "A",
       "newGrade": "D"
     }
   }

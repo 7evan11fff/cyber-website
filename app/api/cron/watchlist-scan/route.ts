@@ -4,6 +4,7 @@ import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 import { runSecurityScan } from "@/lib/securityReport";
 import { recordDomainGradeHistoryPoint, type NotificationFrequency, type WatchlistEntry } from "@/lib/userData";
 import { getUsersWithWatchlistData, updateUserDataForUser } from "@/lib/userDataStore";
+import { sendGradeChangeWebhook } from "@/lib/webhookDelivery";
 
 export const runtime = "nodejs";
 
@@ -106,41 +107,11 @@ function shouldSendNow(
   return { allowed: false, nextEligibleAt: new Date(lastSentAtMs + throttleMs).toISOString() };
 }
 
-type WebhookPayload = {
-  domain: string;
-  previousGrade: string;
-  newGrade: string;
-  timestamp: string;
-};
-
 function resolveDomainForWebhook(value: string): string {
   try {
     return new URL(value).hostname.toLowerCase();
   } catch {
     return value.trim().toLowerCase();
-  }
-}
-
-async function deliverWebhook(url: string, payload: WebhookPayload): Promise<void> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      cache: "no-store",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "SecurityHeaderChecker-Webhook/1.0"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`webhook responded with HTTP ${response.status}`);
-    }
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
@@ -254,15 +225,16 @@ export async function GET(request: Request) {
 
         gradeChanges += 1;
         if (user.data.webhooks.length > 0) {
-          const webhookPayload: WebhookPayload = {
+          const webhookPayload = {
             domain: resolveDomainForWebhook(scanned.checkedUrl),
-            previousGrade,
+            oldGrade: previousGrade,
             newGrade: currentGrade,
-            timestamp: scanned.checkedAt
+            timestamp: scanned.checkedAt,
+            checkedUrl: scanned.checkedUrl
           };
 
           const webhookResults = await Promise.allSettled(
-            user.data.webhooks.map((webhook) => deliverWebhook(webhook.url, webhookPayload))
+            user.data.webhooks.map((webhook) => sendGradeChangeWebhook(webhook.url, webhookPayload))
           );
           webhookResults.forEach((result, webhookIndex) => {
             if (result.status === "fulfilled") {

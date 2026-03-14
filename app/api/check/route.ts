@@ -38,10 +38,19 @@ function extractApiKey(request: Request): string | null {
   return token.trim() || null;
 }
 
+function parsePositiveInteger(value: string | undefined, fallback: number) {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const floored = Math.floor(parsed);
+  return floored > 0 ? floored : fallback;
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const sessionUserKey = getUserKeyFromSessionUser(session?.user);
   let authenticatedUserKey = sessionUserKey;
+  let authenticatedViaApiKey = false;
   const providedApiKey = extractApiKey(request);
 
   if (!authenticatedUserKey && providedApiKey) {
@@ -63,16 +72,22 @@ export async function POST(request: Request) {
       );
     }
     authenticatedUserKey = apiKeyOwner.userKey;
+    authenticatedViaApiKey = true;
   }
 
   const isAuthenticated = Boolean(authenticatedUserKey);
+  const apiKeyAuthenticatedLimit = parsePositiveInteger(
+    process.env.API_RATE_LIMIT_API_KEY_PER_MINUTE,
+    300
+  );
   const rateLimitResult = enforceApiRateLimit({
     request,
     route: "check",
     identity: {
       isAuthenticated,
       userKey: authenticatedUserKey
-    }
+    },
+    authenticatedLimit: authenticatedViaApiKey ? apiKeyAuthenticatedLimit : undefined
   });
   if (!rateLimitResult.ok) {
     return rateLimitResult.response;

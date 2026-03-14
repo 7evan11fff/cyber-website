@@ -50,6 +50,13 @@ px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_
     fail-under: B
     api-key: \${{ secrets.SECURITY_HEADERS_API_KEY }}`;
 
+  const webhookExample = `{
+  "domain": "example.com",
+  "oldGrade": "A",
+  "newGrade": "D",
+  "timestamp": "2026-03-14T09:30:00.000Z"
+}`;
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <script
@@ -114,6 +121,16 @@ px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_
             posts a formatted PR comment with scan results.
           </p>
           <CodeBlock code={actionExample} />
+        </article>
+
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Webhooks</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">Grade-change notifications</h2>
+          <p className="mt-3 text-sm text-slate-300">
+            Register webhook URLs in Settings to receive watchlist grade-change events. Slack and Discord URLs are
+            automatically formatted, while custom endpoints receive JSON payloads.
+          </p>
+          <CodeBlock code={webhookExample} />
         </article>
       </section>
 

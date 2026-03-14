@@ -6,21 +6,13 @@ import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit
 import { authOptions } from "@/lib/auth";
 import { MAX_WEBHOOK_ITEMS } from "@/lib/userData";
 import { getUserDataForUser, getUserKeyFromSessionUser, updateUserDataForUser } from "@/lib/userDataStore";
+import { normalizeWebhookUrl } from "@/lib/webhookDelivery";
 
 export const runtime = "nodejs";
 
 const CREATE_WEBHOOK_SCHEMA = z.object({
   url: z.string().trim().min(1, "Webhook URL is required.").max(2048, "Webhook URL is too long.")
 });
-
-function normalizeWebhookUrl(input: string) {
-  const parsed = new URL(input.trim());
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("Webhook URL must use http or https.");
-  }
-  parsed.hash = "";
-  return parsed.toString();
-}
 
 async function getAuthorizedUserKey() {
   const session = await getServerSession(authOptions);

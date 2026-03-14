@@ -78,6 +78,44 @@ const WEBHOOK_CREATE_EXAMPLE = `curl -X POST "https://security-header-checker.ve
   -b "<next-auth-session-cookie>" \\
   -d '{"url":"https://hooks.example.com/security-events"}'`;
 
+const WEBHOOK_TEST_EXAMPLE = `curl -X POST "https://security-header-checker.vercel.app/api/webhooks/test" \\
+  -H "Content-Type: application/json" \\
+  -b "<next-auth-session-cookie>" \\
+  -d '{"url":"https://hooks.slack.com/services/T000/B000/XXXX"}'`;
+
+const WEBHOOK_GENERIC_PAYLOAD_EXAMPLE = `{
+  "domain": "example.com",
+  "oldGrade": "A",
+  "newGrade": "C",
+  "timestamp": "2026-03-14T09:30:00.000Z",
+  "checkedUrl": "https://example.com/",
+  "previousGrade": "A",
+  "currentGrade": "C"
+}`;
+
+const WEBHOOK_SLACK_PAYLOAD_EXAMPLE = `{
+  "text": ":warning: Security Header grade change for example.com: A -> C",
+  "blocks": [
+    {
+      "type": "section",
+      "text": { "type": "mrkdwn", "text": ":warning: *Security Header grade change*" }
+    }
+  ]
+}`;
+
+const WEBHOOK_DISCORD_PAYLOAD_EXAMPLE = `{
+  "content": "Security Header grade change detected for **example.com**",
+  "embeds": [
+    {
+      "title": "Security Header grade change",
+      "fields": [
+        { "name": "Domain", "value": "example.com", "inline": true },
+        { "name": "Grade", "value": "A -> C", "inline": true }
+      ]
+    }
+  ]
+}`;
+
 const CRON_EXAMPLE = `curl -X GET "https://security-header-checker.vercel.app/api/cron/watchlist-scan" \\
   -H "Authorization: Bearer $CRON_SECRET"`;
 
@@ -149,6 +187,9 @@ export default function ApiReferencePage() {
             <li>
               <span className="font-medium text-slate-100">API key auth:</span> <code>/api/check</code> supports either{" "}
               <code>Authorization: Bearer shc_...</code> or <code>x-api-key: shc_...</code>.
+            </li>
+            <li>
+              API-key authenticated scans use the authenticated rate-limit tier (higher than anonymous requests).
             </li>
             <li>
               <span className="font-medium text-slate-100">Cron auth:</span>{" "}
@@ -266,8 +307,33 @@ export default function ApiReferencePage() {
             <li>
               <code>DELETE</code> accepts webhook <code>id</code> in query string or JSON body
             </li>
+            <li>
+              Slack Incoming Webhook URLs and Discord webhook URLs are auto-detected and receive provider-native
+              payloads.
+            </li>
+            <li>All other webhook URLs receive the generic JSON grade-change payload shown below.</li>
           </ul>
           <CodeBlock code={WEBHOOK_CREATE_EXAMPLE} />
+          <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Generic payload</p>
+          <CodeBlock code={WEBHOOK_GENERIC_PAYLOAD_EXAMPLE} />
+          <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Slack payload shape</p>
+          <CodeBlock code={WEBHOOK_SLACK_PAYLOAD_EXAMPLE} />
+          <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Discord payload shape</p>
+          <CodeBlock code={WEBHOOK_DISCORD_PAYLOAD_EXAMPLE} />
+        </EndpointCard>
+
+        <EndpointCard
+          method="POST"
+          path="/api/webhooks/test"
+          auth="Required (session)"
+          summary="Send a test grade-change event to a saved webhook id or a raw webhook URL."
+        >
+          <p>
+            Body accepts either <code>{`{ "id": "<saved-webhook-id>" }`}</code> or{" "}
+            <code>{`{ "url": "https://..." }`}</code>. Useful for validating Slack/Discord destinations before waiting
+            for a scheduled watchlist grade change.
+          </p>
+          <CodeBlock code={WEBHOOK_TEST_EXAMPLE} />
         </EndpointCard>
 
         <EndpointCard

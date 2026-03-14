@@ -142,6 +142,64 @@ describe("POST /api/check", () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({ error: "Invalid API key." });
+    expect(mockGetUserByApiKey).toHaveBeenCalledWith("bad-key");
     expect(mockRunSecurityScan).not.toHaveBeenCalled();
+  });
+
+  it("authenticates with Bearer API key and applies elevated limits", async () => {
+    mockGetUserByApiKey.mockResolvedValueOnce({
+      userKey: "ci@example.com",
+      data: {}
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer shc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        body: JSON.stringify({ url: "example.com" })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockGetUserByApiKey).toHaveBeenCalledWith(
+      "shc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+    expect(mockEnforceApiRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: "check",
+        authenticatedLimit: 300,
+        identity: expect.objectContaining({
+          isAuthenticated: true,
+          userKey: "ci@example.com"
+        })
+      })
+    );
+  });
+
+  it("accepts x-api-key header for API key authentication", async () => {
+    mockGetUserByApiKey.mockResolvedValueOnce({
+      userKey: "automation@example.com",
+      data: {}
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "shc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        body: JSON.stringify({ url: "example.com" })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockGetUserByApiKey).toHaveBeenCalledWith(
+      "shc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    );
+    expect(mockRunSecurityScan).toHaveBeenCalledWith("example.com", undefined);
   });
 });
