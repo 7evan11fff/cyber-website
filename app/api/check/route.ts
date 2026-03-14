@@ -47,6 +47,51 @@ function parsePositiveInteger(value: string | undefined, fallback: number) {
   return floored > 0 ? floored : fallback;
 }
 
+function getNestedErrorCode(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  const cause = (error as Error & { cause?: unknown }).cause;
+  if (!cause || typeof cause !== "object") return null;
+  const code = (cause as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
+
+function isDomainUnreachableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  const nestedCode = getNestedErrorCode(error);
+  const code = nestedCode?.toUpperCase() ?? "";
+
+  if (["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code)) {
+    return true;
+  }
+
+  return (
+    message.includes("fetch failed") ||
+    message.includes("enotfound") ||
+    message.includes("eai_again") ||
+    message.includes("econnrefused") ||
+    message.includes("econnreset") ||
+    message.includes("timed out") ||
+    message.includes("network")
+  );
+}
+
+function toFriendlyCheckErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.name === "AbortError") {
+    return "The scan timed out while waiting for the site to respond.";
+  }
+
+  if (isDomainUnreachableError(error)) {
+    return "We couldn't reach that domain. Check the URL and confirm the site is online, then try again.";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Unable to check headers right now.";
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const sessionUserKey = getUserKeyFromSessionUser(session?.user);
@@ -68,7 +113,10 @@ export async function POST(request: Request) {
         return invalidApiKeyLimitResult.response;
       }
       return withApiRateLimitHeaders(
-        NextResponse.json({ error: "Invalid API key." }, { status: 401 }),
+        NextResponse.json(
+          { error: "API key not recognized. Double-check the key and try again." },
+          { status: 401 }
+        ),
         invalidApiKeyLimitResult.state
       );
     }
@@ -117,12 +165,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const message =
-      error instanceof Error && error.name === "AbortError"
-        ? "Request timed out while fetching headers."
-        : error instanceof Error
-          ? error.message || "Unable to check headers."
-          : "Unable to check headers.";
+    const message = toFriendlyCheckErrorMessage(error);
 
     return respond({ error: message }, { status: 400 });
   }

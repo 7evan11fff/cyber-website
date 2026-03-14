@@ -21,12 +21,32 @@ function parseResetTime(resetEpochSeconds: string | null): string | null {
 }
 
 function normalizeErrorMessage(status: number, payload: unknown): string {
+  const apiError =
+    payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+      ? payload.error
+      : null;
+  const normalized = apiError?.toLowerCase() ?? "";
+
   if (status === 429) {
-    return "Rate limit reached. Please wait a moment before trying again.";
+    return "Too many requests in a short time. Please wait a moment, then try again.";
   }
 
-  if (payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string") {
-    return payload.error;
+  if (status === 401 && normalized.includes("api key")) {
+    return "API key not recognized. Verify your key and try again.";
+  }
+
+  if (
+    normalized.includes("fetch failed") ||
+    normalized.includes("enotfound") ||
+    normalized.includes("eai_again") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("econnreset")
+  ) {
+    return "We couldn't reach that domain. Check the URL and confirm the site is online, then try again.";
+  }
+
+  if (apiError) {
+    return apiError;
   }
 
   if (status >= 500) {

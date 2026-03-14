@@ -65,6 +65,36 @@ function normalizeUrl(value: string) {
   return value.trim();
 }
 
+function parseApiError(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) return null;
+  return typeof payload.error === "string" ? payload.error : null;
+}
+
+function normalizeCheckError(status: number, payload: unknown): string {
+  const apiError = parseApiError(payload);
+  const normalized = apiError?.toLowerCase() ?? "";
+
+  if (status === 429 || normalized.includes("rate limit")) {
+    return "Too many scan requests in a short time. Please wait a moment, then try again.";
+  }
+
+  if (status === 401 && normalized.includes("api key")) {
+    return "API key not recognized. Verify your key and try again.";
+  }
+
+  if (
+    normalized.includes("fetch failed") ||
+    normalized.includes("enotfound") ||
+    normalized.includes("eai_again") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("econnreset")
+  ) {
+    return "We couldn't reach that domain. Check the URL and confirm the site is online, then try again.";
+  }
+
+  return apiError ?? "Unable to check headers right now.";
+}
+
 function extractDomain(value: string) {
   try {
     const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -266,15 +296,7 @@ async function requestReport(targetUrl: string): Promise<ReportResponse> {
 
   const payload = (await response.json().catch(() => null)) as { error?: unknown } | ReportResponse | null;
   if (!response.ok) {
-    if (response.status === 429) {
-      throw new Error("Rate limit reached. Please wait a moment and try again.");
-    }
-
-    const message =
-      payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
-        ? payload.error
-        : "Unable to check headers right now.";
-    throw new Error(message);
+    throw new Error(normalizeCheckError(response.status, payload));
   }
 
   return payload as ReportResponse;

@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { FixSuggestion } from "@/app/components/FixSuggestion";
 import type { DetectedFramework } from "@/lib/frameworkDetection";
 import type { HeaderResult } from "@/lib/securityHeaders";
@@ -30,6 +31,37 @@ export function SecurityCard({
   cardId
 }: SecurityCardProps) {
   const interactive = typeof onSelect === "function";
+  const onCardKeyDown =
+    interactive
+      ? (event: ReactKeyboardEvent<HTMLElement>) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect?.(header);
+            return;
+          }
+
+          if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) {
+            return;
+          }
+
+          const allCards = Array.from(document.querySelectorAll<HTMLElement>('[data-header-result-card="true"]'));
+          const visibleCards = allCards.filter((card) => card.getClientRects().length > 0);
+          const navigableCards = visibleCards.length > 0 ? visibleCards : allCards;
+          const currentIndex = navigableCards.findIndex((card) => card === event.currentTarget);
+          if (currentIndex < 0 || navigableCards.length <= 1) return;
+
+          const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+          const nextIndex = (currentIndex + direction + navigableCards.length) % navigableCards.length;
+          const nextCard = navigableCards[nextIndex];
+          if (!nextCard) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          nextCard.focus();
+          nextCard.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        }
+      : undefined;
 
   return (
     <article
@@ -40,16 +72,7 @@ export function SecurityCard({
       data-header-result-card={interactive ? "true" : undefined}
       data-header-shortcut={typeof shortcutNumber === "number" ? String(shortcutNumber) : undefined}
       onClick={interactive ? () => onSelect?.(header) : undefined}
-      onKeyDown={
-        interactive
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelect?.(header);
-              }
-            }
-          : undefined
-      }
+      onKeyDown={onCardKeyDown}
       className={`motion-card stagger-card-enter rounded-2xl border p-5 shadow-lg ${
         highlighted
           ? "border-sky-500/60 bg-sky-500/10 shadow-sky-950/40"

@@ -8,14 +8,16 @@ const {
   mockWithApiRateLimitHeaders,
   mockRunSecurityScan,
   mockGetUserByApiKey,
-  mockGetUserKeyFromSessionUser
+  mockGetUserKeyFromSessionUser,
+  mockSentryCaptureException
 } = vi.hoisted(() => ({
   mockGetServerSession: vi.fn(),
   mockEnforceApiRateLimit: vi.fn(),
   mockWithApiRateLimitHeaders: vi.fn((response: Response) => response),
   mockRunSecurityScan: vi.fn(),
   mockGetUserByApiKey: vi.fn(),
-  mockGetUserKeyFromSessionUser: vi.fn()
+  mockGetUserKeyFromSessionUser: vi.fn(),
+  mockSentryCaptureException: vi.fn()
 }));
 
 vi.mock("next-auth", () => ({
@@ -38,6 +40,10 @@ vi.mock("@/lib/securityReport", () => ({
 vi.mock("@/lib/userDataStore", () => ({
   getUserByApiKey: mockGetUserByApiKey,
   getUserKeyFromSessionUser: mockGetUserKeyFromSessionUser
+}));
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: mockSentryCaptureException
 }));
 
 import { POST } from "@/app/api/check/route";
@@ -141,9 +147,29 @@ describe("POST /api/check", () => {
     );
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toMatchObject({ error: "Invalid API key." });
+    await expect(response.json()).resolves.toMatchObject({
+      error: "API key not recognized. Double-check the key and try again."
+    });
     expect(mockGetUserByApiKey).toHaveBeenCalledWith("bad-key");
     expect(mockRunSecurityScan).not.toHaveBeenCalled();
+  });
+
+  it("returns a friendly error when domain is unreachable", async () => {
+    mockRunSecurityScan.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const response = await POST(
+      new Request("http://localhost/api/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: "example.com" })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "We couldn't reach that domain. Check the URL and confirm the site is online, then try again."
+    });
+    expect(mockSentryCaptureException).toHaveBeenCalledTimes(1);
   });
 
   it("authenticates with Bearer API key and applies elevated limits", async () => {

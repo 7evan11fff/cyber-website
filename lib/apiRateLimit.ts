@@ -93,7 +93,7 @@ export function enforceApiRateLimit(options: ApiRateLimitOptions): ApiRateLimitR
     const retryAfterSeconds = Math.max(Math.ceil((result.resetAt - Date.now()) / 1000), 1);
     const response = NextResponse.json(
       {
-        error: "Rate limit exceeded. Please wait a moment and try again."
+        error: "Too many requests in a short time. Please wait a moment, then try again."
       },
       {
         status: 429,

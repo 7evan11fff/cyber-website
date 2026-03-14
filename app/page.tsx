@@ -247,8 +247,10 @@ const SHORTCUT_ROWS = [
   { keys: "Cmd/Ctrl + Enter", action: "Run scan in active tab" },
   { keys: "Cmd/Ctrl + K", action: "Focus the URL input" },
   { keys: "1-6", action: "Jump to visible header result cards" },
+  { keys: "Arrow keys", action: "Move between focused header result cards" },
+  { keys: "Enter (on card)", action: "Open focused header card deep dive" },
   { keys: "Ctrl + P", action: "Download current scan report PDF" },
-  { keys: "Enter", action: "Run scan (no modifiers)" },
+  { keys: "Enter", action: "Run scan (outside text areas)" },
   { keys: "Esc", action: "Close open dialogs or clear active scan state" }
 ];
 const USER_AGENT_PRESETS = [
@@ -507,6 +509,44 @@ function formatRelativeTime(value: string): string | null {
   return `${elapsedDays}d ago`;
 }
 
+function parseApiErrorMessage(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) return null;
+  return typeof payload.error === "string" ? payload.error : null;
+}
+
+function normalizeScannerErrorMessage(status: number, payload: unknown): string {
+  const apiError = parseApiErrorMessage(payload);
+  const normalizedApiError = apiError?.toLowerCase() ?? "";
+
+  if (status === 429 || normalizedApiError.includes("rate limit")) {
+    return "Too many scan requests in a short time. Please wait a moment, then try again.";
+  }
+
+  if (status === 401 && normalizedApiError.includes("api key")) {
+    return "API key not recognized. Verify your key and try again.";
+  }
+
+  if (
+    normalizedApiError.includes("fetch failed") ||
+    normalizedApiError.includes("enotfound") ||
+    normalizedApiError.includes("eai_again") ||
+    normalizedApiError.includes("econnrefused") ||
+    normalizedApiError.includes("econnreset")
+  ) {
+    return "We couldn't reach that domain. Check the URL and confirm the site is online, then try again.";
+  }
+
+  if (apiError) {
+    return apiError;
+  }
+
+  if (status >= 500) {
+    return "The scanner is temporarily unavailable. Please try again shortly.";
+  }
+
+  return "Unable to check headers right now. Please try again.";
+}
+
 function reportSourceLabel(source: ReportSource | null): string {
   if (source === "cache") return "Cached snapshot";
   if (source === "shared") return "Shared report link";
@@ -638,13 +678,24 @@ function HeaderCardPulseSkeleton() {
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50">
       <div className="flex items-center justify-between gap-2">
-        <div className="scan-pulse-skeleton h-5 w-2/3 rounded" />
-        <div className="scan-pulse-skeleton h-6 w-16 rounded-full" />
+        <div className="scan-pulse-skeleton h-6 w-2/3 rounded" />
+        <div className="flex items-center gap-2">
+          <div className="scan-pulse-skeleton h-6 w-8 rounded-full" />
+          <div className="scan-pulse-skeleton h-6 w-16 rounded-full" />
+        </div>
       </div>
-      <div className="scan-pulse-skeleton mt-4 h-3 rounded" />
-      <div className="scan-pulse-skeleton mt-2 h-3 w-11/12 rounded" />
-      <div className="scan-pulse-skeleton mt-4 h-3 rounded" />
-      <div className="scan-pulse-skeleton mt-2 h-3 w-5/6 rounded" />
+      <div className="scan-pulse-skeleton mt-4 h-3 w-11/12 rounded" />
+      <div className="scan-pulse-skeleton mt-2 h-3 w-full rounded" />
+      <div className="scan-pulse-skeleton mt-4 h-3 w-28 rounded" />
+      <div className="scan-pulse-skeleton mt-2 h-7 w-full rounded" />
+      <div className="scan-pulse-skeleton mt-4 h-3 w-36 rounded" />
+      <div className="scan-pulse-skeleton mt-2 h-3 w-full rounded" />
+      <div className="scan-pulse-skeleton mt-2 h-3 w-4/5 rounded" />
+      <div className="mt-4 rounded-lg border border-slate-800/90 bg-slate-950/70 p-3">
+        <div className="scan-pulse-skeleton h-3 w-24 rounded" />
+        <div className="scan-pulse-skeleton mt-2 h-3 w-full rounded" />
+        <div className="scan-pulse-skeleton mt-2 h-8 w-36 rounded-lg" />
+      </div>
     </article>
   );
 }
@@ -1448,14 +1499,7 @@ export default function Home() {
 
       const payload = (await response.json().catch(() => null)) as { error?: unknown } | ReportResponse | null;
       if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Rate limit reached. Please wait a moment before scanning again.");
-        }
-        const apiError =
-          payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
-            ? payload.error
-            : "Unable to check headers right now. Please try again.";
-        throw new Error(apiError);
+        throw new Error(normalizeScannerErrorMessage(response.status, payload));
       }
 
       const finishedAt = performance.now();

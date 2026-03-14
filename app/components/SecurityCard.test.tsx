@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { SecurityCard } from "@/app/components/SecurityCard";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
@@ -62,5 +62,50 @@ describe("SecurityCard", () => {
 
     expect(screen.getByText("weak")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /toggle fix suggestions for x-frame-options/i })).toBeInTheDocument();
+  });
+
+  it("opens header details with Enter and Space", () => {
+    const onSelect = vi.fn();
+    render(<SecurityCard header={buildHeader()} onSelect={onSelect} />);
+
+    const card = screen.getByRole("button", { name: "Open deep dive for Content-Security-Policy" });
+    fireEvent.keyDown(card, { key: "Enter" });
+    fireEvent.keyDown(card, { key: " " });
+
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    expect(onSelect).toHaveBeenNthCalledWith(1, expect.objectContaining({ key: "content-security-policy" }));
+  });
+
+  it("supports arrow-key navigation between visible cards", () => {
+    const scrollSpy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollSpy
+    });
+
+    const onSelect = vi.fn();
+    render(
+      <>
+        <SecurityCard header={buildHeader()} onSelect={onSelect} />
+        <SecurityCard
+          header={buildHeader({
+            key: "strict-transport-security",
+            label: "Strict-Transport-Security"
+          })}
+          onSelect={onSelect}
+        />
+      </>
+    );
+
+    const first = screen.getByRole("button", { name: "Open deep dive for Content-Security-Policy" });
+    const second = screen.getByRole("button", { name: "Open deep dive for Strict-Transport-Security" });
+
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(second).toHaveFocus();
+
+    fireEvent.keyDown(second, { key: "ArrowLeft" });
+    expect(first).toHaveFocus();
+    expect(scrollSpy).toHaveBeenCalled();
   });
 });
