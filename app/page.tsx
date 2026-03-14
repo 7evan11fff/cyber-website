@@ -233,16 +233,6 @@ function isSharePayload(value: unknown): value is SharePayload {
   return false;
 }
 
-function toBase64Url(value: string) {
-  if (typeof window === "undefined") return "";
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
 function fromBase64Url(value: string) {
   if (typeof window === "undefined") return "";
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -252,10 +242,6 @@ function fromBase64Url(value: string) {
   return new TextDecoder().decode(bytes);
 }
 
-function encodeSharePayload(payload: SharePayload) {
-  return toBase64Url(JSON.stringify(payload));
-}
-
 function decodeSharePayload(value: string): SharePayload | null {
   try {
     const parsed = JSON.parse(fromBase64Url(value));
@@ -263,6 +249,27 @@ function decodeSharePayload(value: string): SharePayload | null {
   } catch {
     return null;
   }
+}
+
+async function createSharedReportPath(payload: SharePayload): Promise<string> {
+  const response = await fetch("/api/reports/share", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const body = (await response.json().catch(() => null)) as { path?: unknown; error?: unknown } | null;
+  if (!response.ok) {
+    const message =
+      body && typeof body.error === "string" ? body.error : "Could not create a shareable report link.";
+    throw new Error(message);
+  }
+  if (!body || typeof body.path !== "string") {
+    throw new Error("Could not create a shareable report link.");
+  }
+  return body.path;
 }
 
 function gradeColor(grade: string) {
@@ -1525,13 +1532,8 @@ export default function Home() {
     }
 
     try {
-      const shareToken = encodeSharePayload(payload);
-      const shareUrl = new URL(window.location.href);
-      shareUrl.searchParams.set(SHARE_QUERY_PARAM, shareToken);
-
-      if (shareUrl.toString().length > 7800) {
-        throw new Error("Shared report is too large for a URL.");
-      }
+      const sharePath = await createSharedReportPath(payload);
+      const shareUrl = new URL(sharePath, window.location.origin);
 
       const text = "Security Header Checker report";
       if (navigator.share) {

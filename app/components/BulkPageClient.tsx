@@ -39,7 +39,6 @@ type BulkSortField = "grade" | "score" | "checkedAt";
 type SortDirection = "asc" | "desc";
 
 const MAX_BULK_URLS = 10;
-const SHARE_QUERY_PARAM = "share";
 const GRADE_RANK: Record<string, number> = {
   A: 5,
   B: 4,
@@ -137,28 +136,21 @@ function buildMarkdownTable(entries: BulkScanResult[]): string {
   ].join("\n");
 }
 
-function toBase64Url(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
+async function createSharedReportPath(report: ReportResponse): Promise<string | null> {
+  const payload: SharePayload = { version: 1, mode: "single", report };
+  const response = await fetch("/api/reports/share", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const body = (await response.json().catch(() => null)) as { path?: unknown } | null;
+  if (!response.ok || !body || typeof body.path !== "string") {
+    return null;
   }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function encodeSharePayload(payload: SharePayload) {
-  return toBase64Url(JSON.stringify(payload));
-}
-
-function buildFullReportHref(report: ReportResponse): string {
-  const payload: SharePayload = {
-    version: 1,
-    mode: "single",
-    report
-  };
-  const token = encodeSharePayload(payload);
-  const params = new URLSearchParams({ [SHARE_QUERY_PARAM]: token });
-  return `/?${params.toString()}`;
+  return body.path;
 }
 
 function missingHeaderLabels(report: ReportResponse): string[] {
@@ -426,7 +418,7 @@ export function BulkPageClient() {
             inputUrl: targets[index],
             report,
             missingHeaders: missingHeaderLabels(report),
-            reportHref: buildFullReportHref(report),
+            reportHref: null,
             error: null
           };
         }
@@ -442,19 +434,35 @@ export function BulkPageClient() {
         };
       });
 
-      const failedCount = nextResults.filter((entry) => entry.error).length;
-      setResults(nextResults);
+      const nextResultsWithShareLinks = await Promise.all(
+        nextResults.map(async (entry) => {
+          if (!entry.report) {
+            return entry;
+          }
+          const reportHref = await createSharedReportPath(entry.report).catch(() => null);
+          return {
+            ...entry,
+            reportHref
+          };
+        })
+      );
+
+      const failedCount = nextResultsWithShareLinks.filter((entry) => entry.error).length;
+      setResults(nextResultsWithShareLinks);
 
       if (failedCount > 0) {
-        const message = `${failedCount} of ${nextResults.length} scans failed. Review the table for details.`;
+        const message = `${failedCount} of ${nextResultsWithShareLinks.length} scans failed. Review the table for details.`;
         setError(message);
         notify({ tone: "error", message });
       } else {
-        notify({ tone: "success", message: `Scanned ${nextResults.length} URL${nextResults.length === 1 ? "" : "s"}.` });
+        notify({
+          tone: "success",
+          message: `Scanned ${nextResultsWithShareLinks.length} URL${nextResultsWithShareLinks.length === 1 ? "" : "s"}.`
+        });
       }
 
       if (browserNotificationsEnabled) {
-        const successfulReports = nextResults
+        const successfulReports = nextResultsWithShareLinks
           .map((entry) => entry.report)
           .filter((entry): entry is ReportResponse => Boolean(entry));
         if (successfulReports.length === 1) {
@@ -468,7 +476,7 @@ export function BulkPageClient() {
             (left, right) => (GRADE_RANK[right.grade] ?? 0) - (GRADE_RANK[left.grade] ?? 0)
           )[0]?.grade;
           sendBrowserNotification("Bulk scan complete", {
-            body: `${successfulReports.length}/${nextResults.length} succeeded${bestGrade ? `. Best grade: ${bestGrade}.` : "."}`,
+            body: `${successfulReports.length}/${nextResultsWithShareLinks.length} succeeded${bestGrade ? `. Best grade: ${bestGrade}.` : "."}`,
             tag: "bulk-scan-complete"
           });
         } else {

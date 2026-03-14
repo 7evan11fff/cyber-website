@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { absoluteUrl } from "@/lib/seo";
+import { listSharedReportPaths } from "@/lib/sharedReportsStore";
 
 const STATIC_ROUTES = [
   { path: "/", changeFrequency: "daily", priority: 1 },
@@ -18,13 +19,23 @@ const STATIC_ROUTES = [
   priority: number;
 }>;
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
+  const sharedPaths = await listSharedReportPaths(120);
 
-  return STATIC_ROUTES.map((route) => ({
+  const staticEntries = STATIC_ROUTES.map((route) => ({
     url: absoluteUrl(route.path),
     lastModified,
     changeFrequency: route.changeFrequency,
     priority: route.priority
   }));
+
+  const sharedEntries = sharedPaths.map((path) => ({
+    url: absoluteUrl(path),
+    lastModified,
+    changeFrequency: "weekly" as const,
+    priority: 0.5
+  }));
+
+  return [...staticEntries, ...sharedEntries];
 }
