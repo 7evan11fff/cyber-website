@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
-import { buildPageMetadata } from "@/lib/seo";
+import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
 import { summarizeSharedPayload, type SharedComparisonReport, type SharedScanReport } from "@/lib/reportShare";
 import { getSharedReportById } from "@/lib/sharedReportsStore";
 
@@ -162,11 +162,46 @@ export async function generateMetadata({
   }
 
   const summary = summarizeSharedPayload(shared.payload);
-  return buildPageMetadata({
+  const baseMetadata = buildPageMetadata({
     title: summary.title,
     description: summary.description,
     path: `/report/${shared.id}`
   });
+
+  if (shared.payload.mode !== "single") {
+    return baseMetadata;
+  }
+
+  const report = shared.payload.report;
+  const domain = hostLabel(report.finalUrl || report.checkedUrl) || "secured-site.example";
+  const scoreLabel = `${report.score}/${report.results.length * 2}`;
+  const imageParams = new URLSearchParams({
+    grade: report.grade,
+    score: scoreLabel
+  });
+  const dynamicImageUrl = `${absoluteUrl(`/api/og/${encodeURIComponent(domain)}`)}?${imageParams.toString()}`;
+  const existingImages = baseMetadata.openGraph?.images;
+  const existingImageList = Array.isArray(existingImages) ? existingImages : existingImages ? [existingImages] : [];
+
+  return {
+    ...baseMetadata,
+    openGraph: {
+      ...baseMetadata.openGraph,
+      images: [
+        {
+          url: dynamicImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${domain} security header scan result`
+        },
+        ...existingImageList
+      ]
+    },
+    twitter: {
+      ...baseMetadata.twitter,
+      images: [dynamicImageUrl]
+    }
+  };
 }
 
 export default async function SharedReportPage({
