@@ -3,13 +3,10 @@ import { absoluteUrl, resolveSiteUrl } from "@/lib/seo";
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [
-      {
-        userAgent: "*",
-        allow: "/",
-        disallow: ["/api/", "/dashboard", "/settings", "/auth/"]
-      }
-    ],
+    rules: {
+      userAgent: "*",
+      allow: "/"
+    },
     sitemap: absoluteUrl("/sitemap.xml"),
     host: resolveSiteUrl().origin
   };

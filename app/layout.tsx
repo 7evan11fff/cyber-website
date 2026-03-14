@@ -8,11 +8,13 @@ import { ThemeProvider } from "@/app/components/ThemeProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
 import { SITE_DESCRIPTION, SITE_NAME, buildOgImageUrl, resolveSiteUrl } from "@/lib/seo";
 
+const HOME_PAGE_TITLE = "Security Header Checker - Scan HTTP Security Headers";
+
 export const metadata: Metadata = {
   metadataBase: resolveSiteUrl(),
   applicationName: SITE_NAME,
   title: {
-    default: SITE_NAME,
+    default: HOME_PAGE_TITLE,
     template: `%s | ${SITE_NAME}`
   },
   description: SITE_DESCRIPTION,
@@ -41,7 +43,7 @@ export const metadata: Metadata = {
     telephone: false
   },
   openGraph: {
-    title: SITE_NAME,
+    title: HOME_PAGE_TITLE,
     description: SITE_DESCRIPTION,
     url: "/",
     siteName: SITE_NAME,
@@ -49,7 +51,7 @@ export const metadata: Metadata = {
     images: [
       {
         url: buildOgImageUrl({
-          title: SITE_NAME,
+          title: HOME_PAGE_TITLE,
           description: SITE_DESCRIPTION
         }),
         width: 1200,
@@ -60,11 +62,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE_NAME,
+    title: HOME_PAGE_TITLE,
     description: SITE_DESCRIPTION,
     images: [
       buildOgImageUrl({
-        title: SITE_NAME,
+        title: HOME_PAGE_TITLE,
         description: SITE_DESCRIPTION
       })
     ]
