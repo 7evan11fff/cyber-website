@@ -18,6 +18,7 @@ const NAV_LINKS = [
   { href: "/blog", label: "Blog" },
   { href: "/changelog", label: "Changelog" },
   { href: "/api-docs", label: "API Docs" },
+  { href: "/integrations", label: "Integrations" },
   { href: "/security-headers-guide", label: "Header Guide" },
   { href: "/about", label: "About" }
 ];
@@ -86,6 +87,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
             const active =
               pathname === link.href ||
               (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
+              (link.href === "/integrations" && pathname.startsWith("/integrations")) ||
               (link.href === "/blog" && pathname.startsWith("/blog/"));
             return (
               <Link
@@ -188,6 +190,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               const active =
                 pathname === link.href ||
                 (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
+                (link.href === "/integrations" && pathname.startsWith("/integrations")) ||
                 (link.href === "/blog" && pathname.startsWith("/blog/"));
               return (
                 <Link
