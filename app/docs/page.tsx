@@ -64,6 +64,13 @@ console.log(report.grade, report.score, report.results);`;
           Use the Security Header Checker API to embed live security badges and run automated header checks in CI,
           scripts, monitoring jobs, and dashboards.
         </p>
+        <p className="mt-3 text-sm text-slate-300">
+          Need pipeline-ready examples?{" "}
+          <Link href="/docs/ci-cd" className="text-sky-300 transition hover:text-sky-200">
+            Open the CI/CD integration guide
+          </Link>
+          .
+        </p>
       </section>
 
       <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
@@ -117,6 +124,9 @@ console.log(report.grade, report.score, report.results);`;
             </li>
             <li>
               <span className="font-medium text-slate-100">Body:</span> {"{ \"url\": \"https://example.com\" }"}
+            </li>
+            <li>
+              <span className="font-medium text-slate-100">Auth (optional):</span> Authorization: Bearer &lt;API key&gt;
             </li>
             <li>
               <span className="font-medium text-slate-100">Response:</span> JSON security report

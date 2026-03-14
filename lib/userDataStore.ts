@@ -5,9 +5,11 @@ import path from "node:path";
 import {
   createEmptyUserDataRecord,
   type UserDataRecord,
+  isApiKey,
   isNotificationFrequency,
   normalizeComparisonHistoryEntries,
   normalizeDomainGradeHistory,
+  normalizeWebhookRegistrations,
   normalizeWatchlistNotificationLog,
   normalizeScanHistoryEntries,
   normalizeWatchlistEntries
@@ -76,6 +78,8 @@ function normalizeRecord(record: UserDataRecord): UserDataRecord {
         ? record.browserNotificationsEnabled
         : createEmptyUserDataRecord().browserNotificationsEnabled,
     watchlistNotificationLog: normalizeWatchlistNotificationLog(record.watchlistNotificationLog),
+    webhooks: normalizeWebhookRegistrations(Array.isArray(record.webhooks) ? record.webhooks : []),
+    apiKey: isApiKey(record.apiKey) ? record.apiKey.trim() : null,
     updatedAt: record.updatedAt
   };
 }
@@ -110,6 +114,8 @@ export async function updateUserDataForUser(
       | "notificationFrequency"
       | "browserNotificationsEnabled"
       | "watchlistNotificationLog"
+      | "webhooks"
+      | "apiKey"
     >
   >
 ): Promise<UserDataRecord> {
@@ -141,6 +147,15 @@ export async function updateUserDataForUser(
       patch.watchlistNotificationLog && typeof patch.watchlistNotificationLog === "object"
         ? normalizeWatchlistNotificationLog(patch.watchlistNotificationLog)
         : current.watchlistNotificationLog,
+    webhooks: Array.isArray(patch.webhooks)
+      ? normalizeWebhookRegistrations(patch.webhooks)
+      : current.webhooks,
+    apiKey:
+      patch.apiKey === null
+        ? null
+        : isApiKey(patch.apiKey)
+          ? patch.apiKey.trim()
+          : current.apiKey,
     updatedAt: new Date().toISOString()
   });
 
@@ -173,4 +188,23 @@ export async function getUsersWithWatchlistData(): Promise<
   }
 
   return result;
+}
+
+export async function getUserByApiKey(
+  apiKey: string
+): Promise<{ userKey: string; data: UserDataRecord } | null> {
+  const trimmedApiKey = apiKey.trim();
+  if (!isApiKey(trimmedApiKey)) {
+    return null;
+  }
+
+  const data = await readDataFile();
+  for (const [userKey, record] of Object.entries(data.users)) {
+    const normalized = normalizeRecord(record);
+    if (normalized.apiKey === trimmedApiKey) {
+      return { userKey, data: normalized };
+    }
+  }
+
+  return null;
 }

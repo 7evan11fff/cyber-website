@@ -13,6 +13,16 @@ export const metadata: Metadata = buildPageMetadata({
 
 const RELEASES = [
   {
+    version: "v1.6.0",
+    date: "Mar 2026",
+    notes: [
+      "Added a CI/CD integration guide at /docs/ci-cd with copy-ready GitHub Actions, GitLab CI, and generic shell examples.",
+      "Shipped webhook integrations with authenticated CRUD management and automatic grade-change delivery from scheduled watchlist scans.",
+      "Introduced an Integrations section in Settings for webhook administration, API key generation, and one-click copy actions.",
+      "Extended /api/check to support authenticated access through user-generated API keys."
+    ]
+  },
+  {
     version: "v1.5.0",
     date: "Mar 2026",
     notes: [

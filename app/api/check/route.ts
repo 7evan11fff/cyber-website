@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 import { runSecurityScan } from "@/lib/securityReport";
-import { getUserKeyFromSessionUser } from "@/lib/userDataStore";
+import { getUserByApiKey, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
 export const runtime = "nodejs";
 
@@ -12,10 +12,39 @@ const CHECK_REQUEST_SCHEMA = z.object({
   url: z.string().trim().min(1, "URL is required.").max(2048, "URL is too long.")
 });
 
+function extractApiKey(request: Request): string | null {
+  const directHeader = request.headers.get("x-api-key")?.trim();
+  if (directHeader) {
+    return directHeader;
+  }
+
+  const authorization = request.headers.get("authorization")?.trim();
+  if (!authorization) {
+    return null;
+  }
+
+  const [scheme, token] = authorization.split(/\s+/, 2);
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+  return token.trim() || null;
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  const isAuthenticated = Boolean(userKey);
+  const sessionUserKey = getUserKeyFromSessionUser(session?.user);
+  let authenticatedUserKey = sessionUserKey;
+  const providedApiKey = extractApiKey(request);
+
+  if (!authenticatedUserKey && providedApiKey) {
+    const apiKeyOwner = await getUserByApiKey(providedApiKey);
+    if (!apiKeyOwner) {
+      return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
+    }
+    authenticatedUserKey = apiKeyOwner.userKey;
+  }
+
+  const isAuthenticated = Boolean(authenticatedUserKey);
   const rateLimit = isAuthenticated ? 200 : 60;
   const ip = getClientIp(request);
   const rateLimitKey = `${isAuthenticated ? "auth" : "anon"}:${ip}`;

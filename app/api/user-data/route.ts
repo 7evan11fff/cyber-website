@@ -8,10 +8,12 @@ import {
   updateUserDataForUser
 } from "@/lib/userDataStore";
 import {
+  isApiKey,
   normalizeComparisonHistoryEntries,
   isNotificationFrequency,
   normalizeDomainGradeHistory,
   normalizeScanHistoryEntries,
+  normalizeWebhookRegistrations,
   normalizeWatchlistEntries,
   normalizeWatchlistNotificationLog
 } from "@/lib/userData";
@@ -47,6 +49,8 @@ export async function PUT(request: Request) {
         notificationFrequency?: unknown;
         browserNotificationsEnabled?: unknown;
         watchlistNotificationLog?: unknown;
+        webhooks?: unknown;
+        apiKey?: unknown;
       }
     | null;
 
@@ -64,6 +68,8 @@ export async function PUT(request: Request) {
     notificationFrequency?: "instant" | "daily" | "weekly";
     browserNotificationsEnabled?: boolean;
     watchlistNotificationLog?: Record<string, string>;
+    webhooks?: ReturnType<typeof normalizeWebhookRegistrations>;
+    apiKey?: string | null;
   } = {};
 
   if (body.watchlist !== undefined && !Array.isArray(body.watchlist)) {
@@ -165,6 +171,32 @@ export async function PUT(request: Request) {
       );
     }
     patch.watchlistNotificationLog = normalizeWatchlistNotificationLog(body.watchlistNotificationLog);
+  }
+
+  if (body.webhooks !== undefined) {
+    if (!Array.isArray(body.webhooks)) {
+      return NextResponse.json(
+        { error: 'Invalid "webhooks". Expected an array of webhook records.' },
+        { status: 400 }
+      );
+    }
+    patch.webhooks = normalizeWebhookRegistrations(body.webhooks);
+  }
+
+  if (body.apiKey !== undefined && body.apiKey !== null && typeof body.apiKey !== "string") {
+    return NextResponse.json(
+      { error: 'Invalid "apiKey". Expected a valid API key string or null.' },
+      { status: 400 }
+    );
+  }
+  if (typeof body.apiKey === "string" && !isApiKey(body.apiKey)) {
+    return NextResponse.json(
+      { error: 'Invalid "apiKey". Expected a key formatted like shc_xxx.' },
+      { status: 400 }
+    );
+  }
+  if (body.apiKey === null || typeof body.apiKey === "string") {
+    patch.apiKey = body.apiKey;
   }
 
   const saved = await updateUserDataForUser(userKey, patch);

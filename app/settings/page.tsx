@@ -30,7 +30,7 @@ export default async function SettingsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Settings</p>
         <h1 className="mt-2 text-3xl font-semibold text-slate-100">Account and privacy controls</h1>
         <p className="mt-2 text-sm text-slate-300">
-          Review your account details, notification preferences, and delete stored data when needed.
+          Review your account details, notification preferences, integrations, and delete stored data when needed.
         </p>
       </section>
 
@@ -42,6 +42,8 @@ export default async function SettingsPage() {
         initialNotificationOnGradeChange={userData.notificationOnGradeChange}
         initialNotificationFrequency={userData.notificationFrequency}
         initialBrowserNotificationsEnabled={userData.browserNotificationsEnabled}
+        initialWebhooks={userData.webhooks}
+        initialApiKey={userData.apiKey}
         lastUpdatedAt={userData.updatedAt}
       />
     </main>

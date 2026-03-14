@@ -8,6 +8,8 @@ import {
   DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
   type NotificationFrequency,
+  type WebhookRegistration,
+  normalizeWebhookRegistrations,
   WATCHLIST_ALERT_EMAIL_STORAGE_KEY,
   WATCHLIST_NOTIFICATION_FREQUENCY_STORAGE_KEY,
   WATCHLIST_STORAGE_KEY
@@ -26,6 +28,8 @@ type SettingsFormProps = {
   initialNotificationOnGradeChange: boolean;
   initialNotificationFrequency: NotificationFrequency;
   initialBrowserNotificationsEnabled: boolean;
+  initialWebhooks: WebhookRegistration[];
+  initialApiKey: string | null;
   lastUpdatedAt: string;
 };
 
@@ -37,6 +41,8 @@ export function SettingsForm({
   initialNotificationOnGradeChange,
   initialNotificationFrequency,
   initialBrowserNotificationsEnabled,
+  initialWebhooks,
+  initialApiKey,
   lastUpdatedAt
 }: SettingsFormProps) {
   const { notify } = useToast();
@@ -53,6 +59,12 @@ export function SettingsForm({
   const [saveInFlight, setSaveInFlight] = useState(false);
   const [deleteInFlight, setDeleteInFlight] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [webhooks, setWebhooks] = useState<WebhookRegistration[]>(initialWebhooks);
+  const [webhookUrlInput, setWebhookUrlInput] = useState("");
+  const [webhookActionInFlight, setWebhookActionInFlight] = useState(false);
+  const [apiKey, setApiKey] = useState(initialApiKey);
+  const [apiKeyActionInFlight, setApiKeyActionInFlight] = useState(false);
+  const [copiedValueKey, setCopiedValueKey] = useState<string | null>(null);
 
   const updatedLabel = useMemo(() => {
     const date = new Date(lastUpdatedAt);
@@ -61,6 +73,22 @@ export function SettingsForm({
     }
     return date.toLocaleString();
   }, [lastUpdatedAt]);
+
+  async function copyValue(value: string, valueKey: string, label: string) {
+    try {
+      if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable.");
+      }
+      await navigator.clipboard.writeText(value);
+      setCopiedValueKey(valueKey);
+      notify({ tone: "success", message: `${label} copied.` });
+      window.setTimeout(() => {
+        setCopiedValueKey((current) => (current === valueKey ? null : current));
+      }, 1800);
+    } catch {
+      notify({ tone: "error", message: "Clipboard unavailable. Copy manually instead." });
+    }
+  }
 
   async function onSavePreferences(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -184,6 +212,9 @@ export function SettingsForm({
       setNotificationOnGradeChange(true);
       setNotificationFrequency("instant");
       setBrowserNotificationsEnabled(false);
+      setWebhooks([]);
+      setWebhookUrlInput("");
+      setApiKey(null);
       setDeleteConfirmText("");
       notify({
         tone: "success",
@@ -196,6 +227,125 @@ export function SettingsForm({
       });
     } finally {
       setDeleteInFlight(false);
+    }
+  }
+
+  async function onAddWebhook(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedUrl = webhookUrlInput.trim();
+    if (!trimmedUrl) {
+      notify({ tone: "error", message: "Enter a webhook URL first." });
+      return;
+    }
+
+    setWebhookActionInFlight(true);
+    try {
+      const response = await fetch("/api/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { webhooks?: unknown; error?: unknown; created?: boolean }
+        | null;
+      if (!response.ok) {
+        throw new Error(
+          payload && typeof payload.error === "string" ? payload.error : "Unable to add webhook."
+        );
+      }
+
+      if (payload && Array.isArray(payload.webhooks)) {
+        setWebhooks(normalizeWebhookRegistrations(payload.webhooks));
+      }
+      setWebhookUrlInput("");
+      notify({
+        tone: "success",
+        message:
+          payload && payload.created === false ? "Webhook already exists." : "Webhook added successfully."
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to add webhook."
+      });
+    } finally {
+      setWebhookActionInFlight(false);
+    }
+  }
+
+  async function onDeleteWebhook(webhookId: string) {
+    setWebhookActionInFlight(true);
+    try {
+      const response = await fetch(`/api/webhooks?id=${encodeURIComponent(webhookId)}`, {
+        method: "DELETE"
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { webhooks?: unknown; error?: unknown }
+        | null;
+      if (!response.ok) {
+        throw new Error(
+          payload && typeof payload.error === "string" ? payload.error : "Unable to delete webhook."
+        );
+      }
+      if (payload && Array.isArray(payload.webhooks)) {
+        setWebhooks(normalizeWebhookRegistrations(payload.webhooks));
+      }
+      notify({ tone: "success", message: "Webhook removed." });
+    } catch (error) {
+      notify({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to delete webhook."
+      });
+    } finally {
+      setWebhookActionInFlight(false);
+    }
+  }
+
+  async function onGenerateApiKey() {
+    setApiKeyActionInFlight(true);
+    try {
+      const response = await fetch("/api/api-key", { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as
+        | { apiKey?: unknown; error?: unknown }
+        | null;
+      if (!response.ok || !payload || typeof payload.apiKey !== "string") {
+        throw new Error(
+          payload && typeof payload.error === "string" ? payload.error : "Unable to generate API key."
+        );
+      }
+      setApiKey(payload.apiKey);
+      notify({ tone: "success", message: "API key generated." });
+    } catch (error) {
+      notify({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to generate API key."
+      });
+    } finally {
+      setApiKeyActionInFlight(false);
+    }
+  }
+
+  async function onRevokeApiKey() {
+    setApiKeyActionInFlight(true);
+    try {
+      const response = await fetch("/api/api-key", { method: "DELETE" });
+      const payload = (await response.json().catch(() => null)) as
+        | { revoked?: unknown; error?: unknown }
+        | null;
+      if (!response.ok || !payload || payload.revoked !== true) {
+        throw new Error(
+          payload && typeof payload.error === "string" ? payload.error : "Unable to revoke API key."
+        );
+      }
+      setApiKey(null);
+      notify({ tone: "success", message: "API key revoked." });
+    } catch (error) {
+      notify({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to revoke API key."
+      });
+    } finally {
+      setApiKeyActionInFlight(false);
     }
   }
 
@@ -306,6 +456,127 @@ export function SettingsForm({
             {saveInFlight ? "Saving..." : "Save preferences"}
           </button>
         </form>
+      </article>
+
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <h2 className="text-lg font-semibold text-slate-100">Integrations</h2>
+        <p className="mt-1 text-sm text-slate-300">
+          Manage webhook destinations and your API key for authenticated automation.
+        </p>
+
+        <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-slate-100">API key</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Use this key with <code className="rounded bg-slate-900 px-1 py-0.5">Authorization: Bearer</code> on
+                the Check API for CI/CD jobs.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={apiKeyActionInFlight}
+                onClick={() => void onGenerateApiKey()}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {apiKeyActionInFlight ? "Working..." : apiKey ? "Regenerate key" : "Generate key"}
+              </button>
+              <button
+                type="button"
+                disabled={!apiKey || apiKeyActionInFlight}
+                onClick={() => void onRevokeApiKey()}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Revoke
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
+            <code className="min-w-0 flex-1 break-all text-xs text-slate-200">
+              {apiKey ?? "No API key generated yet."}
+            </code>
+            <button
+              type="button"
+              disabled={!apiKey}
+              onClick={() => apiKey && void copyValue(apiKey, "api-key", "API key")}
+              className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {copiedValueKey === "api-key" ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+          <p className="text-sm font-medium text-slate-100">Webhook endpoints</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Receive POST notifications when a watchlist domain grade changes in scheduled scans.
+          </p>
+
+          <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={onAddWebhook}>
+            <label htmlFor="settings-webhook-url" className="sr-only">
+              Webhook URL
+            </label>
+            <input
+              id="settings-webhook-url"
+              type="url"
+              inputMode="url"
+              value={webhookUrlInput}
+              onChange={(event) => setWebhookUrlInput(event.target.value)}
+              placeholder="https://hooks.example.com/security-grade"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+            />
+            <button
+              type="submit"
+              disabled={webhookActionInFlight}
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {webhookActionInFlight ? "Saving..." : "Add webhook"}
+            </button>
+          </form>
+
+          {webhooks.length === 0 ? (
+            <p className="mt-3 text-xs text-slate-400">No webhook endpoints configured.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {webhooks.map((webhook) => {
+                const copyKey = `webhook-${webhook.id}`;
+                return (
+                  <li
+                    key={webhook.id}
+                    className="rounded-lg border border-slate-800/90 bg-slate-950 p-3 text-xs text-slate-300"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-all text-sm text-slate-100">{webhook.url}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Added {new Date(webhook.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void copyValue(webhook.url, copyKey, "Webhook URL")}
+                          className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                        >
+                          {copiedValueKey === copyKey ? "Copied" : "Copy"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={webhookActionInFlight}
+                          onClick={() => void onDeleteWebhook(webhook.id)}
+                          className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </article>
 
       <article className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-5 shadow-xl shadow-slate-950/60">

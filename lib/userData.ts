@@ -29,6 +29,12 @@ export type WatchlistEntry = {
   lastCheckedAt: string;
 };
 
+export type WebhookRegistration = {
+  id: string;
+  url: string;
+  createdAt: string;
+};
+
 export const NOTIFICATION_FREQUENCIES = ["instant", "daily", "weekly"] as const;
 export type NotificationFrequency = (typeof NOTIFICATION_FREQUENCIES)[number];
 
@@ -42,6 +48,8 @@ export type UserDataRecord = {
   notificationFrequency: NotificationFrequency;
   browserNotificationsEnabled: boolean;
   watchlistNotificationLog: Record<string, string>;
+  webhooks: WebhookRegistration[];
+  apiKey: string | null;
   updatedAt: string;
 };
 
@@ -58,6 +66,9 @@ export const MAX_HISTORY_ITEMS = 10;
 export const MAX_DOMAIN_HISTORY_POINTS = 30;
 export const DOMAIN_HISTORY_RETENTION_DAYS = 90;
 export const MAX_WATCHLIST_ITEMS = 20;
+export const MAX_WEBHOOK_ITEMS = 20;
+
+const API_KEY_PATTERN = /^shc_[a-f0-9]{48}$/;
 
 export function isScanHistoryEntry(value: unknown): value is ScanHistoryEntry {
   if (!value || typeof value !== "object") return false;
@@ -108,6 +119,20 @@ export function isNotificationFrequency(value: unknown): value is NotificationFr
   );
 }
 
+export function isApiKey(value: unknown): value is string {
+  return typeof value === "string" && API_KEY_PATTERN.test(value.trim());
+}
+
+export function isWebhookRegistration(value: unknown): value is WebhookRegistration {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<WebhookRegistration>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.url === "string" &&
+    typeof candidate.createdAt === "string"
+  );
+}
+
 export function normalizeWatchlistNotificationLog(
   value: unknown
 ): Record<string, string> {
@@ -123,6 +148,51 @@ export function normalizeWatchlistNotificationLog(
   return normalized;
 }
 
+export function normalizeWebhookRegistrations(entries: unknown[]): WebhookRegistration[] {
+  const dedupedByUrl = new Map<string, WebhookRegistration>();
+
+  for (const webhook of entries) {
+    if (!isWebhookRegistration(webhook)) continue;
+
+    let normalizedUrl: string;
+    try {
+      const parsed = new URL(webhook.url.trim());
+      if (!["http:", "https:"].includes(parsed.protocol)) continue;
+      parsed.hash = "";
+      normalizedUrl = parsed.toString();
+    } catch {
+      continue;
+    }
+
+    const createdAtMs = new Date(webhook.createdAt).getTime();
+    if (!Number.isFinite(createdAtMs)) continue;
+    const normalizedCreatedAt = new Date(createdAtMs).toISOString();
+    const dedupeKey = normalizedUrl.toLowerCase();
+    const existing = dedupedByUrl.get(dedupeKey);
+    if (!existing) {
+      dedupedByUrl.set(dedupeKey, {
+        id: webhook.id,
+        url: normalizedUrl,
+        createdAt: normalizedCreatedAt
+      });
+      continue;
+    }
+
+    const existingCreatedAtMs = new Date(existing.createdAt).getTime();
+    if (createdAtMs >= existingCreatedAtMs) {
+      dedupedByUrl.set(dedupeKey, {
+        id: webhook.id,
+        url: normalizedUrl,
+        createdAt: normalizedCreatedAt
+      });
+    }
+  }
+
+  return Array.from(dedupedByUrl.values())
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, MAX_WEBHOOK_ITEMS);
+}
+
 export function createEmptyUserDataRecord(): UserDataRecord {
   return {
     watchlist: [],
@@ -134,6 +204,8 @@ export function createEmptyUserDataRecord(): UserDataRecord {
     notificationFrequency: "instant",
     browserNotificationsEnabled: false,
     watchlistNotificationLog: {},
+    webhooks: [],
+    apiKey: null,
     updatedAt: new Date(0).toISOString()
   };
 }

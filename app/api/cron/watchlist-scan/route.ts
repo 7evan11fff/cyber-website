@@ -106,6 +106,44 @@ function shouldSendNow(
   return { allowed: false, nextEligibleAt: new Date(lastSentAtMs + throttleMs).toISOString() };
 }
 
+type WebhookPayload = {
+  domain: string;
+  previousGrade: string;
+  newGrade: string;
+  timestamp: string;
+};
+
+function resolveDomainForWebhook(value: string): string {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return value.trim().toLowerCase();
+  }
+}
+
+async function deliverWebhook(url: string, payload: WebhookPayload): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "SecurityHeaderChecker-Webhook/1.0"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`webhook responded with HTTP ${response.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -139,7 +177,10 @@ export async function GET(request: Request) {
         gradeChanges: 0,
         emailsSent: 0,
         emailsFailed: 0,
-        emailsThrottled: 0
+        emailsThrottled: 0,
+        emailsSuppressed: 0,
+        webhooksSent: 0,
+        webhooksFailed: 0
       }
     });
   }
@@ -168,6 +209,8 @@ export async function GET(request: Request) {
   let emailsFailed = 0;
   let emailsThrottled = 0;
   let emailsSuppressed = 0;
+  let webhooksSent = 0;
+  let webhooksFailed = 0;
   const errors: string[] = [];
 
   for (const user of users) {
@@ -210,6 +253,33 @@ export async function GET(request: Request) {
         }
 
         gradeChanges += 1;
+        if (user.data.webhooks.length > 0) {
+          const webhookPayload: WebhookPayload = {
+            domain: resolveDomainForWebhook(scanned.checkedUrl),
+            previousGrade,
+            newGrade: currentGrade,
+            timestamp: scanned.checkedAt
+          };
+
+          const webhookResults = await Promise.allSettled(
+            user.data.webhooks.map((webhook) => deliverWebhook(webhook.url, webhookPayload))
+          );
+          webhookResults.forEach((result, webhookIndex) => {
+            if (result.status === "fulfilled") {
+              webhooksSent += 1;
+              return;
+            }
+
+            webhooksFailed += 1;
+            if (errors.length < 50) {
+              const webhookUrl = user.data.webhooks[webhookIndex]?.url ?? "unknown webhook";
+              const reason =
+                result.reason instanceof Error ? result.reason.message : "webhook delivery failed";
+              errors.push(`webhook failed for ${webhookUrl} (${scanned.checkedUrl}): ${reason}`);
+            }
+          });
+        }
+
         if (!user.data.notificationOnGradeChange || !recipientEmail) {
           emailsSuppressed += 1;
           continue;
@@ -286,7 +356,9 @@ export async function GET(request: Request) {
       emailsSent,
       emailsFailed,
       emailsThrottled,
-      emailsSuppressed
+      emailsSuppressed,
+      webhooksSent,
+      webhooksFailed
     },
     warnings: errors
   });
