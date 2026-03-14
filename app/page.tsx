@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
+import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
@@ -119,6 +120,7 @@ type ShareState = "idle" | "copied" | "shared" | "error";
 type BadgeStyle = "flat" | "flat-square";
 type BadgeCopyState = "idle" | "markdown" | "html" | "error";
 type UserAgentPresetChoice = "default" | "custom" | "chrome" | "firefox" | "googlebot";
+type ReportSource = "live" | "cache" | "shared";
 type LaunchFeature = {
   title: string;
   description: string;
@@ -158,6 +160,7 @@ const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
+const RESCAN_QUERY_PARAM = "rescan";
 const LAUNCH_FEATURES: LaunchFeature[] = [
   {
     title: "Bulk checks at release speed",
@@ -448,6 +451,35 @@ function formatScanDuration(durationMs: number | null | undefined): string | nul
   return `Scan completed in ${(durationMs / 1000).toFixed(2)}s`;
 }
 
+function formatRelativeTime(value: string): string | null {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  const elapsedMs = Date.now() - timestamp;
+  const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
+  if (elapsedSeconds < 60) {
+    return `${elapsedSeconds}s ago`;
+  }
+  const elapsedMinutes = Math.round(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) {
+    return `${elapsedMinutes}m ago`;
+  }
+  const elapsedHours = Math.round(elapsedMinutes / 60);
+  if (elapsedHours < 24) {
+    return `${elapsedHours}h ago`;
+  }
+  const elapsedDays = Math.round(elapsedHours / 24);
+  return `${elapsedDays}d ago`;
+}
+
+function reportSourceLabel(source: ReportSource | null): string {
+  if (source === "cache") return "Cached snapshot";
+  if (source === "shared") return "Shared report link";
+  return "Live scan";
+}
+
 function formatReportForClipboard(report: ReportResponse): string {
   const checkedAt = new Date(report.checkedAt).toLocaleString();
   const lines = [
@@ -691,6 +723,8 @@ export default function Home() {
   const [bulkCompletedCount, setBulkCompletedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
+  const [reportSource, setReportSource] = useState<ReportSource | null>(null);
+  const [reportCachedAt, setReportCachedAt] = useState<string | null>(null);
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
@@ -1175,6 +1209,8 @@ export default function Home() {
       setMode("single");
       setUrl(decoded.report.checkedUrl);
       setReport(decoded.report);
+      setReportSource("shared");
+      setReportCachedAt(null);
       setComparison(null);
       setActiveHeaderDetail(null);
       return;
@@ -1185,6 +1221,8 @@ export default function Home() {
     setCompareUrlA(decoded.comparison.siteA.checkedUrl);
     setCompareUrlB(decoded.comparison.siteB.checkedUrl);
     setReport(null);
+    setReportSource(null);
+    setReportCachedAt(null);
     setComparison(decoded.comparison);
     setActiveHeaderDetail(null);
   }, []);
@@ -1274,6 +1312,8 @@ export default function Home() {
   const clearCurrentState = useCallback(() => {
     setError(null);
     setReport(null);
+    setReportSource(null);
+    setReportCachedAt(null);
     setComparison(null);
     setActiveHeaderDetail(null);
     setBulkResults([]);
@@ -1358,12 +1398,21 @@ export default function Home() {
         setMode("single");
         setUrl(site);
         setReport(nextReport);
+        setReportSource("live");
+        setReportCachedAt(null);
         setComparison(null);
         setActiveHeaderDetail(null);
         setError(null);
         setCopyState("idle");
         setShareState("idle");
         addToHistory(nextReport);
+        trackEvent("scan_complete", {
+          mode: "single",
+          grade: nextReport.grade,
+          score: nextReport.score,
+          domain: extractDomainFromUrl(nextReport.finalUrl) ?? extractDomainFromUrl(nextReport.checkedUrl) ?? site,
+          source: "popular-refresh"
+        });
       }
     } catch {
       if (openReport) {
@@ -1378,6 +1427,8 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setReport(null);
+    setReportSource(null);
+    setReportCachedAt(null);
     setComparison(null);
     setActiveHeaderDetail(null);
     setBulkTargetCount(0);
@@ -1388,15 +1439,21 @@ export default function Home() {
     try {
       const payload = await requestReport(targetUrl, scanRequestOptions);
       setReport(payload);
+      setReportSource("live");
+      setReportCachedAt(null);
       addToHistory(payload);
       trackEvent("scan_complete", {
         mode: "single",
         grade: payload.grade,
-        score: payload.score
+        score: payload.score,
+        domain: extractDomainFromUrl(payload.finalUrl) ?? extractDomainFromUrl(payload.checkedUrl) ?? "unknown",
+        source: "live"
       });
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Unexpected error.";
       setReport(null);
+      setReportSource(null);
+      setReportCachedAt(null);
       setError(message);
     } finally {
       setLoading(false);
@@ -1413,6 +1470,8 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setReport(null);
+    setReportSource(null);
+    setReportCachedAt(null);
     setComparison(null);
     setActiveHeaderDetail(null);
     setBulkTargetCount(0);
@@ -1431,7 +1490,9 @@ export default function Home() {
       trackEvent("scan_complete", {
         mode: "compare",
         gradeA: siteA.grade,
-        gradeB: siteB.grade
+        gradeB: siteB.grade,
+        domainA: extractDomainFromUrl(siteA.finalUrl) ?? extractDomainFromUrl(siteA.checkedUrl) ?? "unknown",
+        domainB: extractDomainFromUrl(siteB.finalUrl) ?? extractDomainFromUrl(siteB.checkedUrl) ?? "unknown"
       });
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Unexpected error.";
@@ -1467,6 +1528,8 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setReport(null);
+    setReportSource(null);
+    setReportCachedAt(null);
     setComparison(null);
     setActiveHeaderDetail(null);
     setBulkResults([]);
@@ -1553,9 +1616,23 @@ export default function Home() {
   }
 
   function onHistoryEntryClick(entryUrl: string) {
+    trackEvent("scan_again_clicked", {
+      source: "recent-history",
+      domain: extractDomainFromUrl(entryUrl) ?? entryUrl
+    });
     setMode("single");
     setUrl(entryUrl);
     void runSingleCheck(entryUrl);
+  }
+
+  function onScanAgainClick() {
+    if (!report || loading) return;
+    trackEvent("scan_again_clicked", {
+      source: "report-panel",
+      domain: extractDomainFromUrl(report.finalUrl) ?? extractDomainFromUrl(report.checkedUrl) ?? "unknown"
+    });
+    setUrl(report.checkedUrl);
+    void runSingleCheck(report.checkedUrl);
   }
 
   function onPopularSiteClick(site: string) {
@@ -1565,17 +1642,51 @@ export default function Home() {
       setMode("single");
       setUrl(site);
       setReport(cached.report);
+      setReportSource("cache");
+      setReportCachedAt(cached.cachedAt);
       setComparison(null);
       setActiveHeaderDetail(null);
       setError(null);
       setCopyState("idle");
       setShareState("idle");
       addToHistory(cached.report);
+      trackEvent("popular_domain_opened", {
+        domain: site,
+        source: "cache",
+        grade: cached.report.grade
+      });
       return;
     }
 
+    trackEvent("popular_domain_opened", {
+      domain: site,
+      source: "live-refresh"
+    });
     void refreshPopularSite(site, true);
   }
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.has(SHARE_QUERY_PARAM)) {
+      return;
+    }
+
+    const rescanTarget = currentUrl.searchParams.get(RESCAN_QUERY_PARAM)?.trim();
+    if (!rescanTarget) {
+      return;
+    }
+
+    currentUrl.searchParams.delete(RESCAN_QUERY_PARAM);
+    window.history.replaceState({}, "", currentUrl.toString());
+
+    setMode("single");
+    setUrl(rescanTarget);
+    trackEvent("scan_again_clicked", {
+      source: "shared-report-page",
+      domain: extractDomainFromUrl(rescanTarget) ?? rescanTarget
+    });
+    void runSingleCheck(rescanTarget);
+  }, [runSingleCheck]);
 
   async function onCopyReport() {
     if (!report) return;
@@ -2082,6 +2193,13 @@ export default function Home() {
         {liveRegionMessage}
       </p>
       <SiteNav />
+      <a
+        href="#scan-workbench"
+        className="sr-only fixed left-3 top-16 z-[100] rounded-md border border-sky-400 bg-slate-950 px-4 py-2 text-sm font-semibold text-sky-100 shadow-lg shadow-slate-950 focus:not-sr-only focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+      >
+        Skip to scan workbench
+      </a>
+      <ScannerOnboardingTour onJumpToWorkbench={scrollToScanInput} />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
@@ -2591,6 +2709,15 @@ export default function Home() {
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear current
+          </button>
+          <button
+            type="button"
+            onClick={onScanAgainClick}
+            disabled={loading || !report}
+            aria-label="Run scan again for current report URL"
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Scan again
           </button>
           <Suspense
             fallback={
@@ -3204,8 +3331,21 @@ export default function Home() {
                   <span className="text-slate-500">Status:</span> {report.statusCode}
                 </p>
                 <p>
-                  <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
+                  <span className="text-slate-500">Scan timestamp:</span>{" "}
+                  <time dateTime={report.checkedAt}>{new Date(report.checkedAt).toLocaleString()}</time>
                 </p>
+                <p>
+                  <span className="text-slate-500">Result source:</span> {reportSourceLabel(reportSource)}
+                </p>
+                {reportSource === "cache" && reportCachedAt && (
+                  <p>
+                    <span className="text-slate-500">Cache status:</span>{" "}
+                    <time dateTime={reportCachedAt}>
+                      Captured {new Date(reportCachedAt).toLocaleString()}
+                      {formatRelativeTime(reportCachedAt) ? ` (${formatRelativeTime(reportCachedAt)})` : ""}
+                    </time>
+                  </p>
+                )}
                 {formatScanDuration(report.scanDurationMs) && (
                   <p className="text-xs uppercase tracking-[0.12em] text-sky-300/90">
                     {formatScanDuration(report.scanDurationMs)}

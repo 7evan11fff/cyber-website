@@ -313,13 +313,40 @@ export default async function SharedReportPage({
         <CompareReportSection comparison={shared.payload.comparison} />
       )}
 
-      <p className="mt-6 text-sm text-slate-300">
-        Want to run your own live scan?{" "}
-        <Link href="/" className="text-sky-300 transition hover:text-sky-200">
-          Open Security Header Checker
-        </Link>
-        .
-      </p>
+      <section className="mt-6 space-y-3">
+        <p className="text-sm text-slate-300">
+          Want to run your own live scan?{" "}
+          <Link href="/" className="text-sky-300 transition hover:text-sky-200">
+            Open Security Header Checker
+          </Link>
+          .
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {shared.payload.mode === "single" ? (
+            <Link
+              href={`/?rescan=${encodeURIComponent(shared.payload.report.checkedUrl)}`}
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+            >
+              Scan this site again
+            </Link>
+          ) : (
+            <>
+              <Link
+                href={`/?rescan=${encodeURIComponent(shared.payload.comparison.siteA.checkedUrl)}`}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Scan site A again
+              </Link>
+              <Link
+                href={`/?rescan=${encodeURIComponent(shared.payload.comparison.siteB.checkedUrl)}`}
+                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Scan site B again
+              </Link>
+            </>
+          )}
+        </div>
+      </section>
 
       <SiteFooter className="mt-10" />
     </main>
