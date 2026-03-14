@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ProWaitlistSignup } from "@/app/components/ProWaitlistSignup";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
@@ -155,6 +156,8 @@ export default function PricingPage() {
           </article>
         ))}
       </section>
+
+      <ProWaitlistSignup />
 
       <section className="mt-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70">
         <h2 className="text-xl font-semibold text-slate-100">Plan comparison</h2>

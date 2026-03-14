@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ComponentPropsWithoutRef } from "react";
+import { FooterNewsletterForm } from "@/app/components/FooterNewsletterForm";
 
 type SiteFooterProps = {
   className?: string;
@@ -22,6 +23,7 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
           <p className="mt-2 max-w-sm text-sm text-slate-400">
             Launch-ready scans, watchlist monitoring, and actionable guidance for HTTP security headers.
           </p>
+          <FooterNewsletterForm />
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -92,10 +94,10 @@ export function SiteFooter({ className = "", ...props }: SiteFooterProps) {
                 href="https://github.com/7evan11fff/cyber-website"
                 target="_blank"
                 rel="noreferrer"
-                aria-label="Open GitHub repository in a new tab"
+                aria-label="Open GitHub repository to star in a new tab"
                 className={linkClassName}
               >
-                GitHub
+                Star us on GitHub
               </a>
             </div>
           </div>

@@ -115,6 +115,11 @@ type TrustedByMetric = {
   label: string;
   value: string;
 };
+type Testimonial = {
+  quote: string;
+  person: string;
+  role: string;
+};
 type FaqItem = {
   question: string;
   answer: string;
@@ -165,7 +170,7 @@ const LAUNCH_FEATURES: LaunchFeature[] = [
     cta: "Read API docs"
   }
 ];
-const TRUSTED_BY_LOGOS = ["DevOps teams", "Security engineers", "QA squads", "Platform teams", "Startup founders"];
+const TRUSTED_BY_LOGOS = ["Northstar Labs", "Orbit Commerce", "Vertex Cloud", "Pioneer Health", "SignalForge"];
 const TRUSTED_BY_METRICS: TrustedByMetric[] = [
   {
     label: "Checks run",
@@ -178,6 +183,26 @@ const TRUSTED_BY_METRICS: TrustedByMetric[] = [
   {
     label: "Average scan time",
     value: "< 3 sec"
+  }
+];
+const TRUSTED_BY_TESTIMONIALS: Testimonial[] = [
+  {
+    quote:
+      "The scanner made missing CSP and HSTS obvious in minutes. We now run checks before every deploy and catch regressions early.",
+    person: "Maya Chen",
+    role: "Staff Engineer, Northstar Labs"
+  },
+  {
+    quote:
+      "Bulk mode helped our platform team triage dozens of services quickly. The grade view makes security reviews much easier to prioritize.",
+    person: "Ethan Brooks",
+    role: "Platform Lead, Orbit Commerce"
+  },
+  {
+    quote:
+      "Shareable reports gave our QA and security teams a common source of truth for header compliance during release week.",
+    person: "Priya N.",
+    role: "QA Manager, Vertex Cloud"
   }
 ];
 const SHORTCUT_ROWS = [
@@ -1812,21 +1837,29 @@ export default function Home() {
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Trusted by</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Teams shipping every week</h2>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Trusted by developers at</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">
+              Teams shipping secure releases every week
+            </h2>
           </div>
           <p className="max-w-xl text-sm text-slate-300">
-            Example launch metrics and logos to show product confidence before customer references are finalized.
+            Placeholder brand marks and quotes for launch previews while formal customer references are being finalized.
           </p>
         </div>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {TRUSTED_BY_LOGOS.map((logo) => (
-            <span
+            <article
               key={logo}
-              className="motion-card rounded-lg border border-slate-700/90 bg-slate-950/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300"
+              className="motion-card flex items-center gap-2 rounded-lg border border-slate-700/90 bg-slate-950/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300"
             >
-              {logo}
-            </span>
+              <span
+                aria-hidden="true"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-900/90 text-[10px] text-slate-400"
+              >
+                {logo.slice(0, 2)}
+              </span>
+              <span className="truncate text-slate-400">{logo}</span>
+            </article>
           ))}
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -1836,6 +1869,57 @@ export default function Home() {
               <p className="mt-2 text-2xl font-semibold text-sky-200">{metric.value}</p>
             </article>
           ))}
+        </div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          {TRUSTED_BY_TESTIMONIALS.map((testimonial) => (
+            <article key={testimonial.person} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <p className="text-sm leading-relaxed text-slate-300">&ldquo;{testimonial.quote}&rdquo;</p>
+              <p className="mt-4 text-sm font-semibold text-slate-100">{testimonial.person}</p>
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{testimonial.role}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="demo-preview"
+        data-reveal-id="demo-preview"
+        className={`${revealClass("demo-preview")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Product walkthrough</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Interactive demo video coming soon</h2>
+          </div>
+          <p className="max-w-xl text-sm text-slate-300">
+            We&rsquo;re packaging a guided walkthrough of the complete scan flow. Until then, here&rsquo;s a quick visual of
+            how checks move from URL input to actionable results.
+          </p>
+        </div>
+        <div className="mt-5 rounded-2xl border border-slate-800/90 bg-slate-950/60 p-4 sm:p-5">
+          <div className="grid items-center gap-2 text-center md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+            <div className="rounded-xl border border-slate-700/90 bg-slate-900/80 px-3 py-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">1. Enter URL</p>
+              <p className="mt-2 text-sm font-medium text-slate-100">example.com</p>
+            </div>
+            <span aria-hidden="true" className="text-slate-500 md:text-xl">
+              <span className="inline-flex animate-pulse">→</span>
+            </span>
+            <div className="rounded-xl border border-slate-700/90 bg-slate-900/80 px-3 py-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">2. Analyze headers</p>
+              <p className="mt-2 text-sm font-medium text-slate-100">CSP • HSTS • COOP • CORP</p>
+            </div>
+            <span aria-hidden="true" className="text-slate-500 md:text-xl">
+              <span className="inline-flex animate-pulse">→</span>
+            </span>
+            <div className="rounded-xl border border-slate-700/90 bg-slate-900/80 px-3 py-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">3. View score</p>
+              <p className="mt-2 text-sm font-semibold text-emerald-300">Grade A • 20/22</p>
+            </div>
+          </div>
+          <p className="mt-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs uppercase tracking-[0.12em] text-sky-200">
+            Demo video coming soon
+          </p>
         </div>
       </section>
 

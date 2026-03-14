@@ -29,12 +29,25 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const { data: session, status } = useSession();
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuRendered, setMobileMenuRendered] = useState(false);
+  const headerRef = useRef<HTMLElement | null>(null);
   const providerMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileFirstLinkRef = useRef<HTMLAnchorElement | null>(null);
 
   useEffect(() => {
     setProviderMenuOpen(false);
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      setMobileMenuRendered(true);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setMobileMenuRendered(false), 200);
+    return () => window.clearTimeout(timeoutId);
+  }, [mobileMenuOpen]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,13 +72,48 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
     return () => window.removeEventListener("mousedown", onPointerDown);
   }, [providerMenuOpen]);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (headerRef.current?.contains(event.target as Node)) return;
+      setMobileMenuOpen(false);
+    };
+
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("touchstart", onPointerDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const timeoutId = window.setTimeout(() => {
+      mobileFirstLinkRef.current?.focus();
+    }, 60);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileMenuOpen]);
+
   const userInitial = useMemo(() => {
     const source = session?.user?.name ?? session?.user?.email ?? "";
     return source.trim().slice(0, 1).toUpperCase() || "U";
   }, [session?.user?.email, session?.user?.name]);
 
   return (
-    <header className="mb-6">
+    <header ref={headerRef} className="mb-6">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate pr-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-300 sm:text-sm sm:tracking-[0.24em]">
           Security Header Checker
@@ -74,6 +122,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           type="button"
           onClick={() => setMobileMenuOpen((open) => !open)}
           aria-controls="mobile-nav-menu"
+          aria-haspopup="menu"
           aria-expanded={mobileMenuOpen}
           aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
           className="pressable min-h-11 rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 lg:hidden"
@@ -184,13 +233,16 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
         </div>
       </div>
 
-      {mobileMenuOpen && (
+      {mobileMenuRendered && (
         <div
           id="mobile-nav-menu"
-          className="mt-4 rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-xl shadow-slate-950/70 lg:hidden"
+          aria-hidden={!mobileMenuOpen}
+          className={`mt-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-xl shadow-slate-950/70 transition-all duration-200 ease-out lg:hidden ${
+            mobileMenuOpen ? "max-h-[85vh] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-2 opacity-0"
+          }`}
         >
           <nav className="grid gap-2" aria-label="Mobile navigation">
-            {NAV_LINKS.map((link) => {
+            {NAV_LINKS.map((link, index) => {
               const active =
                 pathname === link.href ||
                 (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
@@ -200,6 +252,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 <Link
                   key={`mobile-${link.href}`}
                   href={link.href}
+                  ref={index === 0 ? mobileFirstLinkRef : undefined}
                   aria-label={`Navigate to ${link.label}`}
                   className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     active
