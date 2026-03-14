@@ -29,6 +29,8 @@ export const metadata: Metadata = {
     "security headers",
     "http headers",
     "website security scanner",
+    "security scan history",
+    "website security report",
     "content-security-policy",
     "hsts",
     "x-frame-options"
@@ -42,7 +44,14 @@ export const metadata: Metadata = {
   publisher: SITE_NAME,
   robots: {
     index: true,
-    follow: true
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1
+    }
   },
   formatDetection: {
     email: false,
@@ -55,6 +64,7 @@ export const metadata: Metadata = {
     url: "/",
     siteName: SITE_NAME,
     type: "website",
+    locale: "en_US",
     images: [
       {
         url: buildOgImageUrl({

@@ -157,6 +157,7 @@ const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
 const EMPTY_STATE_SUGGESTIONS = ["owasp.org", "mozilla.org", "cloudflare.com", "wikipedia.org"];
 const POPULAR_SITES = ["google.com", "github.com", "youtube.com", "amazon.com", "wikipedia.org"];
 const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
+const HISTORY_REPORT_STORAGE_KEY = "security-header-checker:scan-history-reports";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
@@ -343,6 +344,17 @@ function isSharePayload(value: unknown): value is SharePayload {
   }
 
   return false;
+}
+
+function normalizeHistoryReportSnapshots(value: unknown): Record<string, ReportResponse> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const normalized: Record<string, ReportResponse> = {};
+  for (const [entryId, snapshot] of Object.entries(value)) {
+    if (!entryId || !isReportResponse(snapshot)) continue;
+    normalized[entryId] = snapshot;
+  }
+  return normalized;
 }
 
 function fromBase64Url(value: string) {
@@ -734,6 +746,7 @@ export default function Home() {
   const [badgeStyle, setBadgeStyle] = useState<BadgeStyle>("flat");
   const [badgeCopyState, setBadgeCopyState] = useState<BadgeCopyState>("idle");
   const [scanHistory, setScanHistory] = useState<HistoryEntry[]>([]);
+  const [historyReportSnapshots, setHistoryReportSnapshots] = useState<Record<string, ReportResponse>>({});
   const [historyBootstrapped, setHistoryBootstrapped] = useState(false);
   const [historyServerReady, setHistoryServerReady] = useState(false);
   const [syncedHistoryUserKey, setSyncedHistoryUserKey] = useState<string | null>(null);
@@ -767,10 +780,22 @@ export default function Home() {
   const celebratedScanRef = useRef<string | null>(null);
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const isAuthenticated = sessionStatus === "authenticated";
-  const softwareApplicationSchema = useMemo(
+  const organizationSchema = useMemo(
     () => ({
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
+      "@type": "Organization",
+      name: "Security Header Checker",
+      url: `${SITE_ORIGIN.replace(/\/$/, "")}/`,
+      logo: `${SITE_ORIGIN.replace(/\/$/, "")}/icons/icon-512.png`,
+      description: "Security tooling that helps teams scan, compare, and monitor HTTP security headers.",
+      sameAs: ["https://github.com/7evan11fff/cyber-website"]
+    }),
+    []
+  );
+  const webApplicationSchema = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
       name: "Security Header Checker",
       operatingSystem: "Web",
       applicationCategory: "SecurityApplication",
@@ -788,6 +813,11 @@ export default function Home() {
         "@type": "Offer",
         price: "0",
         priceCurrency: "USD"
+      },
+      publisher: {
+        "@type": "Organization",
+        name: "Security Header Checker",
+        url: `${SITE_ORIGIN.replace(/\/$/, "")}/`
       }
     }),
     []
@@ -1002,20 +1032,32 @@ export default function Home() {
       const rawHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
       if (!rawHistory) {
         setScanHistory([]);
-        return;
+      } else {
+        const parsed = JSON.parse(rawHistory);
+        if (!Array.isArray(parsed)) {
+          setScanHistory([]);
+        } else {
+          const loadedEntries = parsed.filter(isScanHistoryEntry).slice(0, MAX_HISTORY_ITEMS);
+          setScanHistory(loadedEntries);
+        }
       }
-      const parsed = JSON.parse(rawHistory);
-      if (!Array.isArray(parsed)) {
-        setScanHistory([]);
-        return;
-      }
-      const loadedEntries = parsed.filter(isScanHistoryEntry).slice(0, MAX_HISTORY_ITEMS);
-      setScanHistory(loadedEntries);
     } catch {
       setScanHistory([]);
-    } finally {
-      setHistoryBootstrapped(true);
     }
+
+    try {
+      const rawSnapshots = localStorage.getItem(HISTORY_REPORT_STORAGE_KEY);
+      if (!rawSnapshots) {
+        setHistoryReportSnapshots({});
+      } else {
+        const parsed = JSON.parse(rawSnapshots);
+        setHistoryReportSnapshots(normalizeHistoryReportSnapshots(parsed));
+      }
+    } catch {
+      setHistoryReportSnapshots({});
+    }
+
+    setHistoryBootstrapped(true);
   }, []);
 
   useEffect(() => {
@@ -1045,6 +1087,36 @@ export default function Home() {
     } catch {
       // Ignore storage failures.
     }
+  }, [historyBootstrapped, scanHistory]);
+
+  useEffect(() => {
+    if (!historyBootstrapped) return;
+    try {
+      if (Object.keys(historyReportSnapshots).length === 0) {
+        localStorage.removeItem(HISTORY_REPORT_STORAGE_KEY);
+      } else {
+        localStorage.setItem(HISTORY_REPORT_STORAGE_KEY, JSON.stringify(historyReportSnapshots));
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [historyBootstrapped, historyReportSnapshots]);
+
+  useEffect(() => {
+    if (!historyBootstrapped) return;
+    const validIds = new Set(scanHistory.map((entry) => entry.id));
+    setHistoryReportSnapshots((previous) => {
+      let changed = false;
+      const trimmedSnapshots: Record<string, ReportResponse> = {};
+      for (const [entryId, snapshot] of Object.entries(previous)) {
+        if (!validIds.has(entryId)) {
+          changed = true;
+          continue;
+        }
+        trimmedSnapshots[entryId] = snapshot;
+      }
+      return changed ? trimmedSnapshots : previous;
+    });
   }, [historyBootstrapped, scanHistory]);
 
   useEffect(() => {
@@ -1245,6 +1317,10 @@ export default function Home() {
     };
 
     setScanHistory((previous) => normalizeScanHistoryEntries([nextEntry, ...previous]));
+    setHistoryReportSnapshots((previous) => ({
+      ...previous,
+      [nextEntry.id]: nextReport
+    }));
     setDomainHistory((previous) =>
       recordDomainGradeHistoryPoint(previous, {
         url: nextReport.checkedUrl,
@@ -1256,6 +1332,7 @@ export default function Home() {
 
   function clearHistory() {
     setScanHistory([]);
+    setHistoryReportSnapshots({});
   }
 
   const requestReport = useCallback(
@@ -1613,6 +1690,37 @@ export default function Home() {
     setMode("single");
     setUrl(sampleUrl);
     void runSingleCheck(sampleUrl);
+  }
+
+  function onViewHistoryEntryReport(entry: HistoryEntry) {
+    const cachedReport = historyReportSnapshots[entry.id];
+    if (cachedReport) {
+      setMode("single");
+      setUrl(cachedReport.checkedUrl);
+      setError(null);
+      setReport(cachedReport);
+      setReportSource("cache");
+      setReportCachedAt(cachedReport.checkedAt);
+      setComparison(null);
+      setActiveHeaderDetail(null);
+      setCopyState("idle");
+      setPdfState("idle");
+      setShareState("idle");
+      trackEvent("history_report_opened", {
+        source: "recent-history",
+        method: "snapshot",
+        domain: extractDomainFromUrl(cachedReport.finalUrl) ?? extractDomainFromUrl(cachedReport.checkedUrl) ?? entry.url,
+        grade: cachedReport.grade
+      });
+      return;
+    }
+
+    trackEvent("history_report_opened", {
+      source: "recent-history",
+      method: "rescan",
+      domain: extractDomainFromUrl(entry.url) ?? entry.url
+    });
+    onHistoryEntryClick(entry.url);
   }
 
   function onHistoryEntryClick(entryUrl: string) {
@@ -2186,7 +2294,11 @@ export default function Home() {
       </Suspense>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationSchema) }}
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <p className="sr-only" aria-live="polite" aria-atomic="true">
@@ -3034,7 +3146,7 @@ export default function Home() {
               aria-label={historyOpen ? "Collapse recent scans" : "Expand recent scans"}
               className="text-sm font-medium text-slate-200 transition hover:text-sky-200"
             >
-              Recent Scans ({scanHistory.length}) {historyOpen ? "−" : "+"}
+              Last {MAX_HISTORY_ITEMS} Scans ({scanHistory.length}) {historyOpen ? "−" : "+"}
             </button>
             <button
               type="button"
@@ -3052,27 +3164,44 @@ export default function Home() {
                 <p className="text-sm text-slate-400">No scans yet. Run a check to build your history.</p>
               ) : (
                 <ul className="space-y-2">
-                  {scanHistory.map((entry) => (
-                    <li key={entry.id}>
-                      <button
-                        type="button"
-                        onClick={() => onHistoryEntryClick(entry.url)}
-                        disabled={loading}
-                        aria-label={`Run scan again for ${entry.url}`}
-                        className="motion-card flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  {scanHistory.map((entry) => {
+                    const hasCachedReport = Boolean(historyReportSnapshots[entry.id]);
+                    return (
+                      <li
+                        key={entry.id}
+                        className="motion-card rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-3 transition hover:border-sky-500/40"
                       >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm text-slate-100">{entry.url}</p>
-                          <p className="text-xs text-slate-400">
-                            {new Date(entry.checkedAt).toLocaleString()}
-                          </p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-slate-100">{entry.url}</p>
+                            <p className="mt-1 text-xs text-slate-400">{new Date(entry.checkedAt).toLocaleString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-lg font-semibold ${gradeColor(entry.grade)}`}>{entry.grade}</p>
+                            {typeof entry.score === "number" && typeof entry.maxScore === "number" && (
+                              <p className="text-[11px] text-slate-400">
+                                {entry.score}/{entry.maxScore}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <span className={`text-lg font-semibold ${gradeColor(entry.grade)}`}>
-                          {entry.grade}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[11px] text-slate-500">
+                            {hasCachedReport ? "Saved report snapshot available." : "Will run a fresh scan for this URL."}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onViewHistoryEntryReport(entry)}
+                            disabled={loading}
+                            aria-label={`View full report for ${entry.url}`}
+                            className="rounded-md border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.1em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            View full report
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
