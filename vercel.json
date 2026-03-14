@@ -12,10 +12,10 @@
       "maxDuration": 10
     },
     "app/api/badge/[domain]/route.ts": {
-      "runtime": "edge"
+      "maxDuration": 10
     },
     "app/api/og/route.tsx": {
-      "runtime": "edge"
+      "maxDuration": 10
     }
   },
   "crons": [
