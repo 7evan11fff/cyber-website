@@ -3,8 +3,10 @@
 This folder contains a lightweight browser extension that scans the current tab through the app's existing `POST /api/check` endpoint and shows:
 
 - Toolbar badge grade (`A`-`F`, color-coded)
+- Toolbar icon that updates per-tab to the current grade letter
 - Popup header breakdown (good/weak/missing per header)
 - **View Full Report** button that opens the scanner with the URL pre-filled
+- Right-click context action **Scan this link** for any hyperlink
 
 ## Files
 
@@ -30,5 +32,5 @@ You can change this from the popup under **API endpoint settings**.
 
 ## Notes
 
-- The extension only requests minimal permissions needed for active-tab scanning and settings storage.
+- The extension only requests minimal permissions needed for active-tab scanning, context-menu link scanning, and settings storage.
 - CORS preflight is handled by the app's `/api/check` route for `chrome-extension://` origins.

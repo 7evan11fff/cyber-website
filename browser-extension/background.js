@@ -1,6 +1,8 @@
 const DEFAULT_API_ORIGIN = "https://security-header-checker.vercel.app";
 const API_ORIGIN_STORAGE_KEY = "apiOrigin";
 const CACHE_TTL_MS = 2 * 60 * 1000;
+const CONTEXT_MENU_SCAN_LINK_ID = "shc-scan-link";
+const ICON_SIZES = [16, 32, 48, 128];
 
 const GRADE_BADGE_STYLE = {
   A: { text: "A", color: "#10b981" },
@@ -52,16 +54,86 @@ function toScanTarget(value) {
   }
 }
 
+function createIconImageData(letter, color, size) {
+  try {
+    const canvas = new OffscreenCanvas(size, size);
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    const glyph = String(letter || "S")
+      .trim()
+      .slice(0, 1)
+      .toUpperCase();
+
+    context.clearRect(0, 0, size, size);
+    context.fillStyle = "#020617";
+    context.fillRect(0, 0, size, size);
+
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(size / 2, size / 2, size * 0.38, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "#020617";
+    context.font = `700 ${Math.round(size * 0.5)}px system-ui, -apple-system, Segoe UI, sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(glyph || "S", size / 2, size / 2 + size * 0.02);
+
+    return context.getImageData(0, 0, size, size);
+  } catch {
+    return null;
+  }
+}
+
+function setActionIcon(tabId, badge) {
+  const imageData = {};
+  for (const size of ICON_SIZES) {
+    const generated = createIconImageData(badge.text, badge.color, size);
+    if (!generated) continue;
+    imageData[size] = generated;
+  }
+  if (Object.keys(imageData).length === 0) return;
+  chrome.action.setIcon({ tabId, imageData });
+}
+
 function setBadge(tabId, badge) {
   chrome.action.setBadgeText({ tabId, text: badge.text });
   chrome.action.setBadgeBackgroundColor({ tabId, color: badge.color });
   if (chrome.action.setBadgeTextColor) {
     chrome.action.setBadgeTextColor({ tabId, color: "#0f172a" });
   }
+  setActionIcon(tabId, badge);
 }
 
 function clearBadge(tabId) {
   chrome.action.setBadgeText({ tabId, text: "" });
+  setActionIcon(tabId, { text: "S", color: "#334155" });
+}
+
+function createContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    void chrome.runtime.lastError;
+    chrome.contextMenus.create(
+      {
+        id: CONTEXT_MENU_SCAN_LINK_ID,
+        title: "Scan this link",
+        contexts: ["link"]
+      },
+      () => {
+        void chrome.runtime.lastError;
+      }
+    );
+  });
+}
+
+async function openScannerForTarget(targetUrl, activeTabIndex) {
+  const apiOrigin = await getApiOrigin();
+  const scannerUrl = `${apiOrigin}/?rescan=${encodeURIComponent(targetUrl)}`;
+  const createOptions = { url: scannerUrl };
+  if (typeof activeTabIndex === "number") {
+    createOptions.index = activeTabIndex + 1;
+  }
+  await chrome.tabs.create(createOptions);
 }
 
 async function runScan(url) {
@@ -122,7 +194,7 @@ async function updateBadgeForTab(tabId, tabUrl) {
     return;
   }
 
-  setBadge(tabId, { text: "...", color: "#334155" });
+  setBadge(tabId, { text: "•", color: "#334155" });
   const scanResult = await runScan(target);
   if (!scanResult.ok) {
     setBadge(tabId, { text: "!", color: "#64748b" });
@@ -142,6 +214,7 @@ async function refreshActiveTabBadge() {
 
 chrome.runtime.onInstalled.addListener(() => {
   void (async () => {
+    createContextMenus();
     const stored = await chrome.storage.sync.get(API_ORIGIN_STORAGE_KEY);
     if (typeof stored[API_ORIGIN_STORAGE_KEY] !== "string" || !stored[API_ORIGIN_STORAGE_KEY].trim()) {
       await setApiOrigin(DEFAULT_API_ORIGIN);
@@ -164,6 +237,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
   if (!tab.active) return;
   void updateBadgeForTab(tabId, tab.url);
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== CONTEXT_MENU_SCAN_LINK_ID) return;
+  const targetUrl = toScanTarget(info.linkUrl);
+  if (!targetUrl) return;
+  void openScannerForTarget(targetUrl, typeof tab?.index === "number" ? tab.index : undefined);
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
