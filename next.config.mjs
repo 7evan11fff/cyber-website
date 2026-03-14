@@ -25,7 +25,11 @@ const nextConfig = {
 export default withBundleAnalyzer(
   withSentryConfig(nextConfig, {
     silent: true,
-    disableLogger: true,
-    tunnelRoute: "/monitoring"
+    tunnelRoute: "/monitoring",
+    webpack: {
+      treeshake: {
+        removeDebugLogging: true
+      }
+    }
   })
 );
