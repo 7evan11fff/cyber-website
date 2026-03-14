@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 test("homepage scan flow displays report results", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByLabel("Website URL to scan").fill("example.com");
+  await page.getByRole("textbox", { name: "Website URL to scan", exact: true }).fill("example.com");
   await page.getByRole("button", { name: "Check", exact: true }).click();
 
   await expect(page.getByText("Overall Grade")).toBeVisible();
@@ -21,7 +21,7 @@ test("homepage scan flow displays report results", async ({ page }) => {
 test("header deep-dive modal and keyboard shortcuts work", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByLabel("Website URL to scan").fill("example.com");
+  await page.getByRole("textbox", { name: "Website URL to scan", exact: true }).fill("example.com");
   await page.getByRole("button", { name: "Check", exact: true }).click();
 
   await page.getByRole("button", { name: "Open deep dive for Content-Security-Policy" }).click();
