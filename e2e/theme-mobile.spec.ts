@@ -9,12 +9,19 @@ test.beforeEach(async ({ page }) => {
 test("theme toggle switches between light and dark", async ({ page }) => {
   await page.goto("/");
 
-  const toggleToLight = page.getByRole("button", { name: "Switch to light theme" });
-  await toggleToLight.click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-
-  await page.getByRole("button", { name: "Switch to dark theme" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const toggleToLight = page.getByRole("button", { name: "Switch to light theme" }).first();
+  if (await toggleToLight.isVisible()) {
+    await toggleToLight.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.getByRole("button", { name: "Switch to dark theme" }).first().click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  } else {
+    const toggleToDark = page.getByRole("button", { name: "Switch to dark theme" }).first();
+    await toggleToDark.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.getByRole("button", { name: "Switch to light theme" }).first().click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  }
 });
 
 test("mobile navigation is usable on small viewport", async ({ page }) => {
