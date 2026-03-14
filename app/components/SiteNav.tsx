@@ -20,6 +20,7 @@ const NAV_LINKS = [
   { href: "/api-docs", label: "API Docs" },
   { href: "/integrations", label: "Integrations" },
   { href: "/security-headers-guide", label: "Header Guide" },
+  { href: "/contact", label: "Contact" },
   { href: "/about", label: "About" }
 ];
 
