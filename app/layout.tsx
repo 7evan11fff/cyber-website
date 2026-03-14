@@ -5,6 +5,7 @@ import "./globals.css";
 import { AnalyticsProvider } from "@/app/components/AnalyticsProvider";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { PwaInstallBanner } from "@/app/components/PwaInstallBanner";
 import { ServiceWorkerRegistrar } from "@/app/components/ServiceWorkerRegistrar";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
@@ -96,7 +97,7 @@ export const metadata: Metadata = {
     site: TWITTER_HANDLE,
     creator: TWITTER_HANDLE
   },
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -123,7 +124,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#020617" />
         <link rel="preconnect" href="https://plausible.io" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://plausible.io" />
@@ -141,6 +142,7 @@ export default function RootLayout({
               <ToastProvider>
                 <ErrorBoundary>
                   <ServiceWorkerRegistrar />
+                  <PwaInstallBanner />
                   {children}
                 </ErrorBoundary>
               </ToastProvider>

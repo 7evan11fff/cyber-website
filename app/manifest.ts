@@ -13,6 +13,7 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait-primary",
     background_color: "#020617",
     theme_color: "#020617",
+    categories: ["security", "developer", "utilities", "productivity"],
     icons: [
       {
         src: "/icons/icon-192.png",
@@ -31,6 +32,26 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable"
+      }
+    ],
+    shortcuts: [
+      {
+        name: "New scan",
+        short_name: "Scan",
+        description: "Run a new security header scan",
+        url: "/"
+      },
+      {
+        name: "Quick fixes",
+        short_name: "Fixes",
+        description: "Open header remediation guidance",
+        url: "/fixes"
+      },
+      {
+        name: "Dashboard",
+        short_name: "Dashboard",
+        description: "Review watchlist and history",
+        url: "/dashboard"
       }
     ]
   };

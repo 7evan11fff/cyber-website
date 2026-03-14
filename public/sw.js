@@ -1,16 +1,21 @@
-const STATIC_CACHE = "shc-static-v2";
-const SHELL_CACHE = "shc-shell-v2";
+const STATIC_CACHE = "shc-static-v3";
+const SHELL_CACHE = "shc-shell-v3";
+const API_CACHE = "shc-api-v1";
+const API_CACHE_KEY_PREFIX = "/__offline/api-check";
 
 const APP_SHELL_PATHS = [
   "/",
   "/compare",
   "/bulk",
+  "/fixes",
+  "/dashboard",
   "/pricing",
   "/docs",
   "/docs/api",
   "/docs/ci-cd",
   "/security-headers-guide",
   "/about",
+  "/manifest.webmanifest",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -33,13 +38,38 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== STATIC_CACHE && key !== SHELL_CACHE)
+            .filter((key) => key !== STATIC_CACHE && key !== SHELL_CACHE && key !== API_CACHE)
             .map((key) => caches.delete(key))
         )
       )
       .then(() => self.clients.claim())
   );
 });
+
+function normalizeTargetUrl(value) {
+  const target = typeof value === "string" ? value.trim() : "";
+  if (!target) return null;
+
+  try {
+    const withProtocol = target.startsWith("http://") || target.startsWith("https://") ? target : `https://${target}`;
+    const parsed = new URL(withProtocol);
+    parsed.hash = "";
+    const normalizedPath = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+    return `${parsed.origin}${normalizedPath}${parsed.search}`;
+  } catch {
+    return target.toLowerCase();
+  }
+}
+
+function buildApiCacheRequest(targetUrl, options) {
+  const cacheUrl = new URL(API_CACHE_KEY_PREFIX, self.location.origin);
+  cacheUrl.searchParams.set("url", targetUrl);
+  if (options && typeof options === "object") {
+    const normalizedOptions = JSON.stringify(options);
+    cacheUrl.searchParams.set("options", normalizedOptions);
+  }
+  return new Request(cacheUrl.toString(), { method: "GET" });
+}
 
 function isCacheableStaticAsset(request, url) {
   if (request.method !== "GET") return false;
@@ -91,9 +121,71 @@ async function navigationNetworkFirst(request) {
   }
 }
 
+async function apiNetworkFirstWithOfflineFallback(request) {
+  const apiCache = await caches.open(API_CACHE);
+  let cacheRequest = null;
+
+  try {
+    const requestPayload = await request.clone().json();
+    if (requestPayload && typeof requestPayload === "object" && "url" in requestPayload) {
+      const normalizedTarget = normalizeTargetUrl(requestPayload.url);
+      if (normalizedTarget) {
+        const requestOptions =
+          requestPayload && typeof requestPayload === "object" && "options" in requestPayload
+            ? requestPayload.options
+            : null;
+        cacheRequest = buildApiCacheRequest(normalizedTarget, requestOptions);
+      }
+    }
+  } catch {
+    cacheRequest = null;
+  }
+
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok && cacheRequest) {
+      await apiCache.put(cacheRequest, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch {
+    if (cacheRequest) {
+      const cachedResponse = await apiCache.match(cacheRequest);
+      if (cachedResponse) {
+        const body = await cachedResponse.clone().arrayBuffer();
+        const headers = new Headers(cachedResponse.headers);
+        headers.set("X-SHC-Offline", "1");
+        headers.set("X-SHC-Offline-Source", "service-worker-cache");
+        headers.set("Content-Type", headers.get("Content-Type") || "application/json");
+        return new Response(body, {
+          status: 200,
+          statusText: "OK",
+          headers
+        });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "You are offline and no cached scan result is available yet for this URL."
+      }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
+
+  if (request.method === "POST" && url.origin === self.location.origin && url.pathname === "/api/check") {
+    event.respondWith(apiNetworkFirstWithOfflineFallback(request));
+    return;
+  }
 
   if (request.mode === "navigate" && url.origin === self.location.origin && !url.pathname.startsWith("/api/")) {
     event.respondWith(navigationNetworkFirst(request));

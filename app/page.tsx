@@ -242,7 +242,7 @@ const SHORTCUT_ROWS = [
   { keys: "1-6", action: "Jump to visible header result cards" },
   { keys: "Ctrl + P", action: "Download current scan report PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
-  { keys: "Esc", action: "Close open dialogs/panels" }
+  { keys: "Esc", action: "Close open dialogs or clear active scan state" }
 ];
 const USER_AGENT_PRESETS = [
   {
@@ -755,6 +755,7 @@ export default function Home() {
   const [domainHistoryServerReady, setDomainHistoryServerReady] = useState(false);
   const [syncedDomainHistoryUserKey, setSyncedDomainHistoryUserKey] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [activeHistoryIndex, setActiveHistoryIndex] = useState(0);
   const [popularSitesCache, setPopularSitesCache] = useState<PopularSiteCacheEntry[]>([]);
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
@@ -770,6 +771,7 @@ export default function Home() {
   const [gradeConfettiTrigger, setGradeConfettiTrigger] = useState(0);
   const { data: session, status: sessionStatus } = useSession();
   const compareTouchStartXRef = useRef<number | null>(null);
+  const historyTouchStartXRef = useRef<number | null>(null);
   const singleUrlInputRef = useRef<HTMLInputElement | null>(null);
   const compareUrlAInputRef = useRef<HTMLInputElement | null>(null);
   const shortcutsDialogRef = useRef<HTMLDivElement | null>(null);
@@ -778,6 +780,8 @@ export default function Home() {
   const headerDetailCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const celebratedScanRef = useRef<string | null>(null);
+  const lastHapticFeedbackRef = useRef<string | null>(null);
+  const wasLoadingForHapticsRef = useRef(false);
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const isAuthenticated = sessionStatus === "authenticated";
   const organizationSchema = useMemo(
@@ -850,6 +854,15 @@ export default function Home() {
       singleUrlInputRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
       singleUrlInputRef.current.focus();
     });
+  }, []);
+  const triggerHapticFeedback = useCallback((pattern: number | number[] = [16, 34, 18]) => {
+    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") {
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    navigator.vibrate(pattern);
   }, []);
 
   const singleGradeColor = useMemo(() => {
@@ -1989,6 +2002,30 @@ export default function Home() {
     setMobileCompareView(deltaX < 0 ? "siteB" : "siteA");
   }
 
+  function onHistoryTouchStart(event: TouchEvent<HTMLUListElement>) {
+    if (window.innerWidth >= 640) return;
+    historyTouchStartXRef.current = event.changedTouches[0]?.clientX ?? null;
+  }
+
+  function onHistoryTouchEnd(event: TouchEvent<HTMLUListElement>) {
+    if (window.innerWidth >= 640) return;
+
+    const start = historyTouchStartXRef.current;
+    historyTouchStartXRef.current = null;
+    if (start === null) return;
+
+    const end = event.changedTouches[0]?.clientX;
+    if (typeof end !== "number") return;
+    const deltaX = end - start;
+    if (Math.abs(deltaX) < 45) return;
+
+    setActiveHistoryIndex((current) => {
+      if (scanHistory.length === 0) return 0;
+      if (deltaX < 0) return Math.min(current + 1, scanHistory.length - 1);
+      return Math.max(current - 1, 0);
+    });
+  }
+
   useEffect(() => {
     try {
       const rawPopularSites = localStorage.getItem(POPULAR_CACHE_STORAGE_KEY);
@@ -2093,6 +2130,41 @@ export default function Home() {
   }, [loading, report]);
 
   useEffect(() => {
+    setActiveHistoryIndex((current) => {
+      if (scanHistory.length === 0) return 0;
+      return Math.min(current, scanHistory.length - 1);
+    });
+  }, [scanHistory.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth >= 640 || scanHistory.length === 0) return;
+    const activeHistoryEntry = document.querySelector<HTMLElement>(`[data-history-entry-index="${activeHistoryIndex}"]`);
+    activeHistoryEntry?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [activeHistoryIndex, scanHistory.length]);
+
+  useEffect(() => {
+    if (loading) {
+      wasLoadingForHapticsRef.current = true;
+      return;
+    }
+    if (!wasLoadingForHapticsRef.current) return;
+    wasLoadingForHapticsRef.current = false;
+
+    let completionKey: string | null = null;
+    if (report) {
+      completionKey = `single:${report.checkedAt}:${report.checkedUrl}`;
+    } else if (comparison) {
+      completionKey = `compare:${comparison.siteA.checkedAt}:${comparison.siteB.checkedAt}`;
+    } else if (mode === "bulk" && bulkResults.length > 0) {
+      completionKey = `bulk:${bulkResults.length}:${bulkResults.map((entry) => entry.report?.checkedAt ?? entry.inputUrl).join("|")}`;
+    }
+
+    if (!completionKey || lastHapticFeedbackRef.current === completionKey) return;
+    lastHapticFeedbackRef.current = completionKey;
+    triggerHapticFeedback();
+  }, [bulkResults, comparison, loading, mode, report, triggerHapticFeedback]);
+
+  useEffect(() => {
     if (!shortcutsOpen) return;
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -2192,6 +2264,11 @@ export default function Home() {
           setBadgePanelOpen(false);
           return;
         }
+        if (!loading) {
+          event.preventDefault();
+          clearCurrentState();
+        }
+        return;
       }
 
       if (shortcutsOpen || activeHeaderDetail) {
@@ -2270,6 +2347,7 @@ export default function Home() {
     bulkUrlsInput,
     closeHeaderDetailModal,
     closeShortcutsModal,
+    clearCurrentState,
     compareUrlA,
     compareUrlB,
     comparison,
@@ -3136,7 +3214,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <button
               type="button"
@@ -3148,6 +3226,11 @@ export default function Home() {
             >
               Last {MAX_HISTORY_ITEMS} Scans ({scanHistory.length}) {historyOpen ? "−" : "+"}
             </button>
+            {scanHistory.length > 1 && (
+              <p className="text-[11px] text-slate-500 sm:hidden">
+                Swipe left/right to move through recent scans ({activeHistoryIndex + 1}/{scanHistory.length})
+              </p>
+            )}
             <button
               type="button"
               onClick={clearHistory}
@@ -3163,13 +3246,18 @@ export default function Home() {
               {scanHistory.length === 0 ? (
                 <p className="text-sm text-slate-400">No scans yet. Run a check to build your history.</p>
               ) : (
-                <ul className="space-y-2">
-                  {scanHistory.map((entry) => {
+                <ul className="space-y-2" onTouchStart={onHistoryTouchStart} onTouchEnd={onHistoryTouchEnd}>
+                  {scanHistory.map((entry, index) => {
                     const hasCachedReport = Boolean(historyReportSnapshots[entry.id]);
                     return (
                       <li
                         key={entry.id}
-                        className="motion-card rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-3 transition hover:border-sky-500/40"
+                        data-history-entry-index={index}
+                        className={`motion-card rounded-lg border px-3 py-3 transition ${
+                          activeHistoryIndex === index
+                            ? "border-sky-500/50 bg-sky-500/10"
+                            : "border-slate-800/80 bg-slate-900/70 hover:border-sky-500/40"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -3193,6 +3281,7 @@ export default function Home() {
                             type="button"
                             onClick={() => onViewHistoryEntryReport(entry)}
                             disabled={loading}
+                            data-history-button-index={index}
                             aria-label={`View full report for ${entry.url}`}
                             className="rounded-md border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.1em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                           >

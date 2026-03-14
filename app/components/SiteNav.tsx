@@ -25,6 +25,7 @@ const NAV_LINKS = [
   { href: "/contact", label: "Contact" },
   { href: "/about", label: "About" }
 ];
+const HOVER_PREFETCH_ROUTES = new Set(["/fixes", "/dashboard"]);
 
 export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const pathname = usePathname();
@@ -37,6 +38,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const providerMenuRef = useRef<HTMLDivElement | null>(null);
   const quickSearchInputRef = useRef<HTMLInputElement | null>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const quickSearchItems = useMemo(() => {
     const featured = [
@@ -88,6 +90,15 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
       router.push(href);
     },
     [closeQuickSearch, router]
+  );
+  const prefetchRouteOnHover = useCallback(
+    (href: string) => {
+      if (!HOVER_PREFETCH_ROUTES.has(href)) return;
+      if (prefetchedRoutesRef.current.has(href)) return;
+      prefetchedRoutesRef.current.add(href);
+      void router.prefetch(href);
+    },
+    [router]
   );
 
   useEffect(() => {
@@ -186,6 +197,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 key={link.href}
                 href={link.href}
                 aria-label={`Navigate to ${link.label}`}
+                onMouseEnter={() => prefetchRouteOnHover(link.href)}
                 className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                   active
                     ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
@@ -300,6 +312,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                   key={`mobile-${link.href}`}
                   href={link.href}
                   aria-label={`Navigate to ${link.label}`}
+                  onMouseEnter={() => prefetchRouteOnHover(link.href)}
                   className={`pressable min-h-11 rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     active
                       ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
