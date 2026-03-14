@@ -35,7 +35,10 @@ export function normalizeTargetUrl(input: string): string {
       throw new Error("Only http and https URLs are supported.");
     }
     return parsed.toString();
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Only http and https URLs are supported.") {
+      throw error;
+    }
     throw new Error("Please enter a valid URL.");
   }
 }
@@ -132,4 +135,8 @@ export async function getOrCreateDomainReport(domain: string): Promise<SecurityR
   }
 
   return runSecurityScan(normalizedDomain);
+}
+
+export async function generateReport(inputUrl: string): Promise<SecurityReport> {
+  return runSecurityScan(inputUrl);
 }

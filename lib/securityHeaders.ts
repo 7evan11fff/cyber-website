@@ -1,5 +1,8 @@
 export type HeaderStatus = "good" | "weak" | "missing";
 export type RiskLevel = "low" | "medium" | "high";
+export type ParsedHeaderInput =
+  | Headers
+  | Record<string, string | string[] | null | undefined>;
 
 export interface HeaderResult {
   key: string;
@@ -11,6 +14,11 @@ export interface HeaderResult {
   whyItMatters: string;
   guidance: string;
 }
+
+export type HeaderInfo = Pick<
+  HeaderResult,
+  "key" | "label" | "riskLevel" | "whyItMatters" | "guidance"
+>;
 
 const REQUIRED_HEADERS = {
   csp: "content-security-policy",
@@ -392,4 +400,39 @@ export function analyzeSecurityHeaders(headers: Headers): HeaderResult[] {
     checkCrossOriginResourcePolicy(headers.get(REQUIRED_HEADERS.corp))
   ];
 }
+
+function toHeaders(input: ParsedHeaderInput): Headers {
+  if (input instanceof Headers) {
+    return input;
+  }
+
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(input)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      headers.set(key, value.join(", "));
+      continue;
+    }
+    headers.set(key, value);
+  }
+
+  return headers;
+}
+
+export function parseHeaders(input: ParsedHeaderInput): HeaderResult[] {
+  return analyzeSecurityHeaders(toHeaders(input));
+}
+
+const ALL_HEADER_INFO: HeaderInfo[] = analyzeSecurityHeaders(new Headers()).map((header) => ({
+  key: header.key,
+  label: header.label,
+  riskLevel: header.riskLevel,
+  whyItMatters: header.whyItMatters,
+  guidance: header.guidance
+}));
+
+export function getAllHeaderInfo(): HeaderInfo[] {
+  return ALL_HEADER_INFO.map((item) => ({ ...item }));
+}
+
 export { calculateGrade } from "@/lib/grading";
