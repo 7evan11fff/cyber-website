@@ -27,6 +27,7 @@ export type DomainGradeHistoryRecord = Record<string, DomainGradeHistoryPoint[]>
 export type WatchlistEntry = {
   id: string;
   url: string;
+  teamId?: string | null;
   lastGrade: string;
   previousGrade: string | null;
   lastCheckedAt: string;
@@ -135,6 +136,7 @@ export function isWatchlistEntry(value: unknown): value is WatchlistEntry {
   return (
     typeof candidate.id === "string" &&
     typeof candidate.url === "string" &&
+    (candidate.teamId === undefined || candidate.teamId === null || typeof candidate.teamId === "string") &&
     typeof candidate.lastGrade === "string" &&
     typeof candidate.lastCheckedAt === "string" &&
     (candidate.previousGrade === null || typeof candidate.previousGrade === "string")
@@ -255,16 +257,27 @@ export function normalizeWatchlistEntries(entries: unknown[]): WatchlistEntry[] 
   const dedupedByUrl = new Map<string, WatchlistEntry>();
   for (const entry of entries) {
     if (!isWatchlistEntry(entry)) continue;
-    const previous = dedupedByUrl.get(entry.url);
+    const teamId =
+      typeof entry.teamId === "string" && entry.teamId.trim().length > 0 ? entry.teamId.trim() : null;
+    const normalizedEntry: WatchlistEntry = {
+      id: entry.id,
+      url: entry.url,
+      teamId,
+      lastGrade: entry.lastGrade,
+      previousGrade: entry.previousGrade,
+      lastCheckedAt: entry.lastCheckedAt
+    };
+    const dedupeKey = `${teamId ?? "personal"}::${entry.url}`;
+    const previous = dedupedByUrl.get(dedupeKey);
     if (!previous) {
-      dedupedByUrl.set(entry.url, entry);
+      dedupedByUrl.set(dedupeKey, normalizedEntry);
       continue;
     }
 
     const previousTime = new Date(previous.lastCheckedAt).getTime();
-    const entryTime = new Date(entry.lastCheckedAt).getTime();
+    const entryTime = new Date(normalizedEntry.lastCheckedAt).getTime();
     if (Number.isFinite(entryTime) && (!Number.isFinite(previousTime) || entryTime >= previousTime)) {
-      dedupedByUrl.set(entry.url, entry);
+      dedupedByUrl.set(dedupeKey, normalizedEntry);
     }
   }
 

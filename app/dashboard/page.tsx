@@ -179,7 +179,7 @@ export default async function DashboardPage() {
           style={asStaggerStyle(0)}
         >
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-100">Saved watchlist</h2>
+            <h2 className="text-lg font-semibold text-slate-100">My watchlist</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
               {userData.watchlist.length} items
             </span>

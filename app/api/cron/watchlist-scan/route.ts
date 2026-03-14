@@ -3,7 +3,8 @@ import { sendGradeChangeEmail, getNotificationThrottleMs } from "@/lib/email";
 import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 import { runSecurityScan } from "@/lib/securityReport";
 import { recordDomainGradeHistoryPoint, type NotificationFrequency, type WatchlistEntry } from "@/lib/userData";
-import { getUsersWithWatchlistData, updateUserDataForUser } from "@/lib/userDataStore";
+import { getTeamWatchlistWorkloads, replaceTeamWatchlistEntries } from "@/lib/teamDataStore";
+import { getUserDataForUser, getUsersWithWatchlistData, updateUserDataForUser } from "@/lib/userDataStore";
 import { sendGradeChangeWebhook } from "@/lib/webhookDelivery";
 
 export const runtime = "nodejs";
@@ -150,15 +151,20 @@ export async function GET(request: Request) {
     );
   }
 
-  const users = await getUsersWithWatchlistData();
-  if (users.length === 0) {
+  const [users, teamWorkloads] = await Promise.all([
+    getUsersWithWatchlistData(),
+    getTeamWatchlistWorkloads()
+  ]);
+  if (users.length === 0 && teamWorkloads.length === 0) {
     return jsonNoStore({
       ok: true,
-      message: "No users with watchlist entries.",
+      message: "No personal or team watchlist entries.",
       totals: {
         usersScanned: 0,
+        teamsScanned: 0,
         domainsScanned: 0,
         usersUpdated: 0,
+        teamsUpdated: 0,
         gradeChanges: 0,
         emailsSent: 0,
         emailsFailed: 0,
@@ -183,12 +189,21 @@ export async function GET(request: Request) {
       uniqueUrls.add(trimmed);
     }
   }
+  for (const teamWorkload of teamWorkloads) {
+    for (const entry of teamWorkload.watchlist) {
+      if (!entry.url) continue;
+      const trimmed = entry.url.trim();
+      if (!trimmed) continue;
+      uniqueUrls.add(trimmed);
+    }
+  }
 
   const targetUrls = Array.from(uniqueUrls).slice(0, maxDomainsPerRun);
   const scanResults = await scanDomains(targetUrls, scanConcurrency);
   const now = Date.now();
 
   let usersUpdated = 0;
+  let teamsUpdated = 0;
   let gradeChanges = 0;
   let emailsSent = 0;
   let emailsFailed = 0;
@@ -197,6 +212,16 @@ export async function GET(request: Request) {
   let webhooksSent = 0;
   let webhooksFailed = 0;
   const errors: string[] = [];
+  const cachedUserData = new Map<string, Awaited<ReturnType<typeof getUserDataForUser>>>();
+  const pendingNotificationLogs = new Map<string, Record<string, string>>();
+
+  async function getCachedUserData(userKey: string) {
+    const cached = cachedUserData.get(userKey);
+    if (cached) return cached;
+    const loaded = await getUserDataForUser(userKey);
+    cachedUserData.set(userKey, loaded);
+    return loaded;
+  }
 
   for (const user of users) {
     try {
@@ -332,12 +357,126 @@ export async function GET(request: Request) {
     }
   }
 
+  for (const teamWorkload of teamWorkloads) {
+    try {
+      let teamChanged = false;
+      const nextWatchlist = teamWorkload.watchlist.map((entry) => ({ ...entry }));
+
+      for (const [index, entry] of nextWatchlist.entries()) {
+        const scanned = scanResults.get(entry.url.trim().toLowerCase());
+        if (!scanned || !scanned.ok) {
+          if (scanned && errors.length < 50) {
+            errors.push(`scan failed for ${entry.url}: ${scanned.error}`);
+          }
+          continue;
+        }
+
+        const previousGrade = entry.lastGrade.toUpperCase();
+        const currentGrade = scanned.grade.toUpperCase();
+        const changed = previousGrade !== currentGrade;
+
+        nextWatchlist[index] = {
+          ...entry,
+          url: scanned.checkedUrl,
+          lastGrade: currentGrade,
+          previousGrade: changed ? previousGrade : null,
+          lastCheckedAt: scanned.checkedAt
+        };
+        teamChanged = true;
+
+        if (!changed) {
+          continue;
+        }
+
+        gradeChanges += 1;
+        for (const member of teamWorkload.members) {
+          const memberData = await getCachedUserData(member.userId);
+          const recipientEmail = resolveRecipientEmail(member.userId, memberData.alertEmail);
+          if (!memberData.notificationOnGradeChange || !recipientEmail) {
+            emailsSuppressed += 1;
+            continue;
+          }
+          if (!process.env.RESEND_API_KEY) {
+            emailsSuppressed += 1;
+            continue;
+          }
+          if (emailsSent >= maxEmailsPerRun) {
+            emailsSuppressed += 1;
+            continue;
+          }
+
+          const notificationLog =
+            pendingNotificationLogs.get(member.userId) ?? { ...memberData.watchlistNotificationLog };
+          pendingNotificationLogs.set(member.userId, notificationLog);
+          const notificationKey = `${teamWorkload.team.id}:${scanned.checkedUrl.toLowerCase()}`;
+          const timing = shouldSendNow(
+            memberData.notificationFrequency,
+            notificationLog[notificationKey],
+            now
+          );
+          if (!timing.allowed) {
+            emailsThrottled += 1;
+            continue;
+          }
+
+          try {
+            await sendGradeChangeEmail({
+              toEmail: recipientEmail,
+              url: scanned.checkedUrl,
+              previousGrade,
+              currentGrade,
+              checkedAt: scanned.checkedAt,
+              frequency: memberData.notificationFrequency
+            });
+            notificationLog[notificationKey] = new Date(now).toISOString();
+            emailsSent += 1;
+          } catch (error) {
+            emailsFailed += 1;
+            if (errors.length < 50) {
+              const message = error instanceof Error ? error.message : "email delivery failed";
+              errors.push(`email failed for ${recipientEmail} (${scanned.checkedUrl}): ${message}`);
+            }
+          }
+        }
+      }
+
+      if (teamChanged) {
+        await replaceTeamWatchlistEntries(teamWorkload.team.id, nextWatchlist);
+        teamsUpdated += 1;
+      }
+    } catch (error) {
+      if (errors.length < 50) {
+        errors.push(
+          `team update failed for ${teamWorkload.team.slug}: ${
+            error instanceof Error ? error.message : "unexpected error"
+          }`
+        );
+      }
+    }
+  }
+
+  for (const [userKey, watchlistNotificationLog] of pendingNotificationLogs.entries()) {
+    try {
+      await updateUserDataForUser(userKey, { watchlistNotificationLog });
+    } catch (error) {
+      if (errors.length < 50) {
+        errors.push(
+          `notification log update failed for ${userKey}: ${
+            error instanceof Error ? error.message : "unexpected error"
+          }`
+        );
+      }
+    }
+  }
+
   return jsonNoStore({
     ok: true,
     totals: {
       usersScanned: users.length,
+      teamsScanned: teamWorkloads.length,
       domainsScanned: targetUrls.length,
       usersUpdated,
+      teamsUpdated,
       gradeChanges,
       emailsSent,
       emailsFailed,

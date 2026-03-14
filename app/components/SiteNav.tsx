@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/badge", label: "Badge" },
   { href: "/fixes", label: "Fixes" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/teams", label: "Teams" },
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },
   { href: "/blog", label: "Blog" },
@@ -35,6 +36,10 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
+  const [teamSwitcherItems, setTeamSwitcherItems] = useState<
+    Array<{ slug: string; name: string; role: "owner" | "admin" | "member" }>
+  >([]);
+  const [activeTeamSlug, setActiveTeamSlug] = useState<string | null>(null);
   const providerMenuRef = useRef<HTMLDivElement | null>(null);
   const quickSearchInputRef = useRef<HTMLInputElement | null>(null);
   const quickSearchDialogRef = useRef<HTMLDivElement | null>(null);
@@ -196,6 +201,70 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
     return source.trim().slice(0, 1).toUpperCase() || "U";
   }, [session?.user?.email, session?.user?.name]);
 
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setTeamSwitcherItems([]);
+      setActiveTeamSlug(null);
+      return;
+    }
+    let cancelled = false;
+    const teamPathMatch = pathname?.match(/^\/teams\/([^/]+)/);
+    const teamSlugFromPath = teamPathMatch?.[1] ? decodeURIComponent(teamPathMatch[1]) : null;
+    setActiveTeamSlug(teamSlugFromPath);
+
+    async function loadTeams() {
+      try {
+        const response = await fetch("/api/teams", { method: "GET", cache: "no-store" });
+        if (!response.ok) {
+          if (!cancelled) {
+            setTeamSwitcherItems([]);
+          }
+          return;
+        }
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              teams?: Array<{ slug?: string; name?: string; role?: "owner" | "admin" | "member" }>;
+            }
+          | null;
+        const parsedItems =
+          payload?.teams
+            ?.filter((team): team is { slug: string; name: string; role: "owner" | "admin" | "member" } =>
+              Boolean(
+                team &&
+                  typeof team.slug === "string" &&
+                  typeof team.name === "string" &&
+                  (team.role === "owner" || team.role === "admin" || team.role === "member")
+              )
+            )
+            .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
+        if (!cancelled) {
+          setTeamSwitcherItems(parsedItems);
+        }
+      } catch {
+        if (!cancelled) {
+          setTeamSwitcherItems([]);
+        }
+      }
+    }
+
+    void loadTeams();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, status]);
+
+  const onTeamSwitch = useCallback(
+    (nextValue: string) => {
+      if (!nextValue) return;
+      if (nextValue === "personal") {
+        router.push("/dashboard");
+        return;
+      }
+      router.push(`/teams/${encodeURIComponent(nextValue)}`);
+    },
+    [router]
+  );
+
   return (
     <header className="mb-6">
       <div className="flex items-center justify-between gap-3">
@@ -221,7 +290,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               pathname === link.href ||
               (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
               (link.href === "/integrations" && pathname.startsWith("/integrations")) ||
-              (link.href === "/blog" && pathname.startsWith("/blog/"));
+              (link.href === "/blog" && pathname.startsWith("/blog/")) ||
+              (link.href === "/teams" && pathname.startsWith("/teams/"));
             return (
               <Link
                 key={link.href}
@@ -240,6 +310,24 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           })}
         </nav>
         <div className="flex items-center gap-2">
+          {teamSwitcherItems.length > 0 && (
+            <label className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-xs text-slate-300">
+              <span className="hidden text-[11px] uppercase tracking-[0.12em] text-slate-400 xl:inline">Context</span>
+              <select
+                aria-label="Switch between personal and team workspace"
+                value={activeTeamSlug ?? "personal"}
+                onChange={(event) => onTeamSwitch(event.target.value)}
+                className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+              >
+                <option value="personal">My Watchlist</option>
+                {teamSwitcherItems.map((team) => (
+                  <option key={team.slug} value={team.slug}>
+                    {team.name} ({team.role})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <ThemeToggle />
           <button
             type="button"
@@ -340,7 +428,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 pathname === link.href ||
                 (link.href === "/api-docs" && (pathname.startsWith("/api-docs") || pathname.startsWith("/docs/api"))) ||
                 (link.href === "/integrations" && pathname.startsWith("/integrations")) ||
-                (link.href === "/blog" && pathname.startsWith("/blog/"));
+                (link.href === "/blog" && pathname.startsWith("/blog/")) ||
+                (link.href === "/teams" && pathname.startsWith("/teams/"));
               return (
                 <Link
                   key={`mobile-${link.href}`}
@@ -359,6 +448,24 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
             })}
           </nav>
           <div className="mt-3 border-t border-slate-800 pt-3">
+            {teamSwitcherItems.length > 0 && (
+              <label className="mb-3 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5 text-xs text-slate-300">
+                <span className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Context</span>
+                <select
+                  aria-label="Switch between personal and team workspace"
+                  value={activeTeamSlug ?? "personal"}
+                  onChange={(event) => onTeamSwitch(event.target.value)}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                >
+                  <option value="personal">My Watchlist</option>
+                  {teamSwitcherItems.map((team) => (
+                    <option key={`mobile-team-${team.slug}`} value={team.slug}>
+                      {team.name} ({team.role})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="mb-3">
               <ThemeToggle />
             </div>

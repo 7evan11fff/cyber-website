@@ -183,8 +183,15 @@ export async function getUsersWithWatchlistData(): Promise<
   for (const [userKey, record] of Object.entries(data.users)) {
     if (!userKey) continue;
     const normalized = normalizeRecord(record);
-    if (normalized.watchlist.length === 0) continue;
-    result.push({ userKey, data: normalized });
+    const personalWatchlist = normalized.watchlist.filter((entry) => !entry.teamId);
+    if (personalWatchlist.length === 0) continue;
+    result.push({
+      userKey,
+      data: {
+        ...normalized,
+        watchlist: personalWatchlist
+      }
+    });
   }
 
   return result;

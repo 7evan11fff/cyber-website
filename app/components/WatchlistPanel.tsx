@@ -645,7 +645,7 @@ export function WatchlistPanel({
       </p>
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-slate-200">Scheduled Watchlist Monitoring</p>
+          <p className="text-sm font-medium text-slate-200">My Watchlist Monitoring</p>
           <p className="text-xs text-slate-500">Auto-refreshes every 30 minutes while this tab is open.</p>
           {!isAuthenticated && (
             <p className="mt-1 text-xs text-amber-300">Sign in to save scans to your watchlist and dashboard.</p>
