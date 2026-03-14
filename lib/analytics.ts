@@ -2,7 +2,13 @@
 
 import { track as trackVercelEvent } from "@vercel/analytics";
 
-type AnalyticsEventName = "scan_complete" | "report_shared" | "bulk_scan" | "popular_domain_opened" | "scan_again_clicked";
+type AnalyticsEventName =
+  | "scan_complete"
+  | "report_shared"
+  | "bulk_scan"
+  | "popular_domain_opened"
+  | "scan_again_clicked"
+  | "history_report_opened";
 type AnalyticsProps = Record<string, string | number | boolean>;
 
 export function trackEvent(name: AnalyticsEventName, props?: AnalyticsProps) {
