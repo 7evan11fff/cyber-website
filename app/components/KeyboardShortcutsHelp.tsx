@@ -11,8 +11,8 @@ type KeyboardShortcutsHelpProps = {
   open: boolean;
   onClose: () => void;
   shortcuts: KeyboardShortcutRow[];
-  dialogRef: RefObject<HTMLDivElement | null>;
-  closeButtonRef: RefObject<HTMLButtonElement | null>;
+  dialogRef: RefObject<HTMLDivElement>;
+  closeButtonRef: RefObject<HTMLButtonElement>;
 };
 
 export function KeyboardShortcutsHelp({
