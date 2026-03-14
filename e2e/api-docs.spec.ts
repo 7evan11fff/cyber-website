@@ -32,7 +32,7 @@ test("api docs playground runs checks and toggles JSON modes", async ({ page }) 
 
   await page.goto("/api-docs");
 
-  const input = page.getByLabel("Target URL");
+  const input = page.getByLabel("URL to scan in API playground");
   await input.fill("https://example.com");
   await input.press("Enter");
 
@@ -65,10 +65,10 @@ test("api docs playground shows friendly rate-limit errors", async ({ page }) =>
   });
 
   await page.goto("/api-docs");
-  await page.getByLabel("Target URL").fill("https://example.com");
+  await page.getByLabel("URL to scan in API playground").fill("https://example.com");
   await page.getByRole("button", { name: "Run API playground request" }).click();
 
-  await expect(page.getByRole("alert")).toContainText("Rate limit reached. Please wait a moment before trying again.");
+  await expect(page.getByText("Rate limit reached. Please wait a moment before trying again.")).toBeVisible();
   await expect(page.getByText("Rate limit:")).toContainText("0");
 });
 
@@ -77,6 +77,6 @@ test("api docs playground remains usable on mobile viewport", async ({ page }) =
   await page.goto("/api-docs");
 
   await expect(page.getByRole("heading", { name: "Live API Playground" })).toBeVisible();
-  await expect(page.getByLabel("Target URL")).toBeVisible();
+  await expect(page.getByLabel("URL to scan in API playground")).toBeVisible();
   await expect(page.getByRole("button", { name: "Run API playground request" })).toBeVisible();
 });

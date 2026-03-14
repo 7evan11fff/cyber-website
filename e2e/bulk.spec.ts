@@ -23,5 +23,5 @@ test("bulk scan page scans multiple URLs and renders rows", async ({ page }) => 
   await expect(page.locator("table tbody").getByText("site-a.example", { exact: true })).toBeVisible();
   await expect(page.locator("table tbody").getByText("site-b.example", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open full report for/i })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Export CSV" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Export bulk scan results as CSV" })).toBeVisible();
 });
