@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { FixSuggestionsPanel } from "@/app/components/FixSuggestionsPanel";
+import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
@@ -501,18 +502,21 @@ function ScanResultsLoadingSkeleton({ mode }: { mode: ScanMode }) {
 
 function HeaderCard({
   header,
-  highlighted = false
+  highlighted = false,
+  animationDelayMs = 0
 }: {
   header: HeaderResult;
   highlighted?: boolean;
+  animationDelayMs?: number;
 }) {
   return (
     <article
-      className={`rounded-2xl border p-5 shadow-lg ${
+      className={`motion-card stagger-card-enter rounded-2xl border p-5 shadow-lg ${
         highlighted
           ? "border-sky-500/60 bg-sky-500/10 shadow-sky-950/40"
           : "border-slate-800 bg-slate-900/60 shadow-slate-950/50"
       }`}
+      style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-100">{header.label}</h2>
@@ -548,15 +552,20 @@ function HeaderCard({
   );
 }
 
-function SiteSummary({ title, report }: { title: string; report: ReportResponse }) {
+function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: ReportResponse; delayMs?: number }) {
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+    <article className="motion-card rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{title}</p>
           <p className="mt-2 break-all text-sm text-slate-300">{report.checkedUrl}</p>
         </div>
-        <p className={`text-5xl font-bold ${gradeColor(report.grade)}`}>{report.grade}</p>
+        <p
+          className={`grade-badge-in text-5xl font-bold ${gradeColor(report.grade)}`}
+          style={{ animationDelay: `${delayMs}ms` }}
+        >
+          {report.grade}
+        </p>
       </div>
       <p className="mt-2 text-sm text-slate-300">
         Score: {report.score}/{report.results.length * 2}
@@ -589,6 +598,8 @@ export default function Home() {
   const [mobileCompareView, setMobileCompareView] = useState<MobileCompareView>("siteA");
   const [loading, setLoading] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [bulkTargetCount, setBulkTargetCount] = useState(0);
+  const [bulkCompletedCount, setBulkCompletedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
@@ -1044,6 +1055,8 @@ export default function Home() {
     setShareState("idle");
     setLoading(false);
     setScanProgress(0);
+    setBulkTargetCount(0);
+    setBulkCompletedCount(0);
 
     if (decoded.mode === "single") {
       setMode("single");
@@ -1142,6 +1155,8 @@ export default function Home() {
     setPdfState("idle");
     setShareState("idle");
     setScanProgress(0);
+    setBulkTargetCount(0);
+    setBulkCompletedCount(0);
 
     if (mode === "single") {
       setUrl("");
@@ -1214,6 +1229,8 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setBulkTargetCount(0);
+    setBulkCompletedCount(0);
     setCopyState("idle");
     setShareState("idle");
 
@@ -1241,6 +1258,8 @@ export default function Home() {
     setError(null);
     setReport(null);
     setComparison(null);
+    setBulkTargetCount(0);
+    setBulkCompletedCount(0);
     setCopyState("idle");
     setShareState("idle");
 
@@ -1267,12 +1286,16 @@ export default function Home() {
     if (targets.length === 0) {
       setError("Please enter at least one URL for bulk scan.");
       setBulkResults([]);
+      setBulkTargetCount(0);
+      setBulkCompletedCount(0);
       return;
     }
 
     if (targets.length > MAX_BULK_URLS) {
       setError(`Bulk scan supports up to ${MAX_BULK_URLS} URLs per run.`);
       setBulkResults([]);
+      setBulkTargetCount(0);
+      setBulkCompletedCount(0);
       return;
     }
 
@@ -1284,9 +1307,23 @@ export default function Home() {
     setBulkExportState("idle");
     setCopyState("idle");
     setShareState("idle");
+    setBulkTargetCount(targets.length);
+    setBulkCompletedCount(0);
+    setScanProgress(0);
 
     try {
-      const settled = await Promise.allSettled(targets.map((target) => requestReport(target)));
+      let completed = 0;
+      const settled = await Promise.allSettled(
+        targets.map(async (target) => {
+          try {
+            return await requestReport(target);
+          } finally {
+            completed += 1;
+            setBulkCompletedCount(completed);
+            setScanProgress(Math.round((completed / targets.length) * 100));
+          }
+        })
+      );
       const nextResults = settled.map((result, index): BulkScanResult => {
         if (result.status === "fulfilled") {
           addToHistory(result.value);
@@ -1606,6 +1643,9 @@ export default function Home() {
 
   useEffect(() => {
     if (loading) {
+      if (mode === "bulk") {
+        return;
+      }
       setScanProgress(9);
       const timer = window.setInterval(() => {
         setScanProgress((current) => {
@@ -1627,7 +1667,7 @@ export default function Home() {
     return () => {
       window.clearTimeout(resetTimer);
     };
-  }, [loading, scanProgress]);
+  }, [loading, mode, scanProgress]);
 
   useEffect(() => {
     if (!report || loading || report.grade !== "A") return;
@@ -1890,7 +1930,7 @@ export default function Home() {
           {HOW_IT_WORKS_STEPS.map((step) => (
             <article
               key={step.title}
-              className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4 transition hover:border-sky-500/40"
+              className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4 transition hover:border-sky-500/40"
             >
               <div className="inline-flex items-center justify-center rounded-lg border border-sky-500/30 bg-sky-500/10 p-2">
                 <StepIcon icon={step.icon} />
@@ -1920,7 +1960,7 @@ export default function Home() {
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           {TESTIMONIALS.map((item) => (
-            <article key={item.name} className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+            <article key={item.name} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
               <p className="text-sm text-slate-200">
                 &ldquo;{item.quote}&rdquo;
               </p>
@@ -2195,7 +2235,10 @@ export default function Home() {
                       </td>
                       <td className="px-4 py-3">
                         {entry.report ? (
-                          <span className={`font-semibold ${gradeColor(entry.report.grade)}`}>
+                          <span
+                            className={`grade-badge-in font-semibold ${gradeColor(entry.report.grade)}`}
+                            style={{ animationDelay: `${index * 45}ms` }}
+                          >
                             {entry.report.grade}
                           </span>
                         ) : (
@@ -2211,7 +2254,25 @@ export default function Home() {
                       <td className="px-4 py-3 text-slate-400">
                         {entry.report ? new Date(entry.report.checkedAt).toLocaleString() : "--"}
                       </td>
-                      <td className="px-4 py-3 text-slate-400">{entry.error ?? "OK"}</td>
+                      <td className="px-4 py-3 text-slate-400">
+                        {entry.error ? (
+                          entry.error
+                        ) : (
+                          <span className="success-checkmark inline-flex items-center gap-1.5 text-emerald-300">
+                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+                              <path
+                                d="M3.2 8.4 6.5 11.4 12.8 4.8"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            Complete
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -2227,6 +2288,14 @@ export default function Home() {
 
         {!loading && !report && !comparison && !error && mode !== "bulk" && (
           <section className="mt-5 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+            <div className="empty-state-float inline-flex rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 text-sky-200">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+                <path
+                  d="M12 2 4 5.5V11c0 5 3.4 9.4 8 10.9 4.6-1.5 8-5.9 8-10.9V5.5L12 2Zm0 2.2 6 2.6V11c0 3.9-2.5 7.4-6 8.7-3.5-1.3-6-4.8-6-8.7V6.8l6-2.6Zm-1.1 4.3v3.1H8v2h2.9v3.1h2.2v-3.1H16v-2h-2.9V8.5h-2.2Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
             <h3 className="text-sm font-semibold text-sky-100">Nothing scanned yet</h3>
             <p className="mt-1 text-sm text-slate-300">
               Start with one of these suggested sites, or paste your own domain above.
@@ -2237,7 +2306,7 @@ export default function Home() {
                   key={site}
                   type="button"
                   onClick={() => onSampleClick(site)}
-                  className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                  className="cta-attention rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Scan {site}
                 </button>
@@ -2287,14 +2356,32 @@ export default function Home() {
             aria-atomic="true"
           >
             <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-              <span>
+              <span className="flex items-center gap-2">
                 {mode === "compare"
                   ? "Comparing security headers..."
                   : mode === "bulk"
                     ? "Running bulk scan..."
                     : "Scanning site..."}
+                {!loading && scanProgress === 100 && (
+                  <span className="success-checkmark inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" aria-hidden="true">
+                      <path
+                        d="M3.2 8.4 6.5 11.4 12.8 4.8"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
               </span>
-              <span>{scanProgress}%</span>
+              <span>
+                {mode === "bulk" && bulkTargetCount > 0
+                  ? `${bulkCompletedCount}/${bulkTargetCount} • ${scanProgress}%`
+                  : `${scanProgress}%`}
+              </span>
             </div>
             <div
               className="h-2 overflow-hidden rounded-full bg-slate-800"
@@ -2305,7 +2392,7 @@ export default function Home() {
               aria-valuenow={scanProgress}
             >
               <div
-                className="progress-pulse h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-200"
+                className="progress-pulse h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-200 will-change-[width]"
                 style={{ width: `${scanProgress}%` }}
               />
             </div>
@@ -2344,7 +2431,7 @@ export default function Home() {
                         type="button"
                         onClick={() => onHistoryEntryClick(entry.url)}
                         disabled={loading}
-                        className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="motion-card flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm text-slate-100">{entry.url}</p>
@@ -2391,7 +2478,7 @@ export default function Home() {
                 const cached = popularCacheByUrl.get(site);
                 const isRefreshingThisSite = activePopularRefresh === site;
                 return (
-                  <li key={site} className="rounded-lg border border-slate-800/80 bg-slate-900/70 p-3">
+                  <li key={site} className="motion-card rounded-lg border border-slate-800/80 bg-slate-900/70 p-3">
                     <p className="truncate text-sm font-medium text-slate-100">{site}</p>
                     {cached ? (
                       <>
@@ -2448,9 +2535,14 @@ export default function Home() {
         {!loading && report && (
           <>
             <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-              <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+              <article className="motion-card rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
-              <p className={`mt-2 text-7xl font-bold ${singleGradeColor}`}>{report.grade}</p>
+              <AnimatedGradeCircle
+                score={report.score}
+                total={report.results.length * 2}
+                grade={report.grade}
+                gradeClassName={singleGradeColor}
+              />
               <p className="mt-1 text-sm text-slate-300">
                 Score: {report.score}/{report.results.length * 2}
               </p>
@@ -2587,8 +2679,8 @@ export default function Home() {
               </article>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                {report.results.map((header) => (
-                  <HeaderCard key={header.key} header={header} />
+                {report.results.map((header, index) => (
+                  <HeaderCard key={header.key} header={header} animationDelayMs={index * 55} />
                 ))}
               </div>
             </section>
@@ -2599,8 +2691,8 @@ export default function Home() {
         {!loading && comparison && (
           <section className="mt-6 space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
-              <SiteSummary title="Site A" report={comparison.siteA} />
-              <SiteSummary title="Site B" report={comparison.siteB} />
+              <SiteSummary title="Site A" report={comparison.siteA} delayMs={80} />
+              <SiteSummary title="Site B" report={comparison.siteB} delayMs={150} />
             </div>
 
             <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg shadow-slate-950/50">
@@ -2667,11 +2759,12 @@ export default function Home() {
               <section className={mobileCompareView === "siteA" ? "block" : "hidden lg:block"}>
                 <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site A Headers</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {comparison.siteA.results.map((header) => (
+                  {comparison.siteA.results.map((header, index) => (
                     <HeaderCard
                       key={`a-${header.key}`}
                       header={header}
                       highlighted={differingHeaderKeys.has(header.key)}
+                      animationDelayMs={index * 45}
                     />
                   ))}
                 </div>
@@ -2679,11 +2772,12 @@ export default function Home() {
               <section className={mobileCompareView === "siteB" ? "block" : "hidden lg:block"}>
                 <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site B Headers</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {comparison.siteB.results.map((header) => (
+                  {comparison.siteB.results.map((header, index) => (
                     <HeaderCard
                       key={`b-${header.key}`}
                       header={header}
                       highlighted={differingHeaderKeys.has(header.key)}
+                      animationDelayMs={index * 45}
                     />
                   ))}
                 </div>

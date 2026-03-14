@@ -632,7 +632,7 @@ export function WatchlistPanel({
   }
 
   return (
-    <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+    <section className="motion-card mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-slate-200">Scheduled Watchlist Monitoring</p>
@@ -741,7 +741,7 @@ export function WatchlistPanel({
                 ? describeGradeDiff(entry.previousGrade, entry.lastGrade)
                 : null;
               return (
-                <li key={entry.id} className="rounded-lg border border-slate-800/80 bg-slate-900/70 p-3">
+                <li key={entry.id} className="motion-card rounded-lg border border-slate-800/80 bg-slate-900/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm text-slate-100">{entry.url}</p>

@@ -9,6 +9,7 @@ type Toast = {
   id: number;
   message: string;
   tone: ToastTone;
+  durationMs: number;
 };
 
 type ToastInput = {
@@ -29,12 +30,18 @@ const toneStyles: Record<ToastTone, string> = {
   info: "border-sky-500/40 bg-sky-500/15 text-sky-100"
 };
 
+const toneProgressStyles: Record<ToastTone, string> = {
+  success: "bg-emerald-300/70",
+  error: "bg-rose-300/75",
+  info: "bg-sky-300/75"
+};
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const notify = useCallback(({ message, tone = "info", durationMs = 2800 }: ToastInput) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts((current) => [...current, { id, message, tone }]);
+    setToasts((current) => [...current, { id, message, tone, durationMs }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, durationMs);
@@ -56,9 +63,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             role="status"
             aria-live={toast.tone === "error" ? "assertive" : "polite"}
-            className={`rounded-lg border px-4 py-3 text-sm shadow-xl shadow-slate-950/70 backdrop-blur ${toneStyles[toast.tone]}`}
+            className={`toast-item overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-xl shadow-slate-950/70 backdrop-blur ${toneStyles[toast.tone]}`}
           >
-            {toast.message}
+            <p>{toast.message}</p>
+            <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-slate-900/60">
+              <span
+                className={`toast-progress block h-full rounded-full ${toneProgressStyles[toast.tone]}`}
+                style={{ animationDuration: `${toast.durationMs}ms` }}
+              />
+            </div>
           </div>
         ))}
       </div>

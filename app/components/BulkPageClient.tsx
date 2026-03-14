@@ -165,6 +165,24 @@ function missingHeaderLabels(report: ReportResponse): string[] {
   return report.results.filter((entry) => entry.status === "missing").map((entry) => entry.label);
 }
 
+function SuccessCheckIcon() {
+  return (
+    <span className="success-checkmark inline-flex items-center gap-1.5 text-emerald-300">
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+        <path
+          d="M3.2 8.4 6.5 11.4 12.8 4.8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      Complete
+    </span>
+  );
+}
+
 function BulkResultsSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <section
@@ -253,6 +271,8 @@ export function BulkPageClient() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [detailsTarget, setDetailsTarget] = useState<BulkScanResult | null>(null);
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
+  const [bulkTargetCount, setBulkTargetCount] = useState(0);
+  const [bulkCompletedCount, setBulkCompletedCount] = useState(0);
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -262,6 +282,10 @@ export function BulkPageClient() {
       .map((entry) => entry.trim())
       .filter(Boolean).length;
   }, [bulkUrlsInput]);
+  const bulkProgressPercent = useMemo(() => {
+    if (bulkTargetCount === 0) return 0;
+    return Math.round((bulkCompletedCount / bulkTargetCount) * 100);
+  }, [bulkCompletedCount, bulkTargetCount]);
 
   useEffect(() => {
     try {
@@ -347,12 +371,16 @@ export function BulkPageClient() {
     if (targets.length === 0) {
       setError("Please enter at least one URL.");
       setResults([]);
+      setBulkTargetCount(0);
+      setBulkCompletedCount(0);
       return;
     }
 
     if (targets.length > MAX_BULK_URLS) {
       setError(`Bulk scanning supports up to ${MAX_BULK_URLS} URLs per run.`);
       setResults([]);
+      setBulkTargetCount(0);
+      setBulkCompletedCount(0);
       return;
     }
 
@@ -362,9 +390,21 @@ export function BulkPageClient() {
     setBulkExportState("idle");
     setBulkCopyState("idle");
     setDetailsTarget(null);
+    setBulkTargetCount(targets.length);
+    setBulkCompletedCount(0);
 
     try {
-      const settled = await Promise.allSettled(targets.map((target) => requestReport(target)));
+      let completed = 0;
+      const settled = await Promise.allSettled(
+        targets.map(async (target) => {
+          try {
+            return await requestReport(target);
+          } finally {
+            completed += 1;
+            setBulkCompletedCount(completed);
+          }
+        })
+      );
       const nextResults = settled.map((result, index): BulkScanResult => {
         if (result.status === "fulfilled") {
           const report = result.value;
@@ -490,7 +530,7 @@ export function BulkPageClient() {
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <SiteNav />
 
-      <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+      <section className="motion-card mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Bulk scan mode</p>
         <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-4xl">Scan up to 10 URLs at once</h1>
         <p className="mt-3 max-w-3xl text-slate-300">
@@ -499,7 +539,7 @@ export function BulkPageClient() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+      <section className="motion-card rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label htmlFor="bulk-page-urls" className="mb-1 block text-xs uppercase tracking-[0.14em] text-slate-400">
@@ -531,12 +571,43 @@ export function BulkPageClient() {
             {loading && (
               <span className="inline-flex items-center gap-2 text-xs text-slate-300" aria-live="polite">
                 <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
-                Collecting reports...
+                Collecting reports... {bulkProgressPercent}%
               </span>
             )}
             <p className="text-xs text-slate-500">{isAuthenticated ? "Signed in: higher per-minute limit." : "Not signed in: standard per-minute limit."}</p>
           </div>
         </form>
+
+        {loading && bulkTargetCount > 0 && (
+          <section
+            className="mt-4 rounded-xl border border-slate-800/90 bg-slate-950/70 px-3 py-3"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center gap-2">
+                Running bulk scan...
+                {bulkProgressPercent === 100 && <SuccessCheckIcon />}
+              </span>
+              <span>
+                {bulkCompletedCount}/{bulkTargetCount} • {bulkProgressPercent}%
+              </span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-slate-800"
+              role="progressbar"
+              aria-label="Bulk scan progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={bulkProgressPercent}
+            >
+              <div
+                className="progress-pulse h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 transition-[width] duration-200 will-change-[width]"
+                style={{ width: `${bulkProgressPercent}%` }}
+              />
+            </div>
+          </section>
+        )}
 
         {error && (
           <p
@@ -637,14 +708,22 @@ export function BulkPageClient() {
                     </tr>
                   ) : (
                     filteredAndSortedResults.map((entry, index) => (
-                      <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
+                      <tr
+                        key={`${entry.inputUrl}-${index}`}
+                        className="border-t border-slate-800/70 transition hover:bg-slate-900/45"
+                      >
                         <td className="px-4 py-3 align-top text-slate-200">
                           <p className="max-w-[320px] break-all">{entry.inputUrl}</p>
                           {entry.report && <p className="mt-1 max-w-[320px] break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
                         </td>
                         <td className="px-4 py-3 align-top">
                           {entry.report ? (
-                            <span className={`text-lg font-semibold ${gradeColor(entry.report.grade)}`}>{entry.report.grade}</span>
+                            <span
+                              className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.report.grade)}`}
+                              style={{ animationDelay: `${index * 45}ms` }}
+                            >
+                              {entry.report.grade}
+                            </span>
                           ) : (
                             <span className="text-lg font-semibold text-rose-300">--</span>
                           )}
@@ -686,7 +765,9 @@ export function BulkPageClient() {
                             <span className="text-slate-500">Unavailable</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 align-top text-slate-300">{entry.error ?? "OK"}</td>
+                        <td className="px-4 py-3 align-top text-slate-300">
+                          {entry.error ? entry.error : <SuccessCheckIcon />}
+                        </td>
                         <td className="px-4 py-3 align-top">
                           <button
                             type="button"

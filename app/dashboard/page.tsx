@@ -58,7 +58,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <article className="motion-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Saved watchlist</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
@@ -66,9 +66,25 @@ export default async function DashboardPage() {
             </span>
           </div>
           {userData.watchlist.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-400">
-              No watchlist items yet. Save scans from the scanner page to monitor grade changes.
-            </p>
+            <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="empty-state-float inline-flex rounded-lg border border-sky-500/30 bg-sky-500/10 p-2 text-sky-200">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+                  <path
+                    d="M4 6.8C4 5.8 4.8 5 5.8 5h12.4c1 0 1.8.8 1.8 1.8v10.4c0 1-.8 1.8-1.8 1.8H5.8c-1 0-1.8-.8-1.8-1.8V6.8Zm2 .2v10h12V7H6Zm2 2h8v2H8V9Zm0 4h6v2H8v-2Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </div>
+              <p className="mt-2 text-sm text-slate-300">
+                No watchlist items yet. Save scans from the scanner page to monitor grade changes.
+              </p>
+              <Link
+                href="/"
+                className="cta-attention mt-3 inline-flex rounded-md border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+              >
+                Open scanner
+              </Link>
+            </div>
           ) : (
             <ul className="mt-4 space-y-2">
               {userData.watchlist.map((entry) => {
@@ -78,7 +94,7 @@ export default async function DashboardPage() {
                 const historyHref = domain ? `/dashboard/history/${encodeURIComponent(domain)}` : null;
 
                 return (
-                  <li key={entry.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                  <li key={entry.id} className="motion-card rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         {historyHref ? (
@@ -103,7 +119,7 @@ export default async function DashboardPage() {
                             ariaLabel={`Recent grade trend for ${domain ?? entry.url}`}
                           />
                         </div>
-                        <p className="text-sm font-semibold text-sky-200">Grade {entry.lastGrade}</p>
+                        <p className="grade-badge-in text-sm font-semibold text-sky-200">Grade {entry.lastGrade}</p>
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -129,7 +145,7 @@ export default async function DashboardPage() {
           )}
         </article>
 
-        <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <article className="motion-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Scan history</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
@@ -137,13 +153,23 @@ export default async function DashboardPage() {
             </span>
           </div>
           {userData.scanHistory.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-400">
-              No scans recorded yet. Run checks from the scanner to build your history.
-            </p>
+            <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="empty-state-float inline-flex rounded-lg border border-sky-500/30 bg-sky-500/10 p-2 text-sky-200">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+                  <path
+                    d="M12 3 4 7v6c0 4.8 3.2 8.9 8 10 4.8-1.1 8-5.2 8-10V7l-8-4Zm0 2.2L18 8v5c0 3.8-2.4 7.1-6 8.2-3.6-1.1-6-4.4-6-8.2V8l6-2.8ZM8.5 11h7v2h-7v-2Zm0 3.4h5v2h-5v-2Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </div>
+              <p className="mt-2 text-sm text-slate-300">
+                No scans recorded yet. Run checks from the scanner to build your history.
+              </p>
+            </div>
           ) : (
             <ul className="mt-4 space-y-2">
               {userData.scanHistory.map((entry) => (
-                <li key={entry.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                <li key={entry.id} className="motion-card rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate text-sm text-slate-100">{entry.url}</p>
                     <p className="text-sm font-semibold text-sky-200">{entry.grade}</p>

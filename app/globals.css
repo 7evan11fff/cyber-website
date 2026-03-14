@@ -184,4 +184,219 @@ html[data-theme="light"] .scan-pulse-skeleton {
     transform: none;
     transition: none;
   }
+
+  .page-transition-shell,
+  .stagger-card-enter,
+  .grade-badge-in,
+  .chart-line-reveal,
+  .chart-point-reveal,
+  .toast-item,
+  .toast-progress,
+  .empty-state-float,
+  .cta-attention {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .motion-card,
+  .pressable {
+    transition: none !important;
+  }
+}
+
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.page-transition-shell {
+  animation: page-enter 420ms cubic-bezier(0.21, 1, 0.28, 1);
+  will-change: opacity, transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.motion-card {
+  transform: translate3d(0, 0, 0);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+  will-change: transform, box-shadow;
+}
+
+.pressable {
+  transform: translate3d(0, 0, 0);
+  transition: transform 150ms ease, filter 180ms ease;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .motion-card:hover {
+    transform: translate3d(0, -4px, 0);
+    box-shadow: 0 16px 30px rgba(2, 6, 23, 0.42);
+  }
+
+  .pressable:active:not(:disabled),
+  button:active:not(:disabled) {
+    transform: translate3d(0, 0, 0) scale(0.975);
+    filter: brightness(0.98);
+  }
+}
+
+@keyframes stagger-card-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.stagger-card-enter {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0) scale(0.985);
+  animation: stagger-card-enter 480ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+  animation-delay: var(--stagger-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+@keyframes grade-badge-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.84);
+  }
+  65% {
+    transform: translate3d(0, -2px, 0) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.grade-badge-in {
+  opacity: 0;
+  animation: grade-badge-in 520ms cubic-bezier(0.2, 0.95, 0.26, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes chart-line-reveal {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.chart-line-reveal {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: chart-line-reveal 820ms ease-out forwards;
+}
+
+@keyframes chart-point-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  80% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chart-point-reveal {
+  opacity: 0;
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: chart-point-reveal 360ms cubic-bezier(0.2, 1, 0.32, 1) forwards;
+  animation-delay: var(--point-delay, 0ms);
+}
+
+@keyframes toast-slide-spring {
+  0% {
+    opacity: 0;
+    transform: translate3d(32px, 0, 0) scale(0.96);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(-3px, 0, 0) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.toast-item {
+  animation: toast-slide-spring 560ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+@keyframes toast-timeout {
+  0% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+.toast-progress {
+  transform-origin: left;
+  animation: toast-timeout linear forwards;
+}
+
+@keyframes empty-state-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+.empty-state-float {
+  animation: empty-state-float 3.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes cta-attention {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(56, 189, 248, 0.12);
+  }
+}
+
+.cta-attention {
+  animation: cta-attention 2.8s ease-in-out infinite;
+}
+
+@keyframes success-check-pop {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0) scale(0.65);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.success-checkmark {
+  animation: success-check-pop 300ms cubic-bezier(0.2, 1, 0.3, 1) forwards;
 }

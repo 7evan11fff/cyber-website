@@ -18,7 +18,7 @@ function SnippetCard({
   copied: boolean;
 }) {
   return (
-    <article className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-3">
+    <article className="motion-card rounded-lg border border-slate-800/90 bg-slate-900/70 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">{title}</h4>
         <button
@@ -59,7 +59,7 @@ export function FixSuggestionsPanel({ results }: { results: HeaderResult[] }) {
   }
 
   return (
-    <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+    <section className="motion-card mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}

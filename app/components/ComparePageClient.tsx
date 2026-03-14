@@ -528,7 +528,7 @@ export function ComparePageClient() {
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <SiteNav />
 
-      <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+      <section className="motion-card mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Comparison mode</p>
         <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-4xl">
           Compare Security Headers Side by Side
@@ -539,7 +539,7 @@ export function ComparePageClient() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+      <section className="motion-card rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
             <div>
@@ -634,9 +634,19 @@ export function ComparePageClient() {
                   <div className="h-4 w-64 animate-pulse rounded bg-slate-800/80" />
                 </div>
               ) : comparisonHistory.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No comparisons yet. Run a comparison to store your latest side-by-side checks.
-                </p>
+                <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+                  <div className="empty-state-float inline-flex rounded-lg border border-sky-500/30 bg-sky-500/10 p-2 text-sky-200">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+                      <path
+                        d="M5 6h6v12H5V6Zm8 0h6v12h-6V6ZM7 8v8h2V8H7Zm8 0v8h2V8h-2Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-400">
+                    No comparisons yet. Run a comparison to store your latest side-by-side checks.
+                  </p>
+                </div>
               ) : (
                 <ul className="space-y-2">
                   {comparisonHistory.map((entry) => (
@@ -645,7 +655,7 @@ export function ComparePageClient() {
                         type="button"
                         onClick={() => onHistoryEntryClick(entry)}
                         disabled={loading}
-                        className="w-full rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="motion-card w-full rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -656,11 +666,11 @@ export function ComparePageClient() {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-lg font-semibold ${gradeColor(entry.siteAGrade)}`}>
+                            <span className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.siteAGrade)}`}>
                               {entry.siteAGrade}
                             </span>
                             <span className="text-slate-500">vs</span>
-                            <span className={`text-lg font-semibold ${gradeColor(entry.siteBGrade)}`}>
+                            <span className={`grade-badge-in text-lg font-semibold ${gradeColor(entry.siteBGrade)}`}>
                               {entry.siteBGrade}
                             </span>
                           </div>
@@ -679,18 +689,22 @@ export function ComparePageClient() {
         {comparison && (
           <div className="mt-6 space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
-              <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteA.checkedUrl}</p>
-                <p className={`mt-3 text-4xl font-bold ${gradeColor(comparison.siteA.grade)}`}>{comparison.siteA.grade}</p>
+                <p className={`grade-badge-in mt-3 text-4xl font-bold ${gradeColor(comparison.siteA.grade)}`}>
+                  {comparison.siteA.grade}
+                </p>
                 <p className="text-sm text-slate-300">
                   Score {comparison.siteA.score}/{comparison.siteA.results.length * 2}
                 </p>
               </article>
-              <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteB.checkedUrl}</p>
-                <p className={`mt-3 text-4xl font-bold ${gradeColor(comparison.siteB.grade)}`}>{comparison.siteB.grade}</p>
+                <p className={`grade-badge-in mt-3 text-4xl font-bold ${gradeColor(comparison.siteB.grade)}`}>
+                  {comparison.siteB.grade}
+                </p>
                 <p className="text-sm text-slate-300">
                   Score {comparison.siteB.score}/{comparison.siteB.results.length * 2}
                 </p>
@@ -714,7 +728,7 @@ export function ComparePageClient() {
                 </thead>
                 <tbody>
                   {tableRows.map((row) => (
-                    <tr key={row.key} className={`border-t ${rowClasses(row.tone)}`}>
+                    <tr key={row.key} className={`border-t transition hover:bg-slate-900/35 ${rowClasses(row.tone)}`}>
                       <td className="px-4 py-3 align-top">
                         <p className="font-semibold text-slate-100">{row.label}</p>
                       </td>

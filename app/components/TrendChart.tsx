@@ -30,7 +30,7 @@ export function TrendChart({
 
   const sparkline =
     chartPoints.length > 1 ? chartPoints.map((point) => `${point.x},${point.y}`).join(" ") : null;
-  const lastPoint = chartPoints[chartPoints.length - 1] ?? null;
+  const lastPointIndex = chartPoints.length - 1;
 
   return (
     <svg
@@ -52,11 +52,13 @@ export function TrendChart({
       {sparkline ? (
         <polyline
           points={sparkline}
+          pathLength={1}
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
+          className="chart-line-reveal"
         />
       ) : (
         <line
@@ -69,7 +71,18 @@ export function TrendChart({
           strokeWidth={1.5}
         />
       )}
-      {lastPoint && <circle cx={lastPoint.x} cy={lastPoint.y} r={2} fill="currentColor" />}
+      {chartPoints.map((point, index) => (
+        <circle
+          key={`trend-point-${point.x}-${point.y}-${index}`}
+          cx={point.x}
+          cy={point.y}
+          r={index === lastPointIndex ? 2.2 : 1.6}
+          fill="currentColor"
+          fillOpacity={index === lastPointIndex ? 1 : 0.75}
+          className="chart-point-reveal"
+          style={{ animationDelay: `${index * 65}ms` }}
+        />
+      ))}
     </svg>
   );
 }
