@@ -106,8 +106,14 @@ export type PublicScanRecord = {
 export async function listRecentPublicScans(limit = 5): Promise<PublicScanRecord[]> {
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(Math.trunc(limit), 25)) : 5;
   const data = await readDataFile();
-  return Object.values(data.reports)
-    .filter((entry) => entry.payload.mode === "single")
+  const singleReportEntries = Object.values(data.reports).filter(
+    (
+      entry
+    ): entry is SharedReportRecord & {
+      payload: Extract<SharedReportPayload, { mode: "single" }>;
+    } => entry.payload.mode === "single"
+  );
+  return singleReportEntries
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, safeLimit)
     .map((entry) => ({
