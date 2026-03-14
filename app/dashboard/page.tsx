@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { getServerSession } from "next-auth";
 import { DashboardActions } from "@/app/components/DashboardActions";
+import { DashboardTabs } from "@/app/components/DashboardTabs";
 import { MiniScoreTrendChart } from "@/app/components/MiniScoreTrendChart";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteNav } from "@/app/components/SiteNav";
@@ -169,6 +170,7 @@ export default async function DashboardPage() {
           Signed in as <span className="font-medium text-slate-100">{session.user.email ?? session.user.name}</span>
         </p>
         <DashboardActions />
+        <DashboardTabs active="overview" />
       </section>
 
       <section className="lazy-section grid gap-6 lg:grid-cols-2">

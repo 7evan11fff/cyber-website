@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { DashboardActions } from "@/app/components/DashboardActions";
+import { DashboardTabs } from "@/app/components/DashboardTabs";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteNav } from "@/app/components/SiteNav";
 import { TrendChart } from "@/app/components/TrendChart";
@@ -123,6 +124,7 @@ export default async function WatchlistHistoryPage({
           Signed in as <span className="font-medium text-slate-100">{session.user.email ?? session.user.name}</span>
         </p>
         <DashboardActions />
+        <DashboardTabs active="overview" />
       </section>
 
       <section className="lazy-section grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
