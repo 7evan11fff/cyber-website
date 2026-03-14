@@ -8,7 +8,8 @@ type AnalyticsEventName =
   | "bulk_scan"
   | "popular_domain_opened"
   | "scan_again_clicked"
-  | "history_report_opened";
+  | "history_report_opened"
+  | "quick_url_scan";
 type AnalyticsProps = Record<string, string | number | boolean>;
 
 export function trackEvent(name: AnalyticsEventName, props?: AnalyticsProps) {
