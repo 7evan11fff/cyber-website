@@ -115,6 +115,12 @@ type TrustedByMetric = {
   label: string;
   value: string;
 };
+type Testimonial = {
+  quote: string;
+  name: string;
+  role: string;
+  company: string;
+};
 type FaqItem = {
   question: string;
   answer: string;
@@ -178,6 +184,29 @@ const TRUSTED_BY_METRICS: TrustedByMetric[] = [
   {
     label: "Average scan time",
     value: "< 3 sec"
+  }
+];
+const TESTIMONIALS: Testimonial[] = [
+  {
+    quote:
+      "We added this to our release checklist and caught two missing CSP policies before production. It paid for itself in one sprint.",
+    name: "Maya Patel",
+    role: "Platform Lead",
+    company: "Northstar Commerce"
+  },
+  {
+    quote:
+      "The compare mode made staging-to-prod validation much faster. Security reviews now take minutes instead of an hour.",
+    name: "Liam Chen",
+    role: "Senior DevOps Engineer",
+    company: "Helio Cloud"
+  },
+  {
+    quote:
+      "Bulk scans are perfect for weekly audits across client domains. The grade summary gives our team instant prioritization.",
+    name: "Sofia Ramirez",
+    role: "Security Consultant",
+    company: "Ironwall Advisory"
   }
 ];
 const SHORTCUT_ROWS = [
@@ -320,6 +349,16 @@ function extractDomainFromUrl(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+function initialsFromName(value: string): string {
+  const parts = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
 function escapeCsvCell(value: string): string {
@@ -1321,6 +1360,12 @@ export default function Home() {
     void runSingleCheck(url);
   }
 
+  function onHeroSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMode("single");
+    void runSingleCheck(url);
+  }
+
   function onCompareSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void runComparisonCheck(compareUrlA, compareUrlB);
@@ -1774,7 +1819,30 @@ export default function Home() {
               Run scans, compare environments, and monitor regressions from one dashboard. Security Header Checker
               helps teams tighten HTTP protections before every release without slowing down delivery.
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <form onSubmit={onHeroSubmit} className="mt-5">
+              <label htmlFor="hero-scan-url" className="sr-only">
+                Website URL to scan from hero
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="hero-scan-url"
+                  type="text"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="Try it now: example.com"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                >
+                  {loading ? "Scanning..." : "Try the scanner"}
+                </button>
+              </div>
+            </form>
+            <div className="mt-4 flex flex-wrap gap-2">
               <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
                 Launch-ready checks
               </span>
@@ -1834,6 +1902,41 @@ export default function Home() {
             <article key={metric.label} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
               <p className="text-xs uppercase tracking-[0.12em] text-slate-400">{metric.label}</p>
               <p className="mt-2 text-2xl font-semibold text-sky-200">{metric.value}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="testimonials"
+        data-reveal-id="testimonials"
+        className={`${revealClass("testimonials")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Customer feedback</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">What teams are saying</h2>
+          </div>
+          <p className="max-w-xl text-sm text-slate-300">
+            Placeholder customer quotes with realistic roles and companies for launch storytelling.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          {TESTIMONIALS.map((testimonial) => (
+            <article key={`${testimonial.name}-${testimonial.company}`} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <p className="text-sm leading-relaxed text-slate-200">“{testimonial.quote}”</p>
+              <div className="mt-4 flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-xs font-semibold text-sky-200">
+                  {initialsFromName(testimonial.name)}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-100">{testimonial.name}</p>
+                  <p className="truncate text-xs text-slate-400">
+                    {testimonial.role}, {testimonial.company}
+                  </p>
+                </div>
+              </div>
             </article>
           ))}
         </div>
@@ -2133,7 +2236,7 @@ export default function Home() {
               role="region"
               aria-label="Bulk scan results table. Scroll horizontally on mobile."
             >
-              <table className="min-w-[920px] text-left text-sm">
+              <table className="min-w-[760px] sm:min-w-[920px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
@@ -2148,10 +2251,10 @@ export default function Home() {
                   {bulkResults.map((entry, index) => (
                     <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
                       <td className="px-4 py-3 text-slate-200">
-                        <div className="max-w-[320px]">
-                          <p className="truncate">{entry.inputUrl}</p>
+                        <div className="max-w-[220px] sm:max-w-[320px]">
+                          <p className="break-all">{entry.inputUrl}</p>
                           {entry.report && (
-                            <p className="truncate text-xs text-slate-500">{entry.report.finalUrl}</p>
+                            <p className="mt-1 break-all text-xs text-slate-500">{entry.report.finalUrl}</p>
                           )}
                         </div>
                       </td>
@@ -2535,6 +2638,7 @@ export default function Home() {
                           height={20}
                           sizes="120px"
                           loading="lazy"
+                          decoding="async"
                           unoptimized
                         />
                       </div>

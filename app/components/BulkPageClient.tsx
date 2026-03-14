@@ -683,7 +683,7 @@ export function BulkPageClient() {
               role="region"
               aria-label="Bulk scan results table. Scroll horizontally on mobile."
             >
-              <table className="min-w-[980px] text-left text-sm">
+              <table className="min-w-[760px] sm:min-w-[980px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
@@ -755,8 +755,12 @@ export function BulkPageClient() {
                         className="border-t border-slate-800/70 transition hover:bg-slate-900/45"
                       >
                         <td className="px-4 py-3 align-top text-slate-200">
-                          <p className="max-w-[320px] break-all">{entry.inputUrl}</p>
-                          {entry.report && <p className="mt-1 max-w-[320px] break-all text-xs text-slate-500">{entry.report.finalUrl}</p>}
+                          <p className="max-w-[220px] break-all sm:max-w-[320px]">{entry.inputUrl}</p>
+                          {entry.report && (
+                            <p className="mt-1 max-w-[220px] break-all text-xs text-slate-500 sm:max-w-[320px]">
+                              {entry.report.finalUrl}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3 align-top">
                           {entry.report ? (
@@ -776,7 +780,7 @@ export function BulkPageClient() {
                         <td className="px-4 py-3 align-top text-slate-300">
                           {entry.report ? (
                             entry.missingHeaders.length > 0 ? (
-                              <ul className="space-y-1">
+                              <ul className="max-w-[220px] space-y-1 sm:max-w-[280px]">
                                 {entry.missingHeaders.map((header) => (
                                   <li key={header} className="text-xs">
                                     {header}

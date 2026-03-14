@@ -748,7 +748,7 @@ export function ComparePageClient() {
               role="region"
               aria-label="Comparison result table. Scroll horizontally on mobile."
             >
-              <table className="min-w-[840px] text-left text-sm">
+              <table className="min-w-[700px] sm:min-w-[840px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">Header</th>
@@ -769,7 +769,9 @@ export function ComparePageClient() {
                         >
                           {row.siteA.status}
                         </span>
-                        <p className="mt-2 break-all text-xs text-slate-400">{row.siteA.value ?? "Missing header"}</p>
+                        <p className="mt-2 max-w-[220px] break-all text-xs text-slate-400">
+                          {row.siteA.value ?? "Missing header"}
+                        </p>
                       </td>
                       <td className="px-4 py-3 align-top">
                         <span
@@ -777,9 +779,13 @@ export function ComparePageClient() {
                         >
                           {row.siteB.status}
                         </span>
-                        <p className="mt-2 break-all text-xs text-slate-400">{row.siteB.value ?? "Missing header"}</p>
+                        <p className="mt-2 max-w-[220px] break-all text-xs text-slate-400">
+                          {row.siteB.value ?? "Missing header"}
+                        </p>
                       </td>
-                      <td className="px-4 py-3 align-top text-sm text-slate-300">{row.recommendation}</td>
+                      <td className="max-w-[280px] px-4 py-3 align-top text-xs text-slate-300 sm:text-sm">
+                        {row.recommendation}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
