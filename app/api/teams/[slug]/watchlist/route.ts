@@ -203,12 +203,15 @@ export async function DELETE(request: Request, { params }: { params: { slug: str
   }
 
   try {
-    const removed = await removeTeamWatchlistEntryBySlug({
+    const result = await removeTeamWatchlistEntryBySlug({
       slug: params.slug,
       actorUserId: userKey,
       entryId
     });
-    return withApiRateLimitHeaders(NextResponse.json({ removed }), rateLimit.state);
+    return withApiRateLimitHeaders(
+      NextResponse.json({ removed: result.removed, activity: result.activity }),
+      rateLimit.state
+    );
   } catch (error) {
     return withApiRateLimitHeaders(
       NextResponse.json(

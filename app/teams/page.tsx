@@ -34,7 +34,7 @@ export default async function TeamsPage() {
       <SiteNav />
       <section className="mb-6 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Teams</p>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-100">Team collaboration workspace</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Team collaboration workspace</h1>
         <p className="mt-2 text-sm text-slate-300">
           Create a team, invite collaborators, and manage shared watchlists. Your personal watchlist remains available
           in the dashboard.
@@ -45,7 +45,7 @@ export default async function TeamsPage() {
 
       <Link
         href="/dashboard"
-        className="mt-6 inline-flex w-fit rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+        className="mt-6 inline-flex w-full justify-center rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 sm:w-fit"
       >
         Back to dashboard
       </Link>

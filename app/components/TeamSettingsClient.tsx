@@ -320,7 +320,7 @@ export function TeamSettingsClient({
           <button
             type="submit"
             disabled={!managementEnabled || nameSaveState === "saving"}
-            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             {nameSaveState === "saving" ? "Saving..." : "Save"}
           </button>
@@ -354,7 +354,7 @@ export function TeamSettingsClient({
           <button
             type="submit"
             disabled={!managementEnabled || inviteState === "saving"}
-            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             {inviteState === "saving" ? "Inviting..." : "Send invite"}
           </button>
@@ -385,13 +385,13 @@ export function TeamSettingsClient({
                 Joined {new Date(member.joinedAt).toLocaleDateString()} • role: {member.role}
               </p>
               {managementEnabled && member.role !== "owner" && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                   <button
                     type="button"
                     onClick={() => void updateRole(member.userId, "admin")}
                     disabled={Boolean(updatingMemberIds[member.userId])}
                     aria-label={`Promote ${member.userId} to admin`}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                    className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                   >
                     Make admin
                   </button>
@@ -400,7 +400,7 @@ export function TeamSettingsClient({
                     onClick={() => void updateRole(member.userId, "member")}
                     disabled={Boolean(updatingMemberIds[member.userId])}
                     aria-label={`Set ${member.userId} as member`}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                    className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                   >
                     Make member
                   </button>
@@ -409,7 +409,7 @@ export function TeamSettingsClient({
                     disabled={Boolean(updatingMemberIds[member.userId])}
                     onClick={() => setConfirmAction({ kind: "remove-member", userId: member.userId })}
                     aria-label={`Remove ${member.userId} from team`}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Remove
                   </button>
@@ -442,7 +442,7 @@ export function TeamSettingsClient({
                         type="button"
                         onClick={() => void resendInvite(invite)}
                         disabled={Boolean(resendingInviteIds[invite.id])}
-                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {resendingInviteIds[invite.id] ? "Sending..." : "Re-send"}
                       </button>
@@ -465,7 +465,7 @@ export function TeamSettingsClient({
             <button
               type="button"
               onClick={() => setConfirmAction({ kind: "delete-team" })}
-              className="rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/20"
+              className="w-full rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/20 sm:w-auto"
             >
               Delete team
             </button>
@@ -473,7 +473,7 @@ export function TeamSettingsClient({
             <button
               type="button"
               onClick={() => setConfirmAction({ kind: "leave-team" })}
-              className="rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/20"
+              className="w-full rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/20 sm:w-auto"
             >
               Leave team
             </button>

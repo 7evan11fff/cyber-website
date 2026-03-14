@@ -53,12 +53,23 @@ export type TeamScanActivityRecord = {
   scannedByUserId: string;
 };
 
+export type TeamWatchlistActivityRecord = {
+  id: string;
+  teamId: string;
+  entryId: string | null;
+  url: string;
+  action: "added" | "removed";
+  occurredAt: string;
+  actorUserId: string;
+};
+
 export type TeamDataFile = {
   teams: TeamRecord[];
   teamMembers: TeamMemberRecord[];
   teamInvites: TeamInviteRecord[];
   teamWatchlist: TeamWatchlistEntry[];
   teamScanActivity: TeamScanActivityRecord[];
+  teamWatchlistActivity: TeamWatchlistActivityRecord[];
 };
 
 export function createEmptyTeamDataFile(): TeamDataFile {
@@ -67,7 +78,8 @@ export function createEmptyTeamDataFile(): TeamDataFile {
     teamMembers: [],
     teamInvites: [],
     teamWatchlist: [],
-    teamScanActivity: []
+    teamScanActivity: [],
+    teamWatchlistActivity: []
   };
 }
 

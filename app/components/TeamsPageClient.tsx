@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type TeamListItem = {
   id: string;
@@ -13,6 +14,7 @@ type TeamListItem = {
 };
 
 export function TeamsPageClient({ initialTeams }: { initialTeams: TeamListItem[] }) {
+  const router = useRouter();
   const [teams, setTeams] = useState<TeamListItem[]>(initialTeams);
   const [teamName, setTeamName] = useState("");
   const [createState, setCreateState] = useState<"idle" | "saving" | "error">("idle");
@@ -40,8 +42,10 @@ export function TeamsPageClient({ initialTeams }: { initialTeams: TeamListItem[]
         throw new Error(payload?.error ?? "Could not create team.");
       }
       setTeams((previous) => [payload.team as TeamListItem, ...previous]);
+      const teamSlug = payload.team.slug;
       setTeamName("");
       setCreateState("idle");
+      router.push(`/teams/${encodeURIComponent(teamSlug)}?welcome=1`);
     } catch (error) {
       setCreateState("error");
       setErrorMessage(error instanceof Error ? error.message : "Could not create team.");
@@ -78,7 +82,7 @@ export function TeamsPageClient({ initialTeams }: { initialTeams: TeamListItem[]
         <button
           type="submit"
           disabled={createState === "saving"}
-          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {createState === "saving" ? "Creating..." : "Create team"}
         </button>
@@ -105,16 +109,16 @@ export function TeamsPageClient({ initialTeams }: { initialTeams: TeamListItem[]
                     {team.pendingInviteCount > 0 ? ` • ${team.pendingInviteCount} pending invites` : ""}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
                   <Link
                     href={`/teams/${team.slug}`}
-                    className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+                    className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                   >
                     Open
                   </Link>
                   <Link
                     href={`/teams/${team.slug}/settings`}
-                    className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+                    className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                   >
                     Settings
                   </Link>

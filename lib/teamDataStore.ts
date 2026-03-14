@@ -19,12 +19,14 @@ import {
   type TeamRecord,
   type TeamRole,
   type TeamScanActivityRecord,
+  type TeamWatchlistActivityRecord,
   type TeamWatchlistEntry
 } from "@/lib/teamData";
 
 const TEAM_DATA_FILE_PATH = path.join(process.cwd(), "data", "team-data.json");
 const DEFAULT_INVITE_EXPIRY_DAYS = 7;
 const MAX_SCAN_ACTIVITY_PER_TEAM = 400;
+const MAX_WATCHLIST_ACTIVITY_PER_TEAM = 240;
 
 export type TeamSummary = TeamRecord & {
   role: TeamRole;
@@ -39,6 +41,7 @@ export type TeamSnapshot = {
   invites: TeamInviteRecord[];
   watchlist: TeamWatchlistEntry[];
   scanActivity: TeamScanActivityRecord[];
+  watchlistActivity: TeamWatchlistActivityRecord[];
 };
 
 export type InviteAcceptanceResult =
@@ -128,6 +131,27 @@ function normalizeTeamScanActivityRecord(value: unknown): TeamScanActivityRecord
   };
 }
 
+function normalizeTeamWatchlistActivityRecord(value: unknown): TeamWatchlistActivityRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<TeamWatchlistActivityRecord>;
+  if (typeof candidate.id !== "string" || !candidate.id.trim()) return null;
+  if (typeof candidate.teamId !== "string" || !candidate.teamId.trim()) return null;
+  if (candidate.entryId !== null && typeof candidate.entryId !== "string") return null;
+  if (typeof candidate.url !== "string" || !candidate.url.trim()) return null;
+  if (candidate.action !== "added" && candidate.action !== "removed") return null;
+  if (!isValidIsoTimestamp(candidate.occurredAt)) return null;
+  if (typeof candidate.actorUserId !== "string" || !candidate.actorUserId.trim()) return null;
+  return {
+    id: candidate.id,
+    teamId: candidate.teamId.trim(),
+    entryId: candidate.entryId ?? null,
+    url: candidate.url.trim(),
+    action: candidate.action,
+    occurredAt: new Date(candidate.occurredAt).toISOString(),
+    actorUserId: normalizeUserId(candidate.actorUserId)
+  };
+}
+
 function normalizeDataFile(value: unknown): TeamDataFile {
   if (!value || typeof value !== "object") {
     return createEmptyTeamDataFile();
@@ -158,13 +182,22 @@ function normalizeDataFile(value: unknown): TeamDataFile {
         .map(normalizeTeamScanActivityRecord)
         .filter((activity): activity is TeamScanActivityRecord => Boolean(activity && teamIdSet.has(activity.teamId)))
     : [];
+  const teamWatchlistActivity = Array.isArray(parsed.teamWatchlistActivity)
+    ? parsed.teamWatchlistActivity
+        .map(normalizeTeamWatchlistActivityRecord)
+        .filter(
+          (activity): activity is TeamWatchlistActivityRecord =>
+            Boolean(activity && teamIdSet.has(activity.teamId))
+        )
+    : [];
 
   return {
     teams,
     teamMembers,
     teamInvites,
     teamWatchlist,
-    teamScanActivity
+    teamScanActivity,
+    teamWatchlistActivity
   };
 }
 
@@ -312,6 +345,36 @@ function recordTeamScanActivity(input: {
   return activity;
 }
 
+function recordTeamWatchlistActivity(input: {
+  data: TeamDataFile;
+  teamId: string;
+  entryId: string | null;
+  url: string;
+  action: TeamWatchlistActivityRecord["action"];
+  occurredAt?: string;
+  actorUserId: string;
+}): TeamWatchlistActivityRecord {
+  const activity: TeamWatchlistActivityRecord = {
+    id: randomUUID(),
+    teamId: input.teamId,
+    entryId: input.entryId,
+    url: input.url,
+    action: input.action,
+    occurredAt: new Date(input.occurredAt ?? new Date().toISOString()).toISOString(),
+    actorUserId: normalizeUserId(input.actorUserId)
+  };
+  input.data.teamWatchlistActivity.push(activity);
+  const teamItems = input.data.teamWatchlistActivity
+    .filter((candidate) => candidate.teamId === input.teamId)
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+    .slice(0, MAX_WATCHLIST_ACTIVITY_PER_TEAM);
+  input.data.teamWatchlistActivity = [
+    ...input.data.teamWatchlistActivity.filter((candidate) => candidate.teamId !== input.teamId),
+    ...teamItems
+  ];
+  return activity;
+}
+
 export async function listTeamsForUser(userId: string): Promise<TeamSummary[]> {
   const normalizedUserId = normalizeUserId(userId);
   const data = await readDataFile();
@@ -383,6 +446,10 @@ export async function getTeamSnapshotBySlugForUser(input: {
     .filter((activity) => activity.teamId === team.id)
     .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
     .slice(0, MAX_SCAN_ACTIVITY_PER_TEAM);
+  const watchlistActivity = data.teamWatchlistActivity
+    .filter((activity) => activity.teamId === team.id)
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+    .slice(0, MAX_WATCHLIST_ACTIVITY_PER_TEAM);
 
   return {
     team: buildTeamSummary(data, team, membership.role),
@@ -390,7 +457,8 @@ export async function getTeamSnapshotBySlugForUser(input: {
     members,
     invites,
     watchlist,
-    scanActivity
+    scanActivity,
+    watchlistActivity
   };
 }
 
@@ -569,6 +637,7 @@ export async function deleteTeamBySlug(input: { slug: string; actorUserId: strin
     data.teamInvites = data.teamInvites.filter((invite) => invite.teamId !== team.id);
     data.teamWatchlist = data.teamWatchlist.filter((entry) => entry.teamId !== team.id);
     data.teamScanActivity = data.teamScanActivity.filter((activity) => activity.teamId !== team.id);
+    data.teamWatchlistActivity = data.teamWatchlistActivity.filter((activity) => activity.teamId !== team.id);
     return true;
   });
 }
@@ -693,6 +762,15 @@ export async function addOrUpdateTeamWatchlistEntryBySlug(input: {
       lastScannedByUserId: actorUserId
     };
     data.teamWatchlist.push(created);
+    recordTeamWatchlistActivity({
+      data,
+      teamId: team.id,
+      entryId: created.id,
+      url: created.url,
+      action: "added",
+      occurredAt: now,
+      actorUserId
+    });
     const activity = recordTeamScanActivity({
       data,
       teamId: team.id,
@@ -710,14 +788,26 @@ export async function removeTeamWatchlistEntryBySlug(input: {
   slug: string;
   actorUserId: string;
   entryId: string;
-}): Promise<boolean> {
+}): Promise<{ removed: boolean; activity: TeamWatchlistActivityRecord | null }> {
   return mutateDataFile((data) => {
     const { team } = resolveActorTeam(data, input.slug, input.actorUserId);
-    const before = data.teamWatchlist.length;
+    const actorUserId = normalizeUserId(input.actorUserId);
+    const target = data.teamWatchlist.find((entry) => entry.teamId === team.id && entry.id === input.entryId) ?? null;
+    if (!target) {
+      return { removed: false, activity: null };
+    }
     data.teamWatchlist = data.teamWatchlist.filter(
       (entry) => !(entry.teamId === team.id && entry.id === input.entryId)
     );
-    return data.teamWatchlist.length !== before;
+    const activity = recordTeamWatchlistActivity({
+      data,
+      teamId: team.id,
+      entryId: target.id,
+      url: target.url,
+      action: "removed",
+      actorUserId
+    });
+    return { removed: true, activity };
   });
 }
 
