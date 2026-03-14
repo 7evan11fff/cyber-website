@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { summarizeSharedPayload } from "@/lib/reportShare";
 import { getSharedReportById } from "@/lib/sharedReportsStore";
 
 export const runtime = "nodejs";
@@ -27,10 +28,11 @@ function buildOgContent(report: Awaited<ReturnType<typeof getSharedReportById>>)
 
   if (report.payload.mode === "single") {
     const domain = extractHost(report.payload.report.finalUrl || report.payload.report.checkedUrl);
+    const summary = summarizeSharedPayload(report.payload);
     return {
       domainLabel: domain,
       gradeLabel: report.payload.report.grade,
-      detail: `Security header grade for ${domain}`
+      detail: summary.description.slice(0, 160)
     };
   }
 
@@ -38,10 +40,11 @@ function buildOgContent(report: Awaited<ReturnType<typeof getSharedReportById>>)
   const siteB = report.payload.comparison.siteB;
   const siteALabel = extractHost(siteA.finalUrl || siteA.checkedUrl);
   const siteBLabel = extractHost(siteB.finalUrl || siteB.checkedUrl);
+  const summary = summarizeSharedPayload(report.payload);
   return {
     domainLabel: `${siteALabel} vs ${siteBLabel}`,
     gradeLabel: `${siteA.grade} vs ${siteB.grade}`,
-    detail: "Security headers comparison report"
+    detail: summary.description.slice(0, 160)
   };
 }
 

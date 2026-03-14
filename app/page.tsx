@@ -154,6 +154,10 @@ type SharePayload =
       mode: "compare";
       comparison: ComparisonReport;
     };
+type SharePathCache = {
+  payloadKey: string;
+  path: string;
+};
 
 const SAMPLE_SITES = ["google.com", "github.com", "facebook.com"];
 const EMPTY_STATE_SUGGESTIONS = ["owasp.org", "mozilla.org", "cloudflare.com", "wikipedia.org"];
@@ -397,6 +401,20 @@ async function createSharedReportPath(payload: SharePayload): Promise<string> {
     throw new Error("Could not create a shareable report link.");
   }
   return body.path;
+}
+
+function buildSharePayload(report: ReportResponse | null, comparison: ComparisonReport | null): SharePayload | null {
+  if (report) {
+    return { version: 1, mode: "single", report };
+  }
+  if (comparison) {
+    return { version: 1, mode: "compare", comparison };
+  }
+  return null;
+}
+
+function serializeSharePayload(payload: SharePayload): string {
+  return JSON.stringify(payload);
 }
 
 function gradeColor(grade: string) {
@@ -753,6 +771,7 @@ export default function Home() {
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "error">("idle");
   const [pdfExportRequestKey, setPdfExportRequestKey] = useState(0);
   const [shareState, setShareState] = useState<ShareState>("idle");
+  const [sharePathCache, setSharePathCache] = useState<SharePathCache | null>(null);
   const [badgePanelOpen, setBadgePanelOpen] = useState(false);
   const [badgeStyle, setBadgeStyle] = useState<BadgeStyle>("flat");
   const [badgeTheme, setBadgeTheme] = useState<BadgeTheme>("default");
@@ -797,6 +816,11 @@ export default function Home() {
   const wasLoadingForHapticsRef = useRef(false);
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
   const isAuthenticated = sessionStatus === "authenticated";
+  const currentSharePayload = useMemo(() => buildSharePayload(report, comparison), [report, comparison]);
+  const currentSharePayloadKey = useMemo(
+    () => (currentSharePayload ? serializeSharePayload(currentSharePayload) : null),
+    [currentSharePayload]
+  );
   const organizationSchema = useMemo(
     () => ({
       "@context": "https://schema.org",
@@ -1003,10 +1027,10 @@ export default function Home() {
       return "Markdown report copied to clipboard.";
     }
     if (copyLinkState === "copied") {
-      return "Share link copied to clipboard.";
+      return "Shareable link copied to clipboard.";
     }
     if (shareState === "copied") {
-      return "Share link copied to clipboard.";
+      return "Shareable link copied to clipboard.";
     }
     if (shareState === "shared") {
       return "Report shared.";
@@ -1320,6 +1344,7 @@ export default function Home() {
     setCopyLinkState("idle");
     setPdfState("idle");
     setShareState("idle");
+    setSharePathCache(null);
     setLoading(false);
     setScanProgress(0);
     setBulkTargetCount(0);
@@ -1355,6 +1380,25 @@ export default function Home() {
     setBadgeLabel("security headers");
     setBadgeCopyState("idle");
   }, [mode, report?.checkedAt]);
+
+  useEffect(() => {
+    if (!currentSharePayload || !currentSharePayloadKey || reportSource === "shared") return;
+    if (sharePathCache?.payloadKey === currentSharePayloadKey) return;
+
+    let cancelled = false;
+    void createSharedReportPath(currentSharePayload)
+      .then((path) => {
+        if (cancelled) return;
+        setSharePathCache({ payloadKey: currentSharePayloadKey, path });
+      })
+      .catch(() => {
+        // Keep scan flow resilient if share-link generation fails.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSharePayload, currentSharePayloadKey, reportSource, sharePathCache?.payloadKey]);
 
   const addToHistory = useCallback((nextReport: ReportResponse) => {
     const nextEntry: HistoryEntry = {
@@ -1450,6 +1494,7 @@ export default function Home() {
     setCopyLinkState("idle");
     setPdfState("idle");
     setShareState("idle");
+    setSharePathCache(null);
     setScanProgress(0);
     setBulkTargetCount(0);
     setBulkCompletedCount(0);
@@ -1535,6 +1580,7 @@ export default function Home() {
         setCopyState("idle");
         setCopyLinkState("idle");
         setShareState("idle");
+        setSharePathCache(null);
         addToHistory(nextReport);
         trackEvent("scan_complete", {
           mode: "single",
@@ -1566,6 +1612,7 @@ export default function Home() {
     setCopyState("idle");
     setCopyLinkState("idle");
     setShareState("idle");
+    setSharePathCache(null);
 
     try {
       const payload = await requestReport(targetUrl, scanRequestOptions);
@@ -1610,6 +1657,7 @@ export default function Home() {
     setCopyState("idle");
     setCopyLinkState("idle");
     setShareState("idle");
+    setSharePathCache(null);
 
     try {
       const [siteA, siteB] = await Promise.all([
@@ -1669,6 +1717,7 @@ export default function Home() {
     setCopyState("idle");
     setCopyLinkState("idle");
     setShareState("idle");
+    setSharePathCache(null);
     setBulkTargetCount(targets.length);
     setBulkCompletedCount(0);
     setScanProgress(0);
@@ -1763,6 +1812,7 @@ export default function Home() {
       setCopyLinkState("idle");
       setPdfState("idle");
       setShareState("idle");
+      setSharePathCache(null);
       trackEvent("history_report_opened", {
         source: "recent-history",
         method: "snapshot",
@@ -1815,6 +1865,7 @@ export default function Home() {
       setCopyState("idle");
       setCopyLinkState("idle");
       setShareState("idle");
+      setSharePathCache(null);
       addToHistory(cached.report);
       trackEvent("popular_domain_opened", {
         domain: site,
@@ -1881,10 +1932,10 @@ export default function Home() {
         mode: report ? "single" : "compare",
         method: "copy-link"
       });
-      notify({ tone: "success", message: "Share link copied to clipboard." });
+      notify({ tone: "success", message: "Shareable link copied to clipboard." });
     } catch {
       setCopyLinkState("error");
-      notify({ tone: "error", message: "Could not copy a share link right now." });
+      notify({ tone: "error", message: "Could not copy a shareable link right now." });
     } finally {
       window.setTimeout(() => setCopyLinkState("idle"), 3000);
     }
@@ -1963,21 +2014,18 @@ export default function Home() {
   }
 
   async function createCurrentShareUrl(): Promise<string> {
-    if (!report && !comparison) {
+    const payload = currentSharePayload;
+    const payloadKey = currentSharePayloadKey;
+    if (!payload || !payloadKey) {
       throw new Error("No report available to share.");
     }
 
-    let payload: SharePayload;
-    if (report) {
-      payload = { version: 1, mode: "single", report };
-    } else {
-      if (!comparison) {
-        throw new Error("No comparison report available to share.");
-      }
-      payload = { version: 1, mode: "compare", comparison };
+    if (sharePathCache?.payloadKey === payloadKey) {
+      return new URL(sharePathCache.path, window.location.origin).toString();
     }
 
     const sharePath = await createSharedReportPath(payload);
+    setSharePathCache({ payloadKey, path: sharePath });
     return new URL(sharePath, window.location.origin).toString();
   }
 
@@ -2006,7 +2054,7 @@ export default function Home() {
           mode: report ? "single" : "compare",
           method: "clipboard"
         });
-        notify({ tone: "success", message: "Share link copied to clipboard." });
+        notify({ tone: "success", message: "Shareable link copied to clipboard." });
       }
     } catch (shareError) {
       if (shareError instanceof DOMException && shareError.name === "AbortError") {
@@ -3015,7 +3063,7 @@ export default function Home() {
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {shareState === "copied"
-              ? "Link copied"
+              ? "Shareable link copied"
               : shareState === "shared"
                 ? "Shared"
                 : "Share results"}
@@ -3497,7 +3545,7 @@ export default function Home() {
                   onClick={() => void onCopyShareLink()}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
-                  {copyLinkState === "copied" ? "Link copied" : "Copy Link"}
+                  {copyLinkState === "copied" ? "Shareable link copied" : "Copy Shareable Link"}
                 </button>
                 <button
                   type="button"
@@ -3522,7 +3570,7 @@ export default function Home() {
                 </Link>
               </div>
               {copyLinkState === "error" && (
-                <p className="mt-2 text-xs text-rose-300">Could not copy a share link right now.</p>
+                <p className="mt-2 text-xs text-rose-300">Could not copy a shareable link right now.</p>
               )}
               {copyState === "error" && (
                 <p className="mt-2 text-xs text-rose-300">

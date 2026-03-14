@@ -32,6 +32,7 @@ export type SharedReportPayload =
 export type SharedReportRecord = {
   id: string;
   createdAt: string;
+  expiresAt: string;
   payload: SharedReportPayload;
 };
 
@@ -46,9 +47,17 @@ function extractHost(value: string): string {
 function summarizeSingleReport(report: SharedScanReport) {
   const domain = extractHost(report.finalUrl || report.checkedUrl);
   const maxScore = report.results.length * 2;
-  const missingCount = report.results.filter((entry) => entry.status === "missing").length;
+  const riskyFindings = report.results.filter((entry) => entry.status !== "good");
+  const missingCount = riskyFindings.filter((entry) => entry.status === "missing").length;
+  const findingsPreview =
+    riskyFindings.length === 0
+      ? "All evaluated headers are configured."
+      : `Findings: ${riskyFindings
+          .slice(0, 2)
+          .map((entry) => entry.label)
+          .join(", ")}${riskyFindings.length > 2 ? ` (+${riskyFindings.length - 2} more)` : ""}.`;
   const title = `${domain} security header report (grade ${report.grade})`;
-  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.`;
+  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}. ${findingsPreview}`;
   return { title, description };
 }
 

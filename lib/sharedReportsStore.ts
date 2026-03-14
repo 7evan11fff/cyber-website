@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SharedReportPayload, SharedReportRecord, SharedScanReport } from "@/lib/reportShare";
@@ -12,6 +12,8 @@ type SharedReportFile = {
 const SHARED_REPORT_FILE_PATH = path.join(process.cwd(), "data", "shared-reports.json");
 const MAX_SHARED_REPORTS = 2000;
 const REPORT_ID_PATTERN = /^[a-zA-Z0-9_-]{8,64}$/;
+const SHARED_REPORT_TTL_DAYS = 30;
+const SHARED_REPORT_TTL_MS = SHARED_REPORT_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 function isSharedReportId(id: string): boolean {
   return REPORT_ID_PATTERN.test(id);
@@ -35,7 +37,11 @@ async function readDataFile(): Promise<SharedReportFile> {
     if (!parsed || typeof parsed !== "object" || !parsed.reports || typeof parsed.reports !== "object") {
       return { reports: {} };
     }
-    return parsed as SharedReportFile;
+    const normalized = normalizeReportEntries(parsed.reports as Record<string, SharedReportRecord>);
+    if (normalized.changed) {
+      await writeDataFile({ reports: normalized.reports });
+    }
+    return { reports: normalized.reports };
   } catch {
     return { reports: {} };
   }
@@ -47,7 +53,61 @@ async function writeDataFile(data: SharedReportFile): Promise<void> {
 }
 
 function createReportId(): string {
-  return randomBytes(9).toString("base64url");
+  return randomUUID();
+}
+
+function parseTimestamp(value: string): number | null {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function calculateExpiryFromCreatedAt(createdAt: string): string {
+  const createdTimestamp = parseTimestamp(createdAt) ?? Date.now();
+  return new Date(createdTimestamp + SHARED_REPORT_TTL_MS).toISOString();
+}
+
+function normalizeReportEntries(reports: Record<string, SharedReportRecord>): {
+  reports: Record<string, SharedReportRecord>;
+  changed: boolean;
+} {
+  const now = Date.now();
+  const normalized: Record<string, SharedReportRecord> = {};
+  let changed = false;
+
+  for (const [reportId, rawRecord] of Object.entries(reports)) {
+    if (!rawRecord || typeof rawRecord !== "object" || !rawRecord.payload || typeof rawRecord.payload !== "object") {
+      changed = true;
+      continue;
+    }
+
+    const normalizedCreatedAt =
+      typeof rawRecord.createdAt === "string" && parseTimestamp(rawRecord.createdAt) !== null
+        ? rawRecord.createdAt
+        : new Date().toISOString();
+    const normalizedExpiresAt =
+      typeof rawRecord.expiresAt === "string" && parseTimestamp(rawRecord.expiresAt) !== null
+        ? rawRecord.expiresAt
+        : calculateExpiryFromCreatedAt(normalizedCreatedAt);
+    const expiresAtTimestamp = parseTimestamp(normalizedExpiresAt);
+
+    if (rawRecord.id !== reportId || normalizedCreatedAt !== rawRecord.createdAt || normalizedExpiresAt !== rawRecord.expiresAt) {
+      changed = true;
+    }
+
+    if (expiresAtTimestamp === null || expiresAtTimestamp <= now) {
+      changed = true;
+      continue;
+    }
+
+    normalized[reportId] = {
+      ...rawRecord,
+      id: reportId,
+      createdAt: normalizedCreatedAt,
+      expiresAt: normalizedExpiresAt
+    };
+  }
+
+  return { reports: normalized, changed };
 }
 
 function pruneReports(reports: Record<string, SharedReportRecord>): Record<string, SharedReportRecord> {
@@ -57,7 +117,7 @@ function pruneReports(reports: Record<string, SharedReportRecord>): Record<strin
   }
 
   const sorted = entries.sort(
-    (a, b) => new Date(b[1].createdAt).getTime() - new Date(a[1].createdAt).getTime()
+    (a, b) => (parseTimestamp(b[1].createdAt) ?? 0) - (parseTimestamp(a[1].createdAt) ?? 0)
   );
   return Object.fromEntries(sorted.slice(0, MAX_SHARED_REPORTS));
 }
@@ -69,9 +129,11 @@ export async function createSharedReport(payload: SharedReportPayload): Promise<
     id = createReportId();
   }
 
+  const createdAt = new Date().toISOString();
   const record: SharedReportRecord = {
     id,
-    createdAt: new Date().toISOString(),
+    createdAt,
+    expiresAt: calculateExpiryFromCreatedAt(createdAt),
     payload
   };
   data.reports[id] = record;
@@ -92,7 +154,7 @@ export async function getSharedReportById(id: string): Promise<SharedReportRecor
 export async function listSharedReportPaths(limit = 150): Promise<string[]> {
   const data = await readDataFile();
   return Object.values(data.reports)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => (parseTimestamp(b.createdAt) ?? 0) - (parseTimestamp(a.createdAt) ?? 0))
     .slice(0, limit)
     .map((entry) => `/report/${entry.id}`);
 }
@@ -114,7 +176,7 @@ export async function listRecentPublicScans(limit = 5): Promise<PublicScanRecord
     } => entry.payload.mode === "single"
   );
   return singleReportEntries
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => (parseTimestamp(b.createdAt) ?? 0) - (parseTimestamp(a.createdAt) ?? 0))
     .slice(0, safeLimit)
     .map((entry) => ({
       id: entry.id,

@@ -105,6 +105,7 @@ export async function POST(request: Request) {
   return respond({
     id: sharedRecord.id,
     path: buildSharedReportPath(sharedRecord.id),
-    createdAt: sharedRecord.createdAt
+    createdAt: sharedRecord.createdAt,
+    expiresAt: sharedRecord.expiresAt
   });
 }

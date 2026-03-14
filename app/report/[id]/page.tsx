@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import QRCode from "qrcode";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
@@ -243,6 +245,17 @@ export default async function SharedReportPage({
   }
 
   const summary = summarizeSharedPayload(shared.payload);
+  const reportUrl = absoluteUrl(`/report/${shared.id}`);
+  const qrCodeDataUrl = await QRCode.toDataURL(reportUrl, {
+    width: 168,
+    margin: 1,
+    color: {
+      dark: "#e2e8f0",
+      light: "#00000000"
+    }
+  }).catch(() => null);
+  const generatedAtLabel = new Date(shared.createdAt).toLocaleString();
+  const expiresAtLabel = new Date(shared.expiresAt).toLocaleString();
   const structuredData =
     shared.payload.mode === "single"
       ? {
@@ -250,7 +263,7 @@ export default async function SharedReportPage({
           "@type": "WebPage",
           name: summary.title,
           description: summary.description,
-          url: absoluteUrl(`/report/${shared.id}`),
+          url: reportUrl,
           datePublished: shared.createdAt,
           mainEntity: {
             "@type": "Thing",
@@ -270,7 +283,7 @@ export default async function SharedReportPage({
           "@type": "WebPage",
           name: summary.title,
           description: summary.description,
-          url: absoluteUrl(`/report/${shared.id}`),
+          url: reportUrl,
           datePublished: shared.createdAt,
           mainEntity: {
             "@type": "ItemList",
@@ -301,10 +314,30 @@ export default async function SharedReportPage({
       <SiteNav />
 
       <section className="mb-6 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Shared report</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">{summary.title}</h1>
-        <p className="mt-2 text-sm text-slate-300">{summary.description}</p>
-        <p className="mt-2 text-xs text-slate-500">Shared on {new Date(shared.createdAt).toLocaleString()}</p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Shared report</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">{summary.title}</h1>
+            <p className="mt-2 text-sm text-slate-300">{summary.description}</p>
+            <p className="mt-3 text-xs text-slate-400">Report generated on {generatedAtLabel}.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Snapshot expires on {expiresAtLabel} and may be outdated. Run a live scan for current data.
+            </p>
+          </div>
+          {qrCodeDataUrl && (
+            <aside className="w-fit rounded-xl border border-slate-700/80 bg-slate-950/70 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">QR self-link</p>
+              <Image
+                src={qrCodeDataUrl}
+                alt="QR code for this shared report"
+                width={84}
+                height={84}
+                unoptimized
+                className="mt-2 h-20 w-20 rounded-md border border-slate-700/80 bg-slate-900 p-1 sm:h-[84px] sm:w-[84px]"
+              />
+            </aside>
+          )}
+        </div>
       </section>
 
       {shared.payload.mode === "single" ? (
