@@ -561,7 +561,7 @@ function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: Re
           <p className="mt-2 break-all text-sm text-slate-300">{report.checkedUrl}</p>
         </div>
         <p
-          className={`grade-badge-in text-5xl font-bold ${gradeColor(report.grade)}`}
+          className={`grade-badge-in text-4xl font-bold sm:text-5xl ${gradeColor(report.grade)}`}
           style={{ animationDelay: `${delayMs}ms` }}
         >
           {report.grade}
@@ -1913,7 +1913,7 @@ export default function Home() {
       <section
         id="how-it-works"
         data-reveal-id="how-it-works"
-        className={`${revealClass("how-it-works")} mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+        className={`${revealClass("how-it-works")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -1945,7 +1945,7 @@ export default function Home() {
       <section
         id="testimonials"
         data-reveal-id="testimonials"
-        className={`${revealClass("testimonials")} mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+        className={`${revealClass("testimonials")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -1985,7 +1985,8 @@ export default function Home() {
             type="button"
             onClick={() => setMode("single")}
             aria-pressed={mode === "single"}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+            aria-label="Switch scan mode to single URL"
+            className={`flex-1 rounded-lg px-4 py-2 text-xs font-medium transition sm:flex-none sm:text-sm ${
               mode === "single"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -2000,7 +2001,8 @@ export default function Home() {
               setMobileCompareView("siteA");
             }}
             aria-pressed={mode === "compare"}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+            aria-label="Switch scan mode to compare two sites"
+            className={`flex-1 rounded-lg px-4 py-2 text-xs font-medium transition sm:flex-none sm:text-sm ${
               mode === "compare"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -2012,7 +2014,8 @@ export default function Home() {
             type="button"
             onClick={() => setMode("bulk")}
             aria-pressed={mode === "bulk"}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${
+            aria-label="Switch scan mode to bulk scanning"
+            className={`flex-1 rounded-lg px-4 py-2 text-xs font-medium transition sm:flex-none sm:text-sm ${
               mode === "bulk"
                 ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
                 : "text-slate-300 hover:text-sky-200"
@@ -2033,6 +2036,7 @@ export default function Home() {
             aria-haspopup="dialog"
             aria-expanded={shortcutsOpen}
             aria-controls="keyboard-shortcuts-modal"
+            aria-label="Open keyboard shortcuts help dialog"
             className="rounded-md border border-slate-700 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
           >
             Keyboard help (?)
@@ -2077,6 +2081,7 @@ export default function Home() {
                     type="button"
                     onClick={() => onSampleClick(sample)}
                     disabled={loading}
+                    aria-label={`Scan sample site ${sample}`}
                     className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {sample}
@@ -2147,6 +2152,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
+                aria-label="Run bulk security header scan"
                 className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {loading ? "Scanning..." : "Run Bulk Scan"}
@@ -2160,6 +2166,7 @@ export default function Home() {
             type="button"
             onClick={clearCurrentState}
             disabled={loading}
+            aria-label="Clear current scan inputs and results"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear current
@@ -2168,6 +2175,7 @@ export default function Home() {
             type="button"
             onClick={onExportPdf}
             disabled={loading || pdfState === "generating" || !report}
+            aria-label="Download PDF report for current scan"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pdfState === "generating" ? "Preparing report..." : "Download Report"}
@@ -2176,6 +2184,7 @@ export default function Home() {
             type="button"
             onClick={onShareResults}
             disabled={loading || (!report && !comparison)}
+            aria-label="Share current scan results"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {shareState === "copied"
@@ -2210,8 +2219,13 @@ export default function Home() {
                 {bulkExportState === "exported" ? "CSV exported" : "Export CSV"}
               </button>
             </div>
-            <div className="overflow-x-auto border-t border-slate-800/90">
-              <table className="min-w-full text-left text-sm">
+            <div
+              className="overflow-x-auto border-t border-slate-800/90"
+              role="region"
+              aria-label="Bulk scan results table"
+              tabIndex={0}
+            >
+              <table className="min-w-[860px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
@@ -2227,9 +2241,9 @@ export default function Home() {
                     <tr key={`${entry.inputUrl}-${index}`} className="border-t border-slate-800/70">
                       <td className="px-4 py-3 text-slate-200">
                         <div className="max-w-[320px]">
-                          <p className="truncate">{entry.inputUrl}</p>
+                          <p className="break-all">{entry.inputUrl}</p>
                           {entry.report && (
-                            <p className="truncate text-xs text-slate-500">{entry.report.finalUrl}</p>
+                            <p className="break-all text-xs text-slate-500">{entry.report.finalUrl}</p>
                           )}
                         </div>
                       </td>
@@ -2306,6 +2320,7 @@ export default function Home() {
                   key={site}
                   type="button"
                   onClick={() => onSampleClick(site)}
+                  aria-label={`Scan suggested site ${site}`}
                   className="cta-attention rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Scan {site}
@@ -2315,7 +2330,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="border-b border-slate-800/90 px-4 py-3">
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-300">
               Frequently asked questions
@@ -2331,6 +2346,7 @@ export default function Home() {
                     onClick={() => setOpenFaqIndex((current) => (current === index ? null : index))}
                     aria-expanded={isOpen}
                     aria-controls={`security-header-faq-content-${index}`}
+                    aria-label={`${isOpen ? "Hide" : "Show"} answer for ${item.question}`}
                     className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-900/60"
                   >
                     <span className="text-sm font-medium text-slate-100">{item.question}</span>
@@ -2399,13 +2415,14 @@ export default function Home() {
           </section>
         )}
 
-        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <button
               type="button"
               onClick={() => setHistoryOpen((open) => !open)}
               aria-expanded={historyOpen}
               aria-controls="recent-scans-list"
+              aria-label={historyOpen ? "Collapse recent scans" : "Expand recent scans"}
               className="text-sm font-medium text-slate-200 transition hover:text-sky-200"
             >
               Recent Scans ({scanHistory.length}) {historyOpen ? "−" : "+"}
@@ -2414,6 +2431,7 @@ export default function Home() {
               type="button"
               onClick={clearHistory}
               disabled={scanHistory.length === 0}
+              aria-label="Clear scan history"
               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear history
@@ -2431,6 +2449,7 @@ export default function Home() {
                         type="button"
                         onClick={() => onHistoryEntryClick(entry.url)}
                         disabled={loading}
+                        aria-label={`Open previous scan for ${entry.url}`}
                         className="motion-card flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/70 px-3 py-2 text-left transition hover:border-sky-500/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <div className="min-w-0">
@@ -2465,7 +2484,7 @@ export default function Home() {
           disabled={loading}
         />
 
-        <section className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+        <section className="lazy-section mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <p className="text-sm font-medium text-slate-200">Recent Popular Sites</p>
             <p className="text-xs text-slate-500">
@@ -2497,6 +2516,7 @@ export default function Home() {
                         type="button"
                         onClick={() => onPopularSiteClick(site)}
                         disabled={loading || isRefreshingThisSite}
+                        aria-label={`${cached ? "Open cached report" : "Run pre-scan"} for ${site}`}
                         className="flex-1 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {cached ? "Open report" : "Pre-scan"}
@@ -2505,6 +2525,7 @@ export default function Home() {
                         type="button"
                         onClick={() => void refreshPopularSite(site)}
                         disabled={loading || isRefreshingThisSite}
+                        aria-label={`Refresh cached popular site report for ${site}`}
                         className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isRefreshingThisSite ? "..." : "Refresh"}
@@ -2535,13 +2556,14 @@ export default function Home() {
         {!loading && report && (
           <>
             <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-              <article className="motion-card rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+              <article className="motion-card lazy-section rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
               <AnimatedGradeCircle
                 score={report.score}
                 total={report.results.length * 2}
                 grade={report.grade}
                 gradeClassName={singleGradeColor}
+                ariaLabel={`Overall grade for ${report.checkedUrl}: ${report.grade}. Score ${report.score} of ${report.results.length * 2}.`}
               />
               <p className="mt-1 text-sm text-slate-300">
                 Score: {report.score}/{report.results.length * 2}
@@ -2550,6 +2572,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={onCopyReport}
+                  aria-label="Copy current report text to clipboard"
                   className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   {copyState === "copied" ? "Copied report" : "Copy Report"}
@@ -2558,6 +2581,7 @@ export default function Home() {
                   type="button"
                   onClick={() => setBadgePanelOpen((current) => !current)}
                   disabled={!badgeDomain}
+                  aria-label={badgePanelOpen ? "Hide embeddable grade badge options" : "Show embeddable grade badge options"}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {badgePanelOpen ? "Hide Badge" : "Get Badge"}
@@ -2577,6 +2601,7 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => setBadgeStyle("flat")}
+                          aria-label="Use flat badge style"
                           className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
                             badgeStyle === "flat"
                               ? "bg-sky-500 text-slate-950"
@@ -2588,6 +2613,7 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => setBadgeStyle("flat-square")}
+                          aria-label="Use flat square badge style"
                           className={`rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
                             badgeStyle === "flat-square"
                               ? "bg-sky-500 text-slate-950"
@@ -2621,6 +2647,7 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => void onCopyBadgeCode("markdown")}
+                              aria-label="Copy markdown badge code"
                               className="rounded-md border border-slate-700 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                             >
                               Copy
@@ -2640,6 +2667,7 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => void onCopyBadgeCode("html")}
+                              aria-label="Copy HTML badge code"
                               className="rounded-md border border-slate-700 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                             >
                               Copy
@@ -2678,7 +2706,7 @@ export default function Home() {
               </div>
               </article>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="lazy-section grid gap-4 sm:grid-cols-2">
                 {report.results.map((header, index) => (
                   <HeaderCard key={header.key} header={header} animationDelayMs={index * 55} />
                 ))}
@@ -2728,6 +2756,8 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setMobileCompareView("siteA")}
+                  aria-pressed={mobileCompareView === "siteA"}
+                  aria-label="Show Site A headers"
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     mobileCompareView === "siteA"
                       ? "bg-sky-500 text-slate-950"
@@ -2739,6 +2769,8 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setMobileCompareView("siteB")}
+                  aria-pressed={mobileCompareView === "siteB"}
+                  aria-label="Show Site B headers"
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     mobileCompareView === "siteB"
                       ? "bg-sky-500 text-slate-950"

@@ -31,6 +31,18 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
     setMobileMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!providerMenuOpen && !mobileMenuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProviderMenuOpen(false);
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileMenuOpen, providerMenuOpen]);
+
   const userInitial = useMemo(() => {
     const source = session?.user?.name ?? session?.user?.email ?? "";
     return source.trim().slice(0, 1).toUpperCase() || "U";
@@ -45,13 +57,14 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           onClick={() => setMobileMenuOpen((open) => !open)}
           aria-controls="mobile-nav-menu"
           aria-expanded={mobileMenuOpen}
-          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 md:hidden"
+          aria-label={mobileMenuOpen ? "Close main navigation menu" : "Open main navigation menu"}
+          className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 lg:hidden"
         >
           {mobileMenuOpen ? "Close" : "Menu"}
         </button>
       </div>
 
-      <div className="mt-4 hidden items-center justify-between gap-4 md:flex">
+      <div className="mt-4 hidden items-center justify-between gap-4 lg:flex">
         <nav className="flex flex-wrap items-center gap-2" aria-label="Main navigation">
           {NAV_LINKS.map((link) => {
             const active = pathname === link.href || (link.href === "/docs/api" && pathname.startsWith("/docs"));
@@ -59,6 +72,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               <Link
                 key={link.href}
                 href={link.href}
+                aria-current={active ? "page" : undefined}
                 className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                   active
                     ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
@@ -95,13 +109,18 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               <button
                 type="button"
                 onClick={() => void signOut({ callbackUrl: "/" })}
+                aria-label="Sign out of your account"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 Sign out
               </button>
             </div>
           ) : status === "loading" ? (
-            <span className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-400">
+            <span
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-400"
+            >
               Loading...
             </span>
           ) : (
@@ -109,15 +128,25 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
               <button
                 type="button"
                 onClick={() => setProviderMenuOpen((open) => !open)}
+                aria-label={providerMenuOpen ? "Close sign-in provider menu" : "Open sign-in provider menu"}
+                aria-haspopup="menu"
+                aria-expanded={providerMenuOpen}
+                aria-controls="signin-provider-menu"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
               >
                 Sign in
               </button>
               {providerMenuOpen && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-slate-700 bg-slate-950/95 p-2 shadow-lg shadow-slate-950/70">
+                <div
+                  id="signin-provider-menu"
+                  role="menu"
+                  aria-label="Sign in providers"
+                  className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-slate-700 bg-slate-950/95 p-2 shadow-lg shadow-slate-950/70"
+                >
                   <button
                     type="button"
                     onClick={() => void signIn("github", { callbackUrl: pathname || "/" })}
+                    role="menuitem"
                     className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:bg-slate-900 hover:text-sky-200"
                   >
                     GitHub
@@ -125,6 +154,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                   <button
                     type="button"
                     onClick={() => void signIn("google", { callbackUrl: pathname || "/" })}
+                    role="menuitem"
                     className="mt-1 w-full rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:bg-slate-900 hover:text-sky-200"
                   >
                     Google
@@ -139,7 +169,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
       {mobileMenuOpen && (
         <div
           id="mobile-nav-menu"
-          className="mt-4 rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-xl shadow-slate-950/70 md:hidden"
+          className="mt-4 rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-xl shadow-slate-950/70 lg:hidden"
         >
           <nav className="grid gap-2" aria-label="Mobile navigation">
             {NAV_LINKS.map((link) => {
@@ -148,6 +178,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 <Link
                   key={`mobile-${link.href}`}
                   href={link.href}
+                  aria-current={active ? "page" : undefined}
                   className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
                     active
                       ? "border-sky-500/70 bg-sky-500/20 text-sky-100"
@@ -183,6 +214,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => void signOut({ callbackUrl: "/" })}
+                  aria-label="Sign out of your account"
                   className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Sign out

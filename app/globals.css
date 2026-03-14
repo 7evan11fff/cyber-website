@@ -14,11 +14,27 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Consistent keyboard focus ring across the app. */
+:focus-visible {
+  outline: 2px solid rgb(56 189 248 / 0.95);
+  outline-offset: 2px;
+}
+
+:focus-visible:not(input):not(textarea):not(select) {
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.25);
+  border-radius: 0.5rem;
+}
+
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
   background-image:
     radial-gradient(circle at top, rgba(56, 189, 248, 0.15), transparent 45%),
     radial-gradient(circle at bottom, rgba(59, 130, 246, 0.12), transparent 40%);
+}
+
+/* Raise muted text contrast for dark mode targets. */
+html:not([data-theme="light"]) .text-slate-500 {
+  color: rgb(148 163 184 / 0.95) !important;
 }
 
 html[data-theme="light"] body {
@@ -190,10 +206,15 @@ html[data-theme="light"] .scan-pulse-skeleton {
   .grade-badge-in,
   .chart-line-reveal,
   .chart-point-reveal,
+  .shield-float,
   .toast-item,
   .toast-progress,
   .empty-state-float,
-  .cta-attention {
+  .cta-attention,
+  .progress-pulse,
+  .success-checkmark,
+  .animate-spin,
+  .animate-pulse {
     animation: none !important;
     transform: none !important;
   }
@@ -201,6 +222,28 @@ html[data-theme="light"] .scan-pulse-skeleton {
   .motion-card,
   .pressable {
     transition: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  select {
+    min-height: 44px;
+  }
+
+  a[class*="rounded"] {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
+@supports (content-visibility: auto) {
+  .lazy-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 520px;
   }
 }
 

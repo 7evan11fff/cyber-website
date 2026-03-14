@@ -99,8 +99,14 @@ export function WatchlistPanel({
   const [localFrequencyLoaded, setLocalFrequencyLoaded] = useState(false);
   const [serverSyncReady, setServerSyncReady] = useState(false);
   const [syncedUserKey, setSyncedUserKey] = useState<string | null>(null);
+  const [watchlistAnnouncement, setWatchlistAnnouncement] = useState("");
   const { data: session, status: sessionStatus } = useSession();
   const { notify } = useToast();
+  const announceWatchlistUpdate = useCallback((message: string) => {
+    setWatchlistAnnouncement("");
+    window.setTimeout(() => setWatchlistAnnouncement(message), 10);
+  }, []);
+
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -412,6 +418,14 @@ export function WatchlistPanel({
         })
       );
 
+      if (gradeChanged && previousEntry) {
+        announceWatchlistUpdate(
+          `Watchlist update for ${payload.checkedUrl}. Grade changed from ${previousEntry.lastGrade} to ${payload.grade}.`
+        );
+      } else {
+        announceWatchlistUpdate(`Watchlist update for ${payload.checkedUrl}. Grade is ${payload.grade}.`);
+      }
+
       if (
         isAuthenticated &&
         savedAlertEmail &&
@@ -468,6 +482,7 @@ export function WatchlistPanel({
       persistDomainHistory,
       persistWatchlist,
       savedAlertEmail,
+      announceWatchlistUpdate,
       watchlist
     ]
   );
@@ -633,6 +648,9 @@ export function WatchlistPanel({
 
   return (
     <section className="motion-card mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {watchlistAnnouncement}
+      </p>
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-slate-200">Scheduled Watchlist Monitoring</p>
@@ -646,6 +664,13 @@ export function WatchlistPanel({
             type="button"
             onClick={addLatestReport}
             disabled={!latestReport || disabled}
+            aria-label={
+              !isAuthenticated
+                ? "Sign in to save current scan"
+                : currentReportWatched
+                  ? "Update saved watchlist URL from current scan"
+                  : "Save current scan to watchlist"
+            }
             className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {!isAuthenticated
@@ -658,6 +683,7 @@ export function WatchlistPanel({
             type="button"
             onClick={() => void refreshAll()}
             disabled={watchlist.length === 0 || disabled || refreshState === "running"}
+            aria-label="Refresh all watchlist entries now"
             className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {refreshState === "running" ? "Refreshing..." : "Refresh watchlist"}
@@ -698,6 +724,7 @@ export function WatchlistPanel({
           <button
             type="submit"
             disabled={disabled}
+            aria-label="Save watchlist email alert settings"
             className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Save alerts
@@ -707,6 +734,7 @@ export function WatchlistPanel({
               type="button"
               onClick={onDisableAlerts}
               disabled={disabled}
+              aria-label="Disable watchlist email alerts"
               className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Disable
@@ -761,6 +789,7 @@ export function WatchlistPanel({
                       type="button"
                       onClick={() => onOpenReport(entry.url)}
                       disabled={disabled}
+                      aria-label={`Open report for ${entry.url}`}
                       className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Open report
@@ -769,6 +798,7 @@ export function WatchlistPanel({
                       type="button"
                       onClick={() => void refreshEntry(entry.id, entry.url)}
                       disabled={disabled || activeRefreshId === entry.id}
+                      aria-label={`Refresh watchlist entry for ${entry.url}`}
                       className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {activeRefreshId === entry.id ? "Refreshing..." : "Refresh"}
@@ -777,6 +807,7 @@ export function WatchlistPanel({
                       type="button"
                       onClick={() => removeEntry(entry.id)}
                       disabled={disabled}
+                      aria-label={`Remove ${entry.url} from watchlist`}
                       className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Remove

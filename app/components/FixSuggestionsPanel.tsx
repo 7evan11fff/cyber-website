@@ -24,6 +24,7 @@ function SnippetCard({
         <button
           type="button"
           onClick={onCopy}
+          aria-label={`Copy ${title} header snippet`}
           className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
         >
           {copied ? "Copied" : "Copy"}
@@ -65,6 +66,7 @@ export function FixSuggestionsPanel({ results }: { results: HeaderResult[] }) {
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-controls="header-fix-panel"
+        aria-label={open ? "Hide header fix suggestions" : "Show header fix suggestions"}
         className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-900/60"
       >
         <span className="text-sm font-medium text-slate-100">How to fix</span>

@@ -109,7 +109,7 @@ export default async function WatchlistHistoryPage({
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <article className="lazy-section rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Score trend over time</h2>
             <span className={`rounded-md border px-2 py-1 text-xs ${tone.className}`}>{tone.text}</span>
@@ -124,7 +124,7 @@ export default async function WatchlistHistoryPage({
                 points={chartPoints}
                 width={640}
                 height={200}
-                className={`mt-4 h-52 w-full ${tone.chartClassName}`}
+                className={`mt-4 h-40 w-full sm:h-52 ${tone.chartClassName}`}
                 ariaLabel={`Grade trend over time for ${domain}`}
               />
               <p className="mt-2 text-xs text-slate-500">
@@ -134,7 +134,7 @@ export default async function WatchlistHistoryPage({
           )}
         </article>
 
-        <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <article className="lazy-section rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <h2 className="text-lg font-semibold text-slate-100">Grade changes</h2>
           {annotations.length === 0 ? (
             <p className="mt-3 text-sm text-slate-400">No grade changes recorded yet.</p>
@@ -168,7 +168,7 @@ export default async function WatchlistHistoryPage({
         </article>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+      <section className="lazy-section mt-6 rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-100">Historical scans</h2>
           <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
@@ -179,8 +179,8 @@ export default async function WatchlistHistoryPage({
         {scansNewestFirst.length === 0 ? (
           <p className="mt-4 text-sm text-slate-400">No scans recorded for this domain.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <div className="mt-4 overflow-x-auto" role="region" aria-label="Historical scan table" tabIndex={0}>
+            <table className="min-w-[620px] divide-y divide-slate-800 text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.12em] text-slate-500">
                   <th className="px-3 py-2 font-medium">Date</th>

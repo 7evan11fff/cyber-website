@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -273,6 +273,9 @@ export function BulkPageClient() {
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
   const [bulkTargetCount, setBulkTargetCount] = useState(0);
   const [bulkCompletedCount, setBulkCompletedCount] = useState(0);
+  const detailsDialogRef = useRef<HTMLDivElement | null>(null);
+  const detailsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   const isAuthenticated = sessionStatus === "authenticated";
   const currentUserKey = session?.user?.email ?? session?.user?.name ?? null;
@@ -348,6 +351,20 @@ export function BulkPageClient() {
       return left.inputUrl.localeCompare(right.inputUrl) * multiplier;
     });
   }, [resultFilter, results, sortDirection, sortField]);
+
+  const liveRegionMessage = useMemo(() => {
+    if (loading && bulkTargetCount > 0) {
+      return `Running bulk scan. ${bulkCompletedCount} of ${bulkTargetCount} complete.`;
+    }
+    if (error) {
+      return error;
+    }
+    if (!loading && results.length > 0) {
+      const successCount = results.filter((entry) => entry.report).length;
+      return `Bulk scan complete. ${successCount} of ${results.length} scans succeeded.`;
+    }
+    return "";
+  }, [bulkCompletedCount, bulkTargetCount, error, loading, results]);
 
   function toggleSort(nextField: BulkSortField) {
     setSortField((currentField) => {
@@ -516,18 +533,45 @@ export function BulkPageClient() {
 
   useEffect(() => {
     if (!detailsTarget) return;
+    lastFocusedElementRef.current = document.activeElement as HTMLElement;
+    window.setTimeout(() => {
+      detailsCloseButtonRef.current?.focus();
+    }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setDetailsTarget(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = detailsDialogRef.current;
+      if (!dialog) return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      lastFocusedElementRef.current?.focus();
+    };
   }, [detailsTarget]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-10 sm:px-6 lg:px-8">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {liveRegionMessage}
+      </p>
       <SiteNav />
 
       <section className="motion-card mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
@@ -622,7 +666,7 @@ export function BulkPageClient() {
         {loading && <BulkResultsSkeleton rows={Math.max(enteredUrlCount, 3)} />}
 
         {results.length > 0 && (
-          <section className="mt-6 rounded-xl border border-slate-800/90">
+          <section className="lazy-section mt-6 rounded-xl border border-slate-800/90">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/90 px-4 py-3">
               <div className="flex items-center gap-2">
                 <label htmlFor="bulk-result-filter" className="text-xs uppercase tracking-[0.12em] text-slate-500">
@@ -632,6 +676,7 @@ export function BulkPageClient() {
                   id="bulk-result-filter"
                   value={resultFilter}
                   onChange={(event) => setResultFilter(event.target.value as BulkResultFilter)}
+                  aria-label="Filter bulk scan results"
                   className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 >
                   <option value="all">All</option>
@@ -643,8 +688,8 @@ export function BulkPageClient() {
                 Showing {filteredAndSortedResults.length} of {results.length} rows
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
+            <div className="overflow-x-auto" role="region" aria-label="Bulk scan results table" tabIndex={0}>
+              <table className="min-w-[980px] text-left text-sm">
                 <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                   <tr>
                     <th className="px-4 py-3">URL</th>
@@ -657,6 +702,7 @@ export function BulkPageClient() {
                       <button
                         type="button"
                         onClick={() => toggleSort("grade")}
+                        aria-label="Sort rows by grade"
                         className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
                       >
                         Grade
@@ -672,6 +718,7 @@ export function BulkPageClient() {
                       <button
                         type="button"
                         onClick={() => toggleSort("score")}
+                        aria-label="Sort rows by score"
                         className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
                       >
                         Score
@@ -688,6 +735,7 @@ export function BulkPageClient() {
                       <button
                         type="button"
                         onClick={() => toggleSort("checkedAt")}
+                        aria-label="Sort rows by check time"
                         className="inline-flex items-center gap-1 text-slate-300 transition hover:text-sky-200"
                       >
                         Checked at
@@ -757,6 +805,7 @@ export function BulkPageClient() {
                               href={entry.reportHref}
                               target="_blank"
                               rel="noreferrer"
+                              aria-label={`Open full report for ${entry.inputUrl}`}
                               className="text-sky-300 transition hover:text-sky-200"
                             >
                               Open full report
@@ -773,6 +822,7 @@ export function BulkPageClient() {
                             type="button"
                             onClick={() => setDetailsTarget(entry)}
                             disabled={!entry.report}
+                            aria-label={entry.report ? `View details for ${entry.inputUrl}` : `Details unavailable for ${entry.inputUrl}`}
                             className="rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             View Details
@@ -812,7 +862,10 @@ export function BulkPageClient() {
             aria-modal="true"
             aria-labelledby="bulk-scan-details-title"
           >
-            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+            <div
+              ref={detailsDialogRef}
+              className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70"
+            >
               <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
                 <div>
                   <h2 id="bulk-scan-details-title" className="text-lg font-semibold text-slate-100">
@@ -821,8 +874,10 @@ export function BulkPageClient() {
                   <p className="mt-1 break-all text-xs text-slate-400">{detailsTarget.report.checkedUrl}</p>
                 </div>
                 <button
+                  ref={detailsCloseButtonRef}
                   type="button"
                   onClick={() => setDetailsTarget(null)}
+                  aria-label="Close full scan details modal"
                   className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                 >
                   Close
@@ -850,8 +905,13 @@ export function BulkPageClient() {
                   </div>
                 </div>
 
-                <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800/90">
-                  <table className="min-w-full text-left text-sm">
+                <div
+                  className="mt-4 overflow-x-auto rounded-lg border border-slate-800/90"
+                  role="region"
+                  aria-label="Detailed header results table"
+                  tabIndex={0}
+                >
+                  <table className="min-w-[760px] text-left text-sm">
                     <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-400">
                       <tr>
                         <th className="px-4 py-3">Header</th>

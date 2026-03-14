@@ -58,7 +58,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="motion-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <article className="motion-card lazy-section rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Saved watchlist</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
 
                 return (
                   <li key={entry.id} className="motion-card rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         {historyHref ? (
                           <Link
@@ -111,8 +111,8 @@ export default async function DashboardPage() {
                           Last checked {new Date(entry.lastCheckedAt).toLocaleString()}
                         </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <div className="w-24">
+                      <div className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-start">
+                        <div className="w-full max-w-[9rem] sm:w-24">
                           <TrendChart
                             points={history}
                             className={`h-9 w-full ${tone.chartClass}`}
@@ -132,6 +132,7 @@ export default async function DashboardPage() {
                       {historyHref && (
                         <Link
                           href={historyHref}
+                          aria-label={`Open full scan history for ${domain ?? entry.url}`}
                           className="text-xs font-medium text-sky-300 transition hover:text-sky-200"
                         >
                           View full history
@@ -145,7 +146,7 @@ export default async function DashboardPage() {
           )}
         </article>
 
-        <article className="motion-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
+        <article className="motion-card lazy-section rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Scan history</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
@@ -170,7 +171,7 @@ export default async function DashboardPage() {
             <ul className="mt-4 space-y-2">
               {userData.scanHistory.map((entry) => (
                 <li key={entry.id} className="motion-card rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p className="truncate text-sm text-slate-100">{entry.url}</p>
                     <p className="text-sm font-semibold text-sky-200">{entry.grade}</p>
                   </div>

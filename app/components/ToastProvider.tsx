@@ -38,9 +38,14 @@ const toneProgressStyles: Record<ToastTone, string> = {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<{ message: string; tone: ToastTone } | null>(null);
 
   const notify = useCallback(({ message, tone = "info", durationMs = 2800 }: ToastInput) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
+    setLiveAnnouncement(null);
+    window.setTimeout(() => {
+      setLiveAnnouncement({ message, tone });
+    }, 10);
     setToasts((current) => [...current, { id, message, tone, durationMs }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -57,12 +62,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
+      <p
+        className="sr-only"
+        role={liveAnnouncement?.tone === "error" ? "alert" : "status"}
+        aria-live={liveAnnouncement?.tone === "error" ? "assertive" : "polite"}
+        aria-atomic="true"
+      >
+        {liveAnnouncement?.message ?? ""}
+      </p>
       <div className="pointer-events-none fixed right-4 top-4 z-[70] flex w-full max-w-sm flex-col gap-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             role="status"
             aria-live={toast.tone === "error" ? "assertive" : "polite"}
+            aria-atomic="true"
             className={`toast-item overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-xl shadow-slate-950/70 backdrop-blur ${toneStyles[toast.tone]}`}
           >
             <p>{toast.message}</p>
