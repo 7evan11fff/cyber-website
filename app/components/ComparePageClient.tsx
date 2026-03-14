@@ -65,6 +65,13 @@ function normalizeUrl(value: string) {
   return value.trim();
 }
 
+function buildHeaderStatusSnapshot(results: HeaderResult[]): Record<string, HeaderResult["status"]> {
+  return results.reduce<Record<string, HeaderResult["status"]>>((snapshot, result) => {
+    snapshot[result.key] = result.status;
+    return snapshot;
+  }, {});
+}
+
 function extractHost(value: string) {
   try {
     const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -392,7 +399,10 @@ export function ComparePageClient() {
         id: `${report.checkedAt}-${report.checkedUrl}`,
         url: report.checkedUrl,
         grade: report.grade,
-        checkedAt: report.checkedAt
+        checkedAt: report.checkedAt,
+        score: report.score,
+        maxScore: report.results.length * 2,
+        headerStatuses: buildHeaderStatusSnapshot(report.results)
       }));
 
       let nextHistory = normalizeScanHistoryEntries(entries);

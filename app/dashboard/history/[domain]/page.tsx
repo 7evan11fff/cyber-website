@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { DashboardActions } from "@/app/components/DashboardActions";
+import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteNav } from "@/app/components/SiteNav";
 import { TrendChart } from "@/app/components/TrendChart";
 import { authOptions } from "@/lib/auth";
@@ -68,6 +69,7 @@ export default async function WatchlistHistoryPage({
     (a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime()
   );
   const scansNewestFirst = [...chartPoints].reverse();
+  const domainScanHistory = userData.scanHistory.filter((entry) => getDomainKeyFromUrl(entry.url) === domain);
   const annotations = getGradeChangeAnnotations(domainHistory).reverse();
 
   const changeByTimestamp = new Map<
@@ -184,9 +186,15 @@ export default async function WatchlistHistoryPage({
       <section className="lazy-section mt-6 rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-100">Historical scans</h2>
-          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
-            {scansNewestFirst.length} entries
-          </span>
+          <div className="flex items-center gap-2">
+            <ScanHistoryCsvDownloadButton
+              entries={domainScanHistory}
+              fileNamePrefix={`domain-scan-history-${domain.replace(/[^a-z0-9.-]/gi, "-")}`}
+            />
+            <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
+              {scansNewestFirst.length} entries
+            </span>
+          </div>
         </div>
 
         {scansNewestFirst.length === 0 ? (

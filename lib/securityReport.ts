@@ -2,8 +2,15 @@ import { calculateGrade } from "@/lib/grading";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
 
-const REQUEST_TIMEOUT_MS = 12000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+const DEFAULT_SCANNER_USER_AGENT = "SecurityHeaderChecker/1.0 (+https://vercel.com)";
 export const BADGE_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+
+export type SecurityScanOptions = {
+  userAgent?: string;
+  followRedirects?: boolean;
+  timeoutMs?: 5000 | 10000 | 15000;
+};
 
 type CachedDomainReport = {
   report: SecurityReport;
@@ -91,21 +98,38 @@ export function getCachedDomainReport(domain: string): SecurityReport | null {
   return cached.report;
 }
 
-export async function runSecurityScan(inputUrl: string): Promise<SecurityReport> {
+function normalizeScanOptions(options?: SecurityScanOptions) {
+  const timeoutMs =
+    options?.timeoutMs === 5000 || options?.timeoutMs === 10000 || options?.timeoutMs === 15000
+      ? options.timeoutMs
+      : DEFAULT_REQUEST_TIMEOUT_MS;
+  const followRedirects = options?.followRedirects ?? true;
+  const normalizedUserAgent = options?.userAgent?.trim();
+  const userAgent = normalizedUserAgent || DEFAULT_SCANNER_USER_AGENT;
+
+  return {
+    timeoutMs,
+    followRedirects,
+    userAgent
+  };
+}
+
+export async function runSecurityScan(inputUrl: string, options?: SecurityScanOptions): Promise<SecurityReport> {
   const targetUrl = normalizeTargetUrl(inputUrl);
+  const normalizedOptions = normalizeScanOptions(options);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), normalizedOptions.timeoutMs);
 
   let upstreamResponse: Response;
   try {
     upstreamResponse = await fetch(targetUrl, {
       method: "GET",
-      redirect: "follow",
+      redirect: normalizedOptions.followRedirects ? "follow" : "manual",
       cache: "no-store",
       signal: controller.signal,
       headers: {
-        "user-agent": "SecurityHeaderChecker/1.0 (+https://vercel.com)"
+        "user-agent": normalizedOptions.userAgent
       }
     });
   } finally {

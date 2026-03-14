@@ -105,11 +105,18 @@ type BulkScanResult = {
   error: string | null;
 };
 
+type ScanRequestOptions = {
+  userAgent?: string;
+  followRedirects: boolean;
+  timeoutMs: 5000 | 10000 | 15000;
+};
+
 type ScanMode = "single" | "compare" | "bulk";
 type MobileCompareView = "siteA" | "siteB";
 type ShareState = "idle" | "copied" | "shared" | "error";
 type BadgeStyle = "flat" | "flat-square";
 type BadgeCopyState = "idle" | "markdown" | "html" | "error";
+type UserAgentPresetChoice = "default" | "custom" | "chrome" | "firefox" | "googlebot";
 type LaunchFeature = {
   title: string;
   description: string;
@@ -217,11 +224,34 @@ const TRUSTED_DEVELOPER_COUNT = "18,000+";
 const SHORTCUT_ROWS = [
   { keys: "?", action: "Open/close keyboard shortcuts help" },
   { keys: "Cmd/Ctrl + Enter", action: "Run scan in active tab" },
-  { keys: "Cmd/Ctrl + K", action: "Open quick search" },
+  { keys: "Cmd/Ctrl + K", action: "Focus the URL input" },
   { keys: "Ctrl + P", action: "Download current scan report PDF" },
   { keys: "Enter", action: "Run scan (no modifiers)" },
-  { keys: "Esc", action: "Clear current inputs and results" }
+  { keys: "Esc", action: "Close open dialogs/panels" }
 ];
+const USER_AGENT_PRESETS = [
+  {
+    id: "chrome",
+    label: "Chrome",
+    value:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  },
+  {
+    id: "firefox",
+    label: "Firefox",
+    value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0"
+  },
+  {
+    id: "googlebot",
+    label: "Googlebot",
+    value: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+  }
+] as const;
+const SCAN_TIMEOUT_OPTIONS = [
+  { label: "5 seconds", value: 5000 },
+  { label: "10 seconds", value: 10000 },
+  { label: "15 seconds", value: 15000 }
+] as const;
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? "https://security-header-checker.vercel.app";
 const FAQ_ITEMS: FaqItem[] = [
   {
@@ -377,6 +407,18 @@ function escapeCsvCell(value: string): string {
     return `"${value.replace(/"/g, "\"\"")}"`;
   }
   return value;
+}
+
+function buildHeaderStatusSnapshot(results: HeaderResult[]): Record<string, HeaderResult["status"]> {
+  return results.reduce<Record<string, HeaderResult["status"]>>((snapshot, result) => {
+    snapshot[result.key] = result.status;
+    return snapshot;
+  }, {});
+}
+
+function toScorePercentage(score: number, maxScore: number): number {
+  if (!Number.isFinite(score) || !Number.isFinite(maxScore) || maxScore <= 0) return 0;
+  return Math.round((score / maxScore) * 100);
 }
 
 function formatReportForClipboard(report: ReportResponse): string {
@@ -637,6 +679,11 @@ export default function Home() {
   const [popularRefreshing, setPopularRefreshing] = useState(false);
   const [activePopularRefresh, setActivePopularRefresh] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
+  const [userAgentPreset, setUserAgentPreset] = useState<UserAgentPresetChoice>("default");
+  const [customUserAgent, setCustomUserAgent] = useState("");
+  const [followRedirects, setFollowRedirects] = useState(true);
+  const [timeoutMs, setTimeoutMs] = useState<5000 | 10000 | 15000>(10000);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [revealedSections, setRevealedSections] = useState<Record<string, boolean>>({});
   const [gradeConfettiTrigger, setGradeConfettiTrigger] = useState(0);
@@ -750,6 +797,18 @@ export default function Home() {
     if (!suggestedFixPlatform) return "/fixes";
     return `/fixes?platform=${encodeURIComponent(suggestedFixPlatform)}`;
   }, [suggestedFixPlatform]);
+  const scorePercent = useMemo(() => {
+    if (!report) return null;
+    return toScorePercentage(report.score, report.results.length * 2);
+  }, [report]);
+  const scanRequestOptions = useMemo<ScanRequestOptions>(
+    () => ({
+      userAgent: customUserAgent.trim() || undefined,
+      followRedirects,
+      timeoutMs
+    }),
+    [customUserAgent, followRedirects, timeoutMs]
+  );
 
   const comparisonDifferences = useMemo<HeaderDifference[]>(() => {
     if (!comparison) return [];
@@ -1099,7 +1158,10 @@ export default function Home() {
       id: `${nextReport.checkedAt}-${nextReport.checkedUrl}`,
       url: nextReport.checkedUrl,
       grade: nextReport.grade,
-      checkedAt: nextReport.checkedAt
+      checkedAt: nextReport.checkedAt,
+      score: nextReport.score,
+      maxScore: nextReport.results.length * 2,
+      headerStatuses: buildHeaderStatusSnapshot(nextReport.results)
     };
 
     setScanHistory((previous) => normalizeScanHistoryEntries([nextEntry, ...previous]));
@@ -1116,34 +1178,37 @@ export default function Home() {
     setScanHistory([]);
   }
 
-  const requestReport = useCallback(async (targetUrl: string): Promise<ReportResponse> => {
-    const sanitized = targetUrl.trim();
-    if (!sanitized) {
-      throw new Error("Please enter a URL.");
-    }
-
-    const response = await fetch("/api/check", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ url: sanitized })
-    });
-
-    const payload = (await response.json().catch(() => null)) as { error?: unknown } | ReportResponse | null;
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error("Rate limit reached. Please wait a moment before scanning again.");
+  const requestReport = useCallback(
+    async (targetUrl: string, options: ScanRequestOptions): Promise<ReportResponse> => {
+      const sanitized = targetUrl.trim();
+      if (!sanitized) {
+        throw new Error("Please enter a URL.");
       }
-      const apiError =
-        payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
-          ? payload.error
-          : "Unable to check headers right now. Please try again.";
-      throw new Error(apiError);
-    }
 
-    return payload as ReportResponse;
-  }, []);
+      const response = await fetch("/api/check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ url: sanitized, options })
+      });
+
+      const payload = (await response.json().catch(() => null)) as { error?: unknown } | ReportResponse | null;
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("Rate limit reached. Please wait a moment before scanning again.");
+        }
+        const apiError =
+          payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+            ? payload.error
+            : "Unable to check headers right now. Please try again.";
+        throw new Error(apiError);
+      }
+
+      return payload as ReportResponse;
+    },
+    []
+  );
 
   const updatePopularSitesCache = useCallback((entries: PopularSiteCacheEntry[]) => {
     setPopularSitesCache((previous) => {
@@ -1211,7 +1276,7 @@ export default function Home() {
   async function refreshPopularSite(site: string, openReport = false) {
     setActivePopularRefresh(site);
     try {
-      const nextReport = await requestReport(site);
+      const nextReport = await requestReport(site, scanRequestOptions);
       const nextEntry: PopularSiteCacheEntry = {
         url: site,
         report: nextReport,
@@ -1249,7 +1314,7 @@ export default function Home() {
     setShareState("idle");
 
     try {
-      const payload = await requestReport(targetUrl);
+      const payload = await requestReport(targetUrl, scanRequestOptions);
       setReport(payload);
       addToHistory(payload);
       trackEvent("scan_complete", {
@@ -1264,7 +1329,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [addToHistory, requestReport]);
+  }, [addToHistory, requestReport, scanRequestOptions]);
 
   const runComparisonCheck = useCallback(async (siteAUrl: string, siteBUrl: string) => {
     if (!siteAUrl.trim() || !siteBUrl.trim()) {
@@ -1283,7 +1348,10 @@ export default function Home() {
     setShareState("idle");
 
     try {
-      const [siteA, siteB] = await Promise.all([requestReport(siteAUrl), requestReport(siteBUrl)]);
+      const [siteA, siteB] = await Promise.all([
+        requestReport(siteAUrl, scanRequestOptions),
+        requestReport(siteBUrl, scanRequestOptions)
+      ]);
       setComparison({ siteA, siteB });
       addToHistory(siteA);
       addToHistory(siteB);
@@ -1299,7 +1367,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [addToHistory, requestReport]);
+  }, [addToHistory, requestReport, scanRequestOptions]);
 
   const runBulkCheck = useCallback(async (rawInput: string) => {
     const targets = rawInput
@@ -1340,7 +1408,7 @@ export default function Home() {
       const settled = await Promise.allSettled(
         targets.map(async (target) => {
           try {
-            return await requestReport(target);
+            return await requestReport(target, scanRequestOptions);
           } finally {
             completed += 1;
             setBulkCompletedCount(completed);
@@ -1381,7 +1449,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [addToHistory, requestReport]);
+  }, [addToHistory, requestReport, scanRequestOptions]);
 
   function onSingleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1661,7 +1729,7 @@ export default function Home() {
     void Promise.all(
       staleSites.map(async (site) => {
         try {
-          const nextReport = await requestReport(site);
+          const nextReport = await requestReport(site, scanRequestOptions);
           return {
             url: site,
             report: nextReport,
@@ -1690,7 +1758,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [popularCacheByUrl, requestReport, updatePopularSitesCache]);
+  }, [popularCacheByUrl, requestReport, scanRequestOptions, updatePopularSitesCache]);
 
   useEffect(() => {
     if (loading) {
@@ -1804,7 +1872,7 @@ export default function Home() {
 
         if (normalizedKey === "k") {
           event.preventDefault();
-          window.dispatchEvent(new CustomEvent("shc:open-quick-search"));
+          scrollToScanInput();
           return;
         }
 
@@ -1833,8 +1901,10 @@ export default function Home() {
       }
 
       if (event.key === "Escape") {
-        event.preventDefault();
-        clearCurrentState();
+        if (badgePanelOpen) {
+          event.preventDefault();
+          setBadgePanelOpen(false);
+        }
       }
     };
 
@@ -1843,7 +1913,7 @@ export default function Home() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [
-    clearCurrentState,
+    badgePanelOpen,
     bulkUrlsInput,
     closeShortcutsModal,
     compareUrlA,
@@ -1856,6 +1926,7 @@ export default function Home() {
     runBulkCheck,
     runComparisonCheck,
     runSingleCheck,
+    scrollToScanInput,
     shortcutsOpen,
     toggleShortcutsModal,
     url
@@ -2096,7 +2167,7 @@ export default function Home() {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <p>
             Shortcuts: <span className="text-slate-300">Cmd/Ctrl+Enter</span> scan,{" "}
-            <span className="text-slate-300">Cmd/Ctrl+K</span> quick search,{" "}
+            <span className="text-slate-300">Cmd/Ctrl+K</span> focus URL,{" "}
             <span className="text-slate-300">Ctrl+P</span> PDF.
           </p>
           <button
@@ -2226,6 +2297,99 @@ export default function Home() {
             </div>
           </form>
         )}
+
+        <section className="mt-4 rounded-xl border border-slate-800/90 bg-slate-950/60">
+          <button
+            type="button"
+            onClick={() => setAdvancedOptionsOpen((current) => !current)}
+            aria-expanded={advancedOptionsOpen}
+            aria-controls="scan-advanced-options"
+            className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-900/60"
+          >
+            <span className="text-sm font-medium text-slate-200">Advanced options</span>
+            <span className="text-xs uppercase tracking-[0.14em] text-slate-400">
+              {advancedOptionsOpen ? "Hide" : "Show"}
+            </span>
+          </button>
+          {advancedOptionsOpen && (
+            <div id="scan-advanced-options" className="border-t border-slate-800/90 px-4 py-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <label htmlFor="scan-user-agent-preset" className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                    Custom User-Agent
+                  </label>
+                  <select
+                    id="scan-user-agent-preset"
+                    value={userAgentPreset}
+                    onChange={(event) => {
+                      const nextPreset = event.target.value as UserAgentPresetChoice;
+                      setUserAgentPreset(nextPreset);
+                      if (nextPreset === "default") {
+                        setCustomUserAgent("");
+                        return;
+                      }
+                      if (nextPreset === "custom") {
+                        return;
+                      }
+                      const preset = USER_AGENT_PRESETS.find((item) => item.id === nextPreset);
+                      setCustomUserAgent(preset?.value ?? "");
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                  >
+                    <option value="default">Default scanner User-Agent</option>
+                    {USER_AGENT_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label}
+                      </option>
+                    ))}
+                    <option value="custom">Custom User-Agent</option>
+                  </select>
+                  {userAgentPreset !== "default" && (
+                    <input
+                      type="text"
+                      value={customUserAgent}
+                      onChange={(event) => {
+                        setUserAgentPreset("custom");
+                        setCustomUserAgent(event.target.value);
+                      }}
+                      placeholder="Enter a custom User-Agent string"
+                      className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="scan-timeout" className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                    Timeout
+                  </label>
+                  <select
+                    id="scan-timeout"
+                    value={timeoutMs}
+                    onChange={(event) => setTimeoutMs(Number(event.target.value) as 5000 | 10000 | 15000)}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                  >
+                    {SCAN_TIMEOUT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <label className="mt-4 inline-flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={followRedirects}
+                  onChange={(event) => setFollowRedirects(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-500 focus:ring-sky-500/50"
+                />
+                Follow redirects
+              </label>
+              <p className="mt-2 text-xs text-slate-500">
+                Advanced options apply to single, compare, and bulk scans in this session.
+              </p>
+            </div>
+          )}
+        </section>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -2657,6 +2821,23 @@ export default function Home() {
       <div className="lazy-section">
         {!loading && report && (
           <>
+            {scorePercent !== null && scorePercent < 80 && (
+              <section className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-5 shadow-lg shadow-amber-900/20">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Action recommended</p>
+                <h3 className="mt-2 text-xl font-semibold text-amber-100">Improve your score</h3>
+                <p className="mt-2 text-sm text-amber-100/90">
+                  This scan scored {scorePercent}%. Open quick fixes
+                  {suggestedFixPlatform ? ` for ${report.framework?.detected?.label ?? suggestedFixPlatform}` : ""} to
+                  apply targeted header improvements.
+                </p>
+                <Link
+                  href={quickFixesHref}
+                  className="mt-4 inline-flex rounded-lg border border-amber-300/60 bg-amber-300/20 px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-200 hover:bg-amber-200/20"
+                >
+                  Improve your score
+                </Link>
+              </section>
+            )}
             <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
               <article className="motion-card rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>

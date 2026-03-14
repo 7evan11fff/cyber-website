@@ -5,8 +5,10 @@ import type { CSSProperties } from "react";
 import { getServerSession } from "next-auth";
 import { DashboardActions } from "@/app/components/DashboardActions";
 import { MiniScoreTrendChart } from "@/app/components/MiniScoreTrendChart";
+import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteNav } from "@/app/components/SiteNav";
 import { TrendChart } from "@/app/components/TrendChart";
+import { WatchlistSchedulePanel } from "@/app/components/WatchlistSchedulePanel";
 import { authOptions } from "@/lib/auth";
 import { getTrendDirection, gradeToScore } from "@/lib/gradeTrends";
 import { listRecentPublicScans } from "@/lib/sharedReportsStore";
@@ -259,6 +261,7 @@ export default async function DashboardPage() {
               })}
             </ul>
           )}
+          <WatchlistSchedulePanel entries={userData.watchlist} />
         </article>
 
         <article
@@ -267,9 +270,12 @@ export default async function DashboardPage() {
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Scan history</h2>
-            <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
-              {userData.scanHistory.length} entries
-            </span>
+            <div className="flex items-center gap-2">
+              <ScanHistoryCsvDownloadButton entries={userData.scanHistory} fileNamePrefix="dashboard-scan-history" />
+              <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
+                {userData.scanHistory.length} entries
+              </span>
+            </div>
           </div>
           {userData.scanHistory.length === 0 ? (
             <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 p-4">
@@ -331,7 +337,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <p className="mt-3 text-xs text-slate-500">
-            Press <span className="text-slate-300">Cmd/Ctrl+K</span> for quick search from anywhere.
+            Press <span className="text-slate-300">Cmd/Ctrl+K</span> to jump back to the scanner URL input.
           </p>
         </article>
 

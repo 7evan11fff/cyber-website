@@ -9,7 +9,15 @@ import { getUserByApiKey, getUserKeyFromSessionUser } from "@/lib/userDataStore"
 export const runtime = "nodejs";
 
 const CHECK_REQUEST_SCHEMA = z.object({
-  url: z.string().trim().min(1, "URL is required.").max(2048, "URL is too long.")
+  url: z.string().trim().min(1, "URL is required.").max(2048, "URL is too long."),
+  options: z
+    .object({
+      userAgent: z.string().trim().min(1).max(512).optional(),
+      followRedirects: z.boolean().optional(),
+      timeoutMs: z.union([z.literal(5000), z.literal(10000), z.literal(15000)]).optional()
+    })
+    .strict()
+    .optional()
 });
 
 function extractApiKey(request: Request): string | null {
@@ -82,7 +90,7 @@ export async function POST(request: Request) {
     }
 
     const inputUrl = parsedBody.data.url;
-    const report = await runSecurityScan(inputUrl);
+    const report = await runSecurityScan(inputUrl, parsedBody.data.options);
     return respond(report);
   } catch (error) {
     const message =

@@ -97,10 +97,34 @@ describe("POST /api/check", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mockRunSecurityScan).toHaveBeenCalledWith("example.com");
+    expect(mockRunSecurityScan).toHaveBeenCalledWith("example.com", undefined);
     await expect(response.json()).resolves.toMatchObject({
       checkedUrl: "https://example.com/",
       grade: "A"
+    });
+  });
+
+  it("passes advanced scan options through to the scanner", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: "example.com",
+          options: {
+            userAgent: "Mozilla/5.0 Test Agent",
+            followRedirects: false,
+            timeoutMs: 5000
+          }
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRunSecurityScan).toHaveBeenCalledWith("example.com", {
+      userAgent: "Mozilla/5.0 Test Agent",
+      followRedirects: false,
+      timeoutMs: 5000
     });
   });
 

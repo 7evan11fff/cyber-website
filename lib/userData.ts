@@ -3,6 +3,9 @@ export type ScanHistoryEntry = {
   url: string;
   grade: string;
   checkedAt: string;
+  score?: number;
+  maxScore?: number;
+  headerStatuses?: Record<string, "good" | "weak" | "missing">;
 };
 
 export type ComparisonHistoryEntry = {
@@ -70,14 +73,40 @@ export const MAX_WEBHOOK_ITEMS = 20;
 
 const API_KEY_PATTERN = /^shc_[a-f0-9]{48}$/;
 
+function isHeaderStatus(value: unknown): value is "good" | "weak" | "missing" {
+  return value === "good" || value === "weak" || value === "missing";
+}
+
+function normalizeHeaderStatuses(value: unknown): Record<string, "good" | "weak" | "missing"> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const normalized: Record<string, "good" | "weak" | "missing"> = {};
+  for (const [key, status] of Object.entries(value)) {
+    if (!key || !isHeaderStatus(status)) continue;
+    normalized[key] = status;
+  }
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
 export function isScanHistoryEntry(value: unknown): value is ScanHistoryEntry {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ScanHistoryEntry>;
+  const hasValidScore =
+    candidate.score === undefined ||
+    (typeof candidate.score === "number" && Number.isFinite(candidate.score) && candidate.score >= 0);
+  const hasValidMaxScore =
+    candidate.maxScore === undefined ||
+    (typeof candidate.maxScore === "number" && Number.isFinite(candidate.maxScore) && candidate.maxScore > 0);
+  const hasValidHeaderStatuses =
+    candidate.headerStatuses === undefined ||
+    normalizeHeaderStatuses(candidate.headerStatuses) !== undefined;
   return (
     typeof candidate.id === "string" &&
     typeof candidate.url === "string" &&
     typeof candidate.grade === "string" &&
-    typeof candidate.checkedAt === "string"
+    typeof candidate.checkedAt === "string" &&
+    hasValidScore &&
+    hasValidMaxScore &&
+    hasValidHeaderStatuses
   );
 }
 
@@ -248,7 +277,30 @@ export function normalizeScanHistoryEntries(entries: unknown[]): ScanHistoryEntr
   const dedupedByKey = new Map<string, ScanHistoryEntry>();
   for (const entry of entries) {
     if (!isScanHistoryEntry(entry)) continue;
-    dedupedByKey.set(`${entry.url}::${entry.checkedAt}`, entry);
+    const normalizedEntry: ScanHistoryEntry = {
+      id: entry.id,
+      url: entry.url,
+      grade: entry.grade,
+      checkedAt: entry.checkedAt,
+      score: typeof entry.score === "number" && Number.isFinite(entry.score) ? entry.score : undefined,
+      maxScore: typeof entry.maxScore === "number" && Number.isFinite(entry.maxScore) ? entry.maxScore : undefined,
+      headerStatuses: normalizeHeaderStatuses(entry.headerStatuses)
+    };
+
+    const key = `${entry.url}::${entry.checkedAt}`;
+    const previous = dedupedByKey.get(key);
+    if (!previous) {
+      dedupedByKey.set(key, normalizedEntry);
+      continue;
+    }
+
+    dedupedByKey.set(key, {
+      ...previous,
+      id: normalizedEntry.id || previous.id,
+      score: normalizedEntry.score ?? previous.score,
+      maxScore: normalizedEntry.maxScore ?? previous.maxScore,
+      headerStatuses: normalizedEntry.headerStatuses ?? previous.headerStatuses
+    });
   }
 
   return Array.from(dedupedByKey.values())

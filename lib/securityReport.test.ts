@@ -7,6 +7,7 @@ import {
   getOrCreateDomainReport,
   normalizeDomain,
   normalizeTargetUrl,
+  runSecurityScan,
   type SecurityReport
 } from "@/lib/securityReport";
 
@@ -108,5 +109,31 @@ describe("securityReport", () => {
     expect(report.score).toBeGreaterThan(0);
     expect(["A", "B", "C", "D", "F"]).toContain(report.grade);
     expect(report.framework.detected?.id).toBe("nginx");
+  });
+
+  it("supports custom scan options for user agent, timeout, and redirects", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      headers: new Headers({
+        "x-frame-options": "DENY"
+      }),
+      url: "https://example.com/",
+      status: 302
+    } as Response);
+
+    await runSecurityScan("example.com", {
+      userAgent: "Mozilla/5.0 ExampleAgent",
+      followRedirects: false,
+      timeoutMs: 5000
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.com/",
+      expect.objectContaining({
+        redirect: "manual",
+        headers: expect.objectContaining({
+          "user-agent": "Mozilla/5.0 ExampleAgent"
+        })
+      })
+    );
   });
 });
