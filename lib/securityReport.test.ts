@@ -85,7 +85,8 @@ describe("securityReport", () => {
       headers: new Headers({
         "content-security-policy": "default-src 'self'",
         "x-frame-options": "DENY",
-        "x-content-type-options": "nosniff"
+        "x-content-type-options": "nosniff",
+        server: "nginx"
       }),
       url: "https://example.com/",
       status: 200
