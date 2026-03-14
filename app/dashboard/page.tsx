@@ -275,7 +275,7 @@ export default async function DashboardPage() {
         >
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-100">Scan history</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <ScanHistoryCsvDownloadButton entries={userData.scanHistory} fileNamePrefix="dashboard-scan-history" />
               <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
                 {userData.scanHistory.length} entries
@@ -300,7 +300,7 @@ export default async function DashboardPage() {
             <ul className="mt-4 space-y-2">
               {userData.scanHistory.map((entry) => (
                 <li key={entry.id} className="motion-card rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="truncate text-sm text-slate-100">{entry.url}</p>
                     <p className="text-sm font-semibold text-sky-200">{entry.grade}</p>
                   </div>
@@ -321,7 +321,7 @@ export default async function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-100">Quick actions</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">One click</span>
           </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <Link
               href="/"
               className="pressable rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
