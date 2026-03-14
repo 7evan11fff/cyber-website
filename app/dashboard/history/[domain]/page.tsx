@@ -137,6 +137,18 @@ export default async function WatchlistHistoryPage({
 
         <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
           <h2 className="text-lg font-semibold text-slate-100">Grade changes</h2>
+          {chartPoints.length > 0 && (
+            <div className="mt-3 rounded-lg border border-slate-800/90 bg-slate-950/70 p-3">
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Mini timeline</p>
+              <TrendChart
+                points={chartPoints}
+                width={240}
+                height={50}
+                className={`mt-2 h-12 w-full ${tone.chartClassName}`}
+                ariaLabel={`Mini grade timeline for ${domain}`}
+              />
+            </div>
+          )}
           {annotations.length === 0 ? (
             <p className="mt-3 text-sm text-slate-400">No grade changes recorded yet.</p>
           ) : (

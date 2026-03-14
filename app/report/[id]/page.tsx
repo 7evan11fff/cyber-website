@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
-import { buildPageMetadata } from "@/lib/seo";
+import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
+import { getSuggestedPlatformFromFramework } from "@/lib/platformFixes";
 import { summarizeSharedPayload, type SharedComparisonReport, type SharedScanReport } from "@/lib/reportShare";
 import { getSharedReportById } from "@/lib/sharedReportsStore";
 
@@ -33,6 +34,11 @@ function hostLabel(value: string): string {
 }
 
 function SingleReportSection({ report }: { report: SharedScanReport }) {
+  const suggestedPlatform = getSuggestedPlatformFromFramework(report.framework?.detected);
+  const quickFixesHref = suggestedPlatform
+    ? `/fixes?platform=${encodeURIComponent(suggestedPlatform)}`
+    : "/fixes";
+
   return (
     <>
       <section className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
@@ -56,6 +62,15 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
           <p>
             <span className="text-slate-500">Checked at:</span> {new Date(report.checkedAt).toLocaleString()}
           </p>
+          {report.framework?.detected && (
+            <p className="sm:col-span-3">
+              <span className="text-slate-500">Detected stack:</span> {report.framework.detected.label} (
+              {report.framework.detected.reason}){" "}
+              <Link href={quickFixesHref} className="text-sky-300 transition hover:text-sky-200">
+                Open quick fixes
+              </Link>
+            </p>
+          )}
         </div>
       </section>
 
@@ -162,11 +177,27 @@ export async function generateMetadata({
   }
 
   const summary = summarizeSharedPayload(shared.payload);
-  return buildPageMetadata({
+  const metadata = buildPageMetadata({
     title: summary.title,
     description: summary.description,
     path: `/report/${shared.id}`
   });
+  const reportImageUrl = absoluteUrl(`/report/${shared.id}/opengraph-image`);
+  const image = {
+    url: reportImageUrl,
+    width: 1200,
+    height: 630,
+    alt: summary.title
+  };
+  metadata.openGraph = {
+    ...metadata.openGraph,
+    images: [image, ...(metadata.openGraph?.images ?? [])]
+  };
+  metadata.twitter = {
+    ...metadata.twitter,
+    images: [reportImageUrl]
+  };
+  return metadata;
 }
 
 export default async function SharedReportPage({
