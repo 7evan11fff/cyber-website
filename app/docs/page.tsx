@@ -5,9 +5,9 @@ import { SiteNav } from "@/app/components/SiteNav";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "API Docs",
+  title: "Developer Docs",
   description:
-    "Security Header Checker API documentation for the badge and check endpoints with copy-ready examples.",
+    "Developer documentation hub for API reference, CI/CD guides, and implementation examples.",
   path: "/docs"
 });
 
@@ -22,33 +22,23 @@ function CodeBlock({ code }: { code: string }) {
 export default function DocsPage() {
   const docsStructuredData = {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    name: "Security Header Checker API Docs",
-    applicationCategory: "DeveloperApplication",
-    operatingSystem: "Any",
+    "@type": "TechArticle",
+    headline: "Security Header Checker developer documentation",
     url: absoluteUrl("/docs"),
-    description:
-      "Reference documentation for the Security Header Checker API, including badge and check endpoint examples."
+    about: "Security Header Checker API and automation docs"
   };
 
-  const badgeCurlExample = `curl "https://security-header-checker.vercel.app/api/badge/github.com?style=flat"`;
-  const badgeMarkdownExample =
-    "![Security headers grade for github.com](https://security-header-checker.vercel.app/api/badge/github.com?style=flat)";
-  const badgeHtmlExample =
-    '<img src="https://security-header-checker.vercel.app/api/badge/github.com?style=flat-square" alt="Security headers grade badge for github.com" />';
-
-  const checkCurlExample = `curl -X POST "https://security-header-checker.vercel.app/api/check" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url":"https://example.com"}'`;
-
-  const checkFetchExample = `const response = await fetch("/api/check", {
+  const quickStartExample = `const response = await fetch("https://security-header-checker.vercel.app/api/check", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: "Bearer shc_xxxxxxxxx"
+  },
   body: JSON.stringify({ url: "https://example.com" })
 });
 
 const report = await response.json();
-console.log(report.grade, report.score, report.results);`;
+console.log(report.grade, report.score);`;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-10 sm:px-6 lg:px-8">
@@ -59,92 +49,54 @@ console.log(report.grade, report.score, report.results);`;
       <SiteNav />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
-        <h1 className="text-3xl font-semibold text-slate-100 sm:text-4xl">API Documentation</h1>
+        <h1 className="text-3xl font-semibold text-slate-100 sm:text-4xl">Developer documentation</h1>
         <p className="mt-3 max-w-3xl text-slate-300">
-          Use the Security Header Checker API to embed live security badges and run automated header checks in CI,
-          scripts, monitoring jobs, and dashboards.
-        </p>
-        <p className="mt-3 text-sm text-slate-300">
-          Need pipeline-ready examples?{" "}
-          <Link href="/docs/ci-cd" className="text-sky-300 transition hover:text-sky-200">
-            Open the CI/CD integration guide
-          </Link>
-          .
+          Everything you need to integrate Security Header Checker in production workflows: full API contracts,
+          authentication, rate limits, endpoint examples, and pipeline automation guides.
         </p>
       </section>
 
-      <section className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+      <section className="grid gap-5 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur md:grid-cols-2">
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Endpoint 1</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-100">Badge API: /api/badge/[domain]</h2>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Primary</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">Full API reference</h2>
           <p className="mt-3 text-sm text-slate-300">
-            Returns an SVG badge for the target domain&apos;s latest security header grade. Great for README files,
-            project dashboards, and website status pages.
+            Complete endpoint-by-endpoint documentation for request and response formats, authentication requirements,
+            rate limiting, and error semantics.
           </p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-300">
-            <li>
-              <span className="font-medium text-slate-100">Method:</span> GET
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Path:</span> /api/badge/[domain]
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Query:</span> style=flat or style=flat-square
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Response:</span> image/svg+xml
-            </li>
-          </ul>
-
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-400">curl example</h3>
-          <CodeBlock code={badgeCurlExample} />
-
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-400">
-            Embed in Markdown
-          </h3>
-          <CodeBlock code={badgeMarkdownExample} />
-
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-400">Embed in HTML</h3>
-          <CodeBlock code={badgeHtmlExample} />
+          <Link
+            href="/docs/api"
+            className="mt-4 inline-flex rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+          >
+            Open API reference
+          </Link>
         </article>
 
-        <article className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Endpoint 2</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-100">Check API: /api/check</h2>
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Automation</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">CI/CD integration guide</h2>
           <p className="mt-3 text-sm text-slate-300">
-            Programmatically scan one URL and receive a structured report with grade, score, HTTP status, and header
-            recommendations.
+            Copy-ready scripts and pipeline examples for GitHub Actions, GitLab CI, and generic shell runners.
           </p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-300">
-            <li>
-              <span className="font-medium text-slate-100">Method:</span> POST
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Path:</span> /api/check
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Body:</span> {"{ \"url\": \"https://example.com\" }"}
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Auth (optional):</span> Authorization: Bearer &lt;API key&gt;
-            </li>
-            <li>
-              <span className="font-medium text-slate-100">Response:</span> JSON security report
-            </li>
-          </ul>
-
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-400">curl example</h3>
-          <CodeBlock code={checkCurlExample} />
-
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-[0.14em] text-slate-400">
-            JavaScript fetch example
-          </h3>
-          <CodeBlock code={checkFetchExample} />
+          <Link
+            href="/docs/ci-cd"
+            className="mt-4 inline-flex rounded-lg border border-slate-700 bg-slate-950/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+          >
+            Open CI/CD guide
+          </Link>
         </article>
+      </section>
+
+      <section className="mt-5 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+        <h2 className="text-xl font-semibold text-slate-100">Quick start</h2>
+        <p className="mt-2 text-sm text-slate-300">
+          Use this example to call the scan API from Node.js, serverless jobs, or CI checks.
+        </p>
+        <CodeBlock code={quickStartExample} />
       </section>
 
       <p className="mt-6 text-sm text-slate-300">
-        Need context on the headers first?{" "}
+        Need context on what each header means?{" "}
         <Link href="/about" className="text-sky-300 transition hover:text-sky-200">
           Visit the About page
         </Link>

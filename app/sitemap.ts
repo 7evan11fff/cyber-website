@@ -7,6 +7,7 @@ const STATIC_ROUTES = [
   { path: "/bulk", changeFrequency: "daily", priority: 0.95 },
   { path: "/pricing", changeFrequency: "weekly", priority: 0.9 },
   { path: "/docs", changeFrequency: "weekly", priority: 0.9 },
+  { path: "/docs/api", changeFrequency: "weekly", priority: 0.9 },
   { path: "/docs/ci-cd", changeFrequency: "weekly", priority: 0.9 },
   { path: "/security-headers-guide", changeFrequency: "weekly", priority: 0.85 },
   { path: "/about", changeFrequency: "monthly", priority: 0.7 },

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { authOptions } from "@/lib/auth";
-import { consumeRateLimit, getClientIp } from "@/lib/rateLimit";
 import { runSecurityScan } from "@/lib/securityReport";
 import { getUserByApiKey, getUserKeyFromSessionUser } from "@/lib/userDataStore";
 
@@ -39,60 +39,51 @@ export async function POST(request: Request) {
   if (!authenticatedUserKey && providedApiKey) {
     const apiKeyOwner = await getUserByApiKey(providedApiKey);
     if (!apiKeyOwner) {
-      return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
+      const invalidApiKeyLimitResult = enforceApiRateLimit({
+        request,
+        route: "check",
+        identity: {
+          isAuthenticated: false
+        }
+      });
+      if (!invalidApiKeyLimitResult.ok) {
+        return invalidApiKeyLimitResult.response;
+      }
+      return withApiRateLimitHeaders(
+        NextResponse.json({ error: "Invalid API key." }, { status: 401 }),
+        invalidApiKeyLimitResult.state
+      );
     }
     authenticatedUserKey = apiKeyOwner.userKey;
   }
 
   const isAuthenticated = Boolean(authenticatedUserKey);
-  const rateLimit = isAuthenticated ? 200 : 60;
-  const ip = getClientIp(request);
-  const rateLimitKey = `${isAuthenticated ? "auth" : "anon"}:${ip}`;
-  const rateLimitResult = consumeRateLimit(rateLimitKey, rateLimit);
-
-  if (!rateLimitResult.allowed) {
-    const retryAfterSeconds = Math.max(Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000), 1);
-    return NextResponse.json(
-      {
-        error:
-          "You have reached the scan limit for this minute. Please wait a moment and try again."
-      },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(retryAfterSeconds),
-          "X-RateLimit-Limit": String(rateLimit),
-          "X-RateLimit-Remaining": "0"
-        }
-      }
-    );
+  const rateLimitResult = enforceApiRateLimit({
+    request,
+    route: "check",
+    identity: {
+      isAuthenticated,
+      userKey: authenticatedUserKey
+    }
+  });
+  if (!rateLimitResult.ok) {
+    return rateLimitResult.response;
   }
+
+  const respond = (body: unknown, init?: ResponseInit) =>
+    withApiRateLimitHeaders(NextResponse.json(body, init), rateLimitResult.state);
 
   try {
     const body = (await request.json().catch(() => null)) as unknown;
     const parsedBody = CHECK_REQUEST_SCHEMA.safeParse(body);
     if (!parsedBody.success) {
       const issue = parsedBody.error.issues[0];
-      return NextResponse.json(
-        { error: issue?.message ?? "Invalid request payload." },
-        {
-          status: 422,
-          headers: {
-            "X-RateLimit-Limit": String(rateLimit),
-            "X-RateLimit-Remaining": String(rateLimitResult.remaining)
-          }
-        }
-      );
+      return respond({ error: issue?.message ?? "Invalid request payload." }, { status: 422 });
     }
 
     const inputUrl = parsedBody.data.url;
     const report = await runSecurityScan(inputUrl);
-    return NextResponse.json(report, {
-      headers: {
-        "X-RateLimit-Limit": String(rateLimit),
-        "X-RateLimit-Remaining": String(rateLimitResult.remaining)
-      }
-    });
+    return respond(report);
   } catch (error) {
     const message =
       error instanceof Error && error.name === "AbortError"
@@ -101,15 +92,6 @@ export async function POST(request: Request) {
           ? error.message || "Unable to check headers."
           : "Unable to check headers.";
 
-    return NextResponse.json(
-      { error: message },
-      {
-        status: 400,
-        headers: {
-          "X-RateLimit-Limit": String(rateLimit),
-          "X-RateLimit-Remaining": String(rateLimitResult.remaining)
-        }
-      }
-    );
+    return respond({ error: message }, { status: 400 });
   }
 }

@@ -173,7 +173,7 @@ export default function CiCdDocsPage() {
 
       <p className="mt-6 text-sm text-slate-300">
         Need endpoint details first?{" "}
-        <Link href="/docs" className="text-sky-300 transition hover:text-sky-200">
+        <Link href="/docs/api" className="text-sky-300 transition hover:text-sky-200">
           Return to API docs
         </Link>
         . Generate your API key in{" "}

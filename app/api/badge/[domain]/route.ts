@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { getOrCreateDomainReport, normalizeDomain } from "@/lib/securityReport";
 
 type BadgeStyle = "flat" | "flat-square";
@@ -76,6 +77,16 @@ function renderBadgeSvg(grade: string, style: BadgeStyle) {
 }
 
 export async function GET(request: Request, { params }: { params: { domain: string } }) {
+  const rateLimitResult = enforceApiRateLimit({
+    request,
+    route: "badge:get"
+  });
+  if (!rateLimitResult.ok) {
+    return rateLimitResult.response;
+  }
+  const respondJson = (body: unknown, init?: ResponseInit) =>
+    withApiRateLimitHeaders(NextResponse.json(body, init), rateLimitResult.state);
+
   const url = new URL(request.url);
   const style = normalizeStyle(url.searchParams.get("style"));
 
@@ -84,7 +95,7 @@ export async function GET(request: Request, { params }: { params: { domain: stri
     normalizedDomain = normalizeDomain(params.domain);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Invalid domain.";
-    return NextResponse.json({ error: errorMessage }, { status: 400 });
+    return respondJson({ error: errorMessage }, { status: 400 });
   }
 
   let grade = "F";
@@ -96,11 +107,14 @@ export async function GET(request: Request, { params }: { params: { domain: stri
   }
 
   const svg = renderBadgeSvg(grade, style);
-  return new NextResponse(svg, {
-    status: 200,
-    headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
-    }
-  });
+  return withApiRateLimitHeaders(
+    new NextResponse(svg, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/svg+xml; charset=utf-8",
+        "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+      }
+    }),
+    rateLimitResult.state
+  );
 }

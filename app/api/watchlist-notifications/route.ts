@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { authOptions } from "@/lib/auth";
 import { getNotificationThrottleMs, sendGradeChangeEmail } from "@/lib/email";
 import { normalizeTargetUrl } from "@/lib/securityReport";
@@ -18,15 +19,29 @@ const WATCHLIST_ALERT_SCHEMA = z.object({
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const userKey = getUserKeyFromSessionUser(session?.user);
+  const rateLimitResult = enforceApiRateLimit({
+    request,
+    route: "watchlist-notifications:post",
+    identity: {
+      isAuthenticated: Boolean(userKey),
+      userKey
+    }
+  });
+  if (!rateLimitResult.ok) {
+    return rateLimitResult.response;
+  }
+  const respond = (body: unknown, init?: ResponseInit) =>
+    withApiRateLimitHeaders(NextResponse.json(body, init), rateLimitResult.state);
+
   if (!userKey) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return respond({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => null)) as unknown;
   const parsed = WATCHLIST_ALERT_SCHEMA.safeParse(body);
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];
-    return NextResponse.json(
+    return respond(
       { error: firstIssue?.message ?? "Invalid watchlist notification payload." },
       { status: 400 }
     );
@@ -36,7 +51,7 @@ export async function POST(request: Request) {
   try {
     normalizedUrl = normalizeTargetUrl(parsed.data.url);
   } catch (error) {
-    return NextResponse.json(
+    return respond(
       {
         error: error instanceof Error ? error.message : "Please enter a valid URL."
       },
@@ -46,10 +61,10 @@ export async function POST(request: Request) {
 
   const userData = await getUserDataForUser(userKey);
   if (!userData.notificationOnGradeChange) {
-    return NextResponse.json({ sent: false, reason: "notifications_disabled" });
+    return respond({ sent: false, reason: "notifications_disabled" });
   }
   if (!userData.alertEmail) {
-    return NextResponse.json({ sent: false, reason: "missing_alert_email" });
+    return respond({ sent: false, reason: "missing_alert_email" });
   }
 
   const frequency = userData.notificationFrequency;
@@ -61,7 +76,7 @@ export async function POST(request: Request) {
     const lastSentAtMs = new Date(lastSentAt).getTime();
     const now = Date.now();
     if (Number.isFinite(lastSentAtMs) && now - lastSentAtMs < throttleMs) {
-      return NextResponse.json({
+      return respond({
         sent: false,
         reason: "frequency_throttled",
         nextEligibleAt: new Date(lastSentAtMs + throttleMs).toISOString()
@@ -70,7 +85,7 @@ export async function POST(request: Request) {
   }
 
   if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json(
+    return respond(
       {
         error: "Email notifications are not configured on the server."
       },
@@ -94,10 +109,10 @@ export async function POST(request: Request) {
     };
     await updateUserDataForUser(userKey, { watchlistNotificationLog: nextLog });
 
-    return NextResponse.json({ sent: true, reason: "email_sent" });
+    return respond({ sent: true, reason: "email_sent" });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to send watchlist notification email.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return respond({ error: message }, { status: 502 });
   }
 }

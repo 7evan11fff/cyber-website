@@ -165,6 +165,55 @@ function missingHeaderLabels(report: ReportResponse): string[] {
   return report.results.filter((entry) => entry.status === "missing").map((entry) => entry.label);
 }
 
+function BulkResultsSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <section
+      className="mt-6 overflow-hidden rounded-xl border border-slate-800/90"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="flex items-center gap-2 border-b border-slate-800/90 px-4 py-3 text-xs uppercase tracking-[0.12em] text-slate-400">
+        <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
+        Running scans...
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-slate-900/70 text-xs uppercase tracking-[0.12em] text-slate-500">
+            <tr>
+              <th className="px-4 py-3">URL</th>
+              <th className="px-4 py-3">Grade</th>
+              <th className="px-4 py-3">Score</th>
+              <th className="px-4 py-3">Missing headers</th>
+              <th className="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }).map((_, index) => (
+              <tr key={`skeleton-row-${index}`} className="border-t border-slate-800/70">
+                <td className="px-4 py-3">
+                  <div className="h-4 w-56 animate-pulse rounded bg-slate-800/80" />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="h-4 w-10 animate-pulse rounded bg-slate-800/80" />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="h-4 w-16 animate-pulse rounded bg-slate-800/80" />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="h-4 w-40 animate-pulse rounded bg-slate-800/80" />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 async function requestReport(targetUrl: string): Promise<ReportResponse> {
   const response = await fetch("/api/check", {
     method: "POST",
@@ -479,6 +528,12 @@ export function BulkPageClient() {
             >
               {loading ? "Scanning..." : "Scan All"}
             </button>
+            {loading && (
+              <span className="inline-flex items-center gap-2 text-xs text-slate-300" aria-live="polite">
+                <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
+                Collecting reports...
+              </span>
+            )}
             <p className="text-xs text-slate-500">{isAuthenticated ? "Signed in: higher per-minute limit." : "Not signed in: standard per-minute limit."}</p>
           </div>
         </form>
@@ -492,6 +547,8 @@ export function BulkPageClient() {
             {error}
           </p>
         )}
+
+        {loading && <BulkResultsSkeleton rows={Math.max(enteredUrlCount, 3)} />}
 
         {results.length > 0 && (
           <section className="mt-6 rounded-xl border border-slate-800/90">

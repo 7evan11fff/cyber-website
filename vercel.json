@@ -10,8 +10,20 @@
     },
     "app/api/watchlist-notifications/route.ts": {
       "maxDuration": 10
+    },
+    "app/api/badge/[domain]/route.ts": {
+      "runtime": "edge"
+    },
+    "app/api/og/route.tsx": {
+      "runtime": "edge"
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/watchlist-scan",
+      "schedule": "*/15 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/_next/static/(.*)",

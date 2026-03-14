@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { authOptions } from "@/lib/auth";
 import {
   deleteUserDataForUser,
@@ -20,22 +21,46 @@ import {
 
 export const runtime = "nodejs";
 
-export async function GET() {
+function createResponder(request: Request, route: string, userKey: string | null) {
+  const rateLimitResult = enforceApiRateLimit({
+    request,
+    route,
+    identity: {
+      isAuthenticated: Boolean(userKey),
+      userKey
+    }
+  });
+  if (!rateLimitResult.ok) {
+    return { blocked: rateLimitResult.response, respond: null };
+  }
+
+  return {
+    blocked: null,
+    respond: (body: unknown, init?: ResponseInit) =>
+      withApiRateLimitHeaders(NextResponse.json(body, init), rateLimitResult.state)
+  };
+}
+
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   const userKey = getUserKeyFromSessionUser(session?.user);
+  const { blocked, respond } = createResponder(request, "user-data:get", userKey);
+  if (blocked) return blocked;
   if (!userKey) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return respond!({ error: "Unauthorized" }, { status: 401 });
   }
 
   const data = await getUserDataForUser(userKey);
-  return NextResponse.json(data);
+  return respond!(data);
 }
 
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
   const userKey = getUserKeyFromSessionUser(session?.user);
+  const { blocked, respond } = createResponder(request, "user-data:put", userKey);
+  if (blocked) return blocked;
   if (!userKey) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return respond!({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => null)) as
@@ -55,7 +80,7 @@ export async function PUT(request: Request) {
     | null;
 
   if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
+    return respond!({ error: "Invalid request payload." }, { status: 400 });
   }
 
   const patch: {
@@ -73,7 +98,7 @@ export async function PUT(request: Request) {
   } = {};
 
   if (body.watchlist !== undefined && !Array.isArray(body.watchlist)) {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "watchlist". Expected an array of watchlist entries.' },
       { status: 400 }
     );
@@ -83,7 +108,7 @@ export async function PUT(request: Request) {
   }
 
   if (body.scanHistory !== undefined && !Array.isArray(body.scanHistory)) {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "scanHistory". Expected an array of scan history entries.' },
       { status: 400 }
     );
@@ -93,7 +118,7 @@ export async function PUT(request: Request) {
   }
 
   if (body.comparisonHistory !== undefined && !Array.isArray(body.comparisonHistory)) {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "comparisonHistory". Expected an array of comparison history entries.' },
       { status: 400 }
     );
@@ -104,7 +129,7 @@ export async function PUT(request: Request) {
 
   if (body.history !== undefined) {
     if (!body.history || typeof body.history !== "object" || Array.isArray(body.history)) {
-      return NextResponse.json(
+      return respond!(
         { error: 'Invalid "history". Expected a domain-to-history object.' },
         { status: 400 }
       );
@@ -113,7 +138,7 @@ export async function PUT(request: Request) {
   }
 
   if (body.alertEmail !== undefined && body.alertEmail !== null && typeof body.alertEmail !== "string") {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "alertEmail". Expected a string email address or null.' },
       { status: 400 }
     );
@@ -126,7 +151,7 @@ export async function PUT(request: Request) {
     body.notificationOnGradeChange !== undefined &&
     typeof body.notificationOnGradeChange !== "boolean"
   ) {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "notificationOnGradeChange". Expected true or false.' },
       { status: 400 }
     );
@@ -137,7 +162,7 @@ export async function PUT(request: Request) {
 
   if (body.notificationFrequency !== undefined) {
     if (!isNotificationFrequency(body.notificationFrequency)) {
-      return NextResponse.json(
+      return respond!(
         {
           error:
             'Invalid "notificationFrequency". Use one of: instant, daily, weekly.'
@@ -152,7 +177,7 @@ export async function PUT(request: Request) {
     body.browserNotificationsEnabled !== undefined &&
     typeof body.browserNotificationsEnabled !== "boolean"
   ) {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "browserNotificationsEnabled". Expected true or false.' },
       { status: 400 }
     );
@@ -163,7 +188,7 @@ export async function PUT(request: Request) {
 
   if (body.watchlistNotificationLog !== undefined) {
     if (!body.watchlistNotificationLog || typeof body.watchlistNotificationLog !== "object") {
-      return NextResponse.json(
+      return respond!(
         {
           error: 'Invalid "watchlistNotificationLog". Expected a URL-to-timestamp object.'
         },
@@ -175,7 +200,7 @@ export async function PUT(request: Request) {
 
   if (body.webhooks !== undefined) {
     if (!Array.isArray(body.webhooks)) {
-      return NextResponse.json(
+      return respond!(
         { error: 'Invalid "webhooks". Expected an array of webhook records.' },
         { status: 400 }
       );
@@ -184,13 +209,13 @@ export async function PUT(request: Request) {
   }
 
   if (body.apiKey !== undefined && body.apiKey !== null && typeof body.apiKey !== "string") {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "apiKey". Expected a valid API key string or null.' },
       { status: 400 }
     );
   }
   if (typeof body.apiKey === "string" && !isApiKey(body.apiKey)) {
-    return NextResponse.json(
+    return respond!(
       { error: 'Invalid "apiKey". Expected a key formatted like shc_xxx.' },
       { status: 400 }
     );
@@ -200,16 +225,18 @@ export async function PUT(request: Request) {
   }
 
   const saved = await updateUserDataForUser(userKey, patch);
-  return NextResponse.json(saved);
+  return respond!(saved);
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
   const userKey = getUserKeyFromSessionUser(session?.user);
+  const { blocked, respond } = createResponder(request, "user-data:delete", userKey);
+  if (blocked) return blocked;
   if (!userKey) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return respond!({ error: "Unauthorized" }, { status: 401 });
   }
 
   await deleteUserDataForUser(userKey);
-  return NextResponse.json({ success: true });
+  return respond!({ success: true });
 }

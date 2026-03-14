@@ -15,7 +15,7 @@ const NAV_LINKS = [
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },
   { href: "/changelog", label: "Changelog" },
-  { href: "/docs", label: "API Docs" },
+  { href: "/docs/api", label: "API Docs" },
   { href: "/security-headers-guide", label: "Header Guide" },
   { href: "/about", label: "About" }
 ];
@@ -54,7 +54,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
       <div className="mt-4 hidden items-center justify-between gap-4 md:flex">
         <nav className="flex flex-wrap items-center gap-2" aria-label="Main navigation">
           {NAV_LINKS.map((link) => {
-            const active = pathname === link.href;
+            const active = pathname === link.href || (link.href === "/docs/api" && pathname.startsWith("/docs"));
             return (
               <Link
                 key={link.href}
@@ -143,7 +143,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
         >
           <nav className="grid gap-2" aria-label="Mobile navigation">
             {NAV_LINKS.map((link) => {
-              const active = pathname === link.href;
+              const active = pathname === link.href || (link.href === "/docs/api" && pathname.startsWith("/docs"));
               return (
                 <Link
                   key={`mobile-${link.href}`}

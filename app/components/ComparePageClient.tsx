@@ -151,6 +151,44 @@ function buildRecommendation(
   return "Review values to align both sites.";
 }
 
+function ComparisonResultsSkeleton() {
+  return (
+    <div className="mt-6 space-y-5" aria-live="polite" aria-busy="true">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-slate-400">
+        <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
+        Comparing headers...
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+          <div className="h-3 w-14 animate-pulse rounded bg-slate-800/80" />
+          <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-slate-800/80" />
+          <div className="mt-4 h-10 w-12 animate-pulse rounded bg-slate-800/80" />
+          <div className="mt-3 h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+        </article>
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+          <div className="h-3 w-14 animate-pulse rounded bg-slate-800/80" />
+          <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-slate-800/80" />
+          <div className="mt-4 h-10 w-12 animate-pulse rounded bg-slate-800/80" />
+          <div className="mt-3 h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+        </article>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-800/90">
+        <div className="h-11 border-b border-slate-800/80 bg-slate-900/60" />
+        <div className="space-y-0">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={`compare-skeleton-${index}`} className="grid grid-cols-4 gap-3 border-t border-slate-800/70 px-4 py-3">
+              <div className="h-4 w-24 animate-pulse rounded bg-slate-800/80" />
+              <div className="h-4 w-20 animate-pulse rounded bg-slate-800/80" />
+              <div className="h-4 w-20 animate-pulse rounded bg-slate-800/80" />
+              <div className="h-4 w-40 animate-pulse rounded bg-slate-800/80" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function requestReport(targetUrl: string): Promise<ReportResponse> {
   const response = await fetch("/api/check", {
     method: "POST",
@@ -541,6 +579,12 @@ export function ComparePageClient() {
             >
               {loading ? "Comparing..." : "Compare Headers"}
             </button>
+            {loading && (
+              <span className="inline-flex items-center gap-2 text-xs text-slate-300" aria-live="polite">
+                <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" />
+                Running two scans...
+              </span>
+            )}
             <p className="text-xs text-slate-500">
               Works for everyone without auth. Signed-in users also get both scans saved to history.
             </p>
@@ -576,10 +620,20 @@ export function ComparePageClient() {
             >
               Clear history
             </button>
+            {isAuthenticated && !historyServerReady && (
+              <span className="text-xs text-slate-400" aria-live="polite">
+                Syncing saved history...
+              </span>
+            )}
           </div>
           {historyOpen && (
             <div id="recent-comparisons-list" className="border-t border-slate-800/90 px-4 py-3">
-              {comparisonHistory.length === 0 ? (
+              {!historyBootstrapped ? (
+                <div className="space-y-2">
+                  <div className="h-4 w-48 animate-pulse rounded bg-slate-800/80" />
+                  <div className="h-4 w-64 animate-pulse rounded bg-slate-800/80" />
+                </div>
+              ) : comparisonHistory.length === 0 ? (
                 <p className="text-sm text-slate-400">
                   No comparisons yet. Run a comparison to store your latest side-by-side checks.
                 </p>
@@ -619,6 +673,8 @@ export function ComparePageClient() {
             </div>
           )}
         </section>
+
+        {loading && <ComparisonResultsSkeleton />}
 
         {comparison && (
           <div className="mt-6 space-y-5">
