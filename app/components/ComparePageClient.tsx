@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
+import { trackEvent } from "@/lib/analytics";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import {
   BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY,
@@ -509,6 +510,11 @@ export function ComparePageClient() {
       setComparison(nextComparison);
       await saveReportsToHistory([siteA, siteB]);
       addComparisonToHistory(nextComparison);
+      trackEvent("scan_complete", {
+        mode: "compare",
+        gradeA: siteA.grade,
+        gradeB: siteB.grade
+      });
       notify({ tone: "success", message: "Comparison complete." });
 
       if (browserNotificationsEnabled) {

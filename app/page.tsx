@@ -10,6 +10,7 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { WatchlistPanel } from "@/app/components/WatchlistPanel";
+import { trackEvent } from "@/lib/analytics";
 import {
   DOMAIN_HISTORY_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
@@ -62,7 +63,6 @@ type BulkScanResult = {
 type ScanMode = "single" | "compare" | "bulk";
 type MobileCompareView = "siteA" | "siteB";
 type ShareState = "idle" | "copied" | "shared" | "error";
-type ThemeMode = "dark" | "light";
 type BadgeStyle = "flat" | "flat-square";
 type BadgeCopyState = "idle" | "markdown" | "html" | "error";
 type LandingStep = {
@@ -99,7 +99,6 @@ const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
-const THEME_STORAGE_KEY = "security-header-checker:theme";
 const HOW_IT_WORKS_STEPS: LandingStep[] = [
   {
     title: "Scan any site",
@@ -594,7 +593,6 @@ function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: Re
 
 export default function Home() {
   const { notify } = useToast();
-  const [theme, setTheme] = useState<ThemeMode>("dark");
   const [mode, setMode] = useState<ScanMode>("single");
   const [url, setUrl] = useState("");
   const [compareUrlA, setCompareUrlA] = useState("");
@@ -811,26 +809,6 @@ export default function Home() {
     }
     return "";
   }, [badgeCopyState, bulkExportState, bulkResults, comparison, copyState, error, loading, mode, pdfState, report, shareState]);
-
-  useEffect(() => {
-    try {
-      const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-      if (storedTheme === "light" || storedTheme === "dark") {
-        setTheme(storedTheme);
-      }
-    } catch {
-      setTheme("dark");
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      // Ignore storage failures (private mode or blocked access).
-    }
-  }, [theme]);
 
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal-id]"));
@@ -1245,6 +1223,11 @@ export default function Home() {
       const payload = await requestReport(targetUrl);
       setReport(payload);
       addToHistory(payload);
+      trackEvent("scan_complete", {
+        mode: "single",
+        grade: payload.grade,
+        score: payload.score
+      });
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Unexpected error.";
       setReport(null);
@@ -1275,6 +1258,11 @@ export default function Home() {
       setComparison({ siteA, siteB });
       addToHistory(siteA);
       addToHistory(siteB);
+      trackEvent("scan_complete", {
+        mode: "compare",
+        gradeA: siteA.grade,
+        gradeB: siteB.grade
+      });
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Unexpected error.";
       setComparison(null);
@@ -1352,6 +1340,12 @@ export default function Home() {
 
       setBulkResults(nextResults);
       const failedCount = nextResults.filter((entry) => entry.error).length;
+      const successCount = nextResults.length - failedCount;
+      trackEvent("bulk_scan", {
+        total: nextResults.length,
+        successful: successCount,
+        failed: failedCount
+      });
       if (failedCount > 0) {
         setError(`${failedCount} of ${nextResults.length} URLs failed. Review the table for details.`);
       }
@@ -1543,10 +1537,18 @@ export default function Home() {
           url: shareUrl.toString()
         });
         setShareState("shared");
+        trackEvent("report_shared", {
+          mode: report ? "single" : "compare",
+          method: "native"
+        });
         notify({ tone: "success", message: "Report shared." });
       } else {
         await navigator.clipboard.writeText(shareUrl.toString());
         setShareState("copied");
+        trackEvent("report_shared", {
+          mode: report ? "single" : "compare",
+          method: "clipboard"
+        });
         notify({ tone: "success", message: "Share link copied to clipboard." });
       }
     } catch (shareError) {
@@ -1858,18 +1860,7 @@ export default function Home() {
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {liveRegionMessage}
       </p>
-      <SiteNav
-        trailing={
-          <button
-            type="button"
-            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-          >
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
-        }
-      />
+      <SiteNav />
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">

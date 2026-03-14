@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { useToast } from "@/app/components/ToastProvider";
+import { trackEvent } from "@/lib/analytics";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { BROWSER_NOTIFICATIONS_ENABLED_STORAGE_KEY } from "@/lib/userData";
 import { sendBrowserNotification } from "@/lib/browserNotifications";
@@ -448,7 +449,13 @@ export function BulkPageClient() {
       );
 
       const failedCount = nextResultsWithShareLinks.filter((entry) => entry.error).length;
+      const successCount = nextResultsWithShareLinks.length - failedCount;
       setResults(nextResultsWithShareLinks);
+      trackEvent("bulk_scan", {
+        total: nextResultsWithShareLinks.length,
+        successful: successCount,
+        failed: failedCount
+      });
 
       if (failedCount > 0) {
         const message = `${failedCount} of ${nextResultsWithShareLinks.length} scans failed. Review the table for details.`;

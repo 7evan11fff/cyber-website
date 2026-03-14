@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { ThemeToggle } from "@/app/components/ThemeToggle";
 
 const NAV_LINKS = [
   { href: "/", label: "Scanner" },
@@ -98,6 +99,7 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
           })}
         </nav>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           {trailing}
           {status === "authenticated" ? (
             <div className="flex items-center gap-2">
@@ -196,6 +198,9 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
             })}
           </nav>
           <div className="mt-3 border-t border-slate-800 pt-3">
+            <div className="mb-3">
+              <ThemeToggle />
+            </div>
             {status === "authenticated" ? (
               <>
                 <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5">

@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { AnalyticsProvider } from "@/app/components/AnalyticsProvider";
 import { AuthSessionProvider } from "@/app/components/AuthSessionProvider";
 import { ServiceWorkerRegistrar } from "@/app/components/ServiceWorkerRegistrar";
+import { ThemeProvider } from "@/app/components/ThemeProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
 import { SITE_DESCRIPTION, SITE_NAME, buildOgImageUrl, resolveSiteUrl } from "@/lib/seo";
 
@@ -91,14 +93,18 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <AuthSessionProvider>
-          <ToastProvider>
-            <ServiceWorkerRegistrar />
-            {children}
-          </ToastProvider>
-        </AuthSessionProvider>
+        <ThemeProvider>
+          <AnalyticsProvider>
+            <AuthSessionProvider>
+              <ToastProvider>
+                <ServiceWorkerRegistrar />
+                {children}
+              </ToastProvider>
+            </AuthSessionProvider>
+          </AnalyticsProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
