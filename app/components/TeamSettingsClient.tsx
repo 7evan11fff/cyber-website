@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/app/components/ConfirmDialog";
+import { useToast } from "@/app/components/ToastProvider";
 
 type TeamRole = "owner" | "admin" | "member";
 
@@ -13,6 +16,7 @@ type TeamSnapshot = {
     memberCount: number;
     pendingInviteCount: number;
   };
+  viewerUserId: string;
   members: Array<{
     teamId: string;
     userId: string;
@@ -42,6 +46,12 @@ function inviteStatus(invite: TeamSnapshot["invites"][number]): "pending" | "acc
   return "pending";
 }
 
+type ConfirmAction =
+  | { kind: "remove-member"; userId: string }
+  | { kind: "leave-team" }
+  | { kind: "delete-team" }
+  | null;
+
 export function TeamSettingsClient({
   slug,
   initialSnapshot
@@ -49,13 +59,18 @@ export function TeamSettingsClient({
   slug: string;
   initialSnapshot: TeamSnapshot;
 }) {
+  const router = useRouter();
+  const { notify } = useToast();
   const [teamName, setTeamName] = useState(initialSnapshot.team.name);
   const [members, setMembers] = useState(initialSnapshot.members);
   const [invites, setInvites] = useState(initialSnapshot.invites);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteState, setInviteState] = useState<"idle" | "saving">("idle");
+  const [resendingInviteIds, setResendingInviteIds] = useState<Record<string, boolean>>({});
+  const [updatingMemberIds, setUpdatingMemberIds] = useState<Record<string, boolean>>({});
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [confirmState, setConfirmState] = useState<"idle" | "saving">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nameSaveState, setNameSaveState] = useState<"idle" | "saving">("idle");
 
@@ -69,11 +84,12 @@ export function TeamSettingsClient({
   }, [members]);
 
   const managementEnabled = canManageTeam(initialSnapshot.team.role);
+  const canDeleteTeam = initialSnapshot.team.role === "owner";
+  const removeMemberTarget = confirmAction?.kind === "remove-member" ? confirmAction.userId : null;
 
   async function saveName() {
     if (!managementEnabled || nameSaveState === "saving") return;
     setErrorMessage(null);
-    setStatusMessage(null);
     setNameSaveState("saving");
     try {
       const response = await fetch(`/api/teams/${encodeURIComponent(slug)}`, {
@@ -86,25 +102,38 @@ export function TeamSettingsClient({
         throw new Error(payload?.error ?? "Could not update team name.");
       }
       setTeamName(payload.team.name);
-      setStatusMessage("Team name updated.");
+      notify({ tone: "success", message: "Team name updated." });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not update team name.");
+      const message = error instanceof Error ? error.message : "Could not update team name.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
     } finally {
       setNameSaveState("idle");
     }
   }
 
-  async function inviteMember() {
-    if (!managementEnabled || !inviteEmail.trim() || inviteState === "saving") return;
-    setInviteState("saving");
+  async function sendInvite(email: string, options?: { resend?: boolean; inviteId?: string }) {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !managementEnabled) return;
+    const inviteId = options?.inviteId;
+    const isResend = Boolean(options?.resend);
+    if (isResend && inviteId) {
+      setResendingInviteIds((previous) => ({ ...previous, [inviteId]: true }));
+    } else if (inviteState === "saving") {
+      return;
+    } else {
+      setInviteState("saving");
+    }
+
     setErrorMessage(null);
-    setStatusMessage(null);
-    setLastInviteLink(null);
+    if (!isResend) {
+      setLastInviteLink(null);
+    }
     try {
       const response = await fetch(`/api/teams/${encodeURIComponent(slug)}/invites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim() })
+        body: JSON.stringify({ email: normalizedEmail, resend: isResend })
       });
       const payload = (await response.json().catch(() => null)) as
         | {
@@ -118,19 +147,125 @@ export function TeamSettingsClient({
       const invite = payload.invite;
       setInvites((previous) => [invite, ...previous.filter((item) => item.id !== invite.id)]);
       setLastInviteLink(invite.inviteLink ?? null);
-      setInviteEmail("");
-      setStatusMessage("Invite created.");
+      if (!isResend) {
+        setInviteEmail("");
+      }
+      notify({
+        tone: "success",
+        message: isResend ? `Invite re-sent to ${invite.email}.` : `Invite sent to ${invite.email}.`
+      });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not send invite.");
+      const message = error instanceof Error ? error.message : "Could not send invite.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
     } finally {
-      setInviteState("idle");
+      if (isResend && inviteId) {
+        setResendingInviteIds((previous) => {
+          const next = { ...previous };
+          delete next[inviteId];
+          return next;
+        });
+      } else {
+        setInviteState("idle");
+      }
+    }
+  }
+
+  async function inviteMember() {
+    if (!managementEnabled || !inviteEmail.trim() || inviteState === "saving") return;
+    await sendInvite(inviteEmail);
+  }
+
+  async function resendInvite(invite: TeamSnapshot["invites"][number]) {
+    await sendInvite(invite.email, { resend: true, inviteId: invite.id });
+  }
+
+  async function removeMember(targetUserId: string) {
+    setErrorMessage(null);
+    try {
+      const response = await fetch(`/api/teams/${encodeURIComponent(slug)}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            removed?: boolean;
+            error?: string;
+          }
+        | null;
+      if (!response.ok || !payload?.removed) {
+        throw new Error(payload?.error ?? "Could not remove member.");
+      }
+      setMembers((previous) => previous.filter((member) => member.userId !== targetUserId));
+      notify({ tone: "success", message: `${targetUserId} was removed from the team.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not remove member.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
+      throw error;
+    }
+  }
+
+  async function leaveTeam() {
+    setErrorMessage(null);
+    const response = await fetch(`/api/teams/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "leave" })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    if (!response.ok || !payload?.ok) {
+      const message = payload?.error ?? "Could not leave team.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
+      throw new Error(message);
+    }
+    notify({ tone: "success", message: "You left the team." });
+    router.push("/teams");
+    router.refresh();
+  }
+
+  async function deleteTeam() {
+    setErrorMessage(null);
+    const response = await fetch(`/api/teams/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete" })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    if (!response.ok || !payload?.ok) {
+      const message = payload?.error ?? "Could not delete team.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
+      throw new Error(message);
+    }
+    notify({ tone: "success", message: "Team deleted." });
+    router.push("/teams");
+    router.refresh();
+  }
+
+  async function confirmCurrentAction() {
+    if (!confirmAction || confirmState === "saving") return;
+    setConfirmState("saving");
+    try {
+      if (confirmAction.kind === "remove-member") {
+        await removeMember(confirmAction.userId);
+      } else if (confirmAction.kind === "leave-team") {
+        await leaveTeam();
+      } else if (confirmAction.kind === "delete-team") {
+        await deleteTeam();
+      }
+      setConfirmAction(null);
+    } finally {
+      setConfirmState("idle");
     }
   }
 
   async function updateRole(targetUserId: string, role: TeamRole) {
     if (!managementEnabled || role === "owner") return;
+    setUpdatingMemberIds((previous) => ({ ...previous, [targetUserId]: true }));
     setErrorMessage(null);
-    setStatusMessage(null);
     try {
       const response = await fetch(`/api/teams/${encodeURIComponent(slug)}/members`, {
         method: "PATCH",
@@ -146,9 +281,17 @@ export function TeamSettingsClient({
       setMembers((previous) =>
         previous.map((member) => (member.userId === targetUserId ? payload.member! : member))
       );
-      setStatusMessage(`Updated ${targetUserId} to ${role}.`);
+      notify({ tone: "success", message: `Updated ${targetUserId} to ${role}.` });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not update role.");
+      const message = error instanceof Error ? error.message : "Could not update role.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
+    } finally {
+      setUpdatingMemberIds((previous) => {
+        const next = { ...previous };
+        delete next[targetUserId];
+        return next;
+      });
     }
   }
 
@@ -226,10 +369,9 @@ export function TeamSettingsClient({
         )}
       </article>
 
-      {(statusMessage || errorMessage) && (
-        <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 lg:col-span-2">
-          {statusMessage && <p className="text-sm text-emerald-300">{statusMessage}</p>}
-          {errorMessage && <p className="text-sm text-rose-300">{errorMessage}</p>}
+      {errorMessage && (
+        <article className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 lg:col-span-2">
+          <p className="text-sm text-rose-200">{errorMessage}</p>
         </article>
       )}
 
@@ -247,6 +389,8 @@ export function TeamSettingsClient({
                   <button
                     type="button"
                     onClick={() => void updateRole(member.userId, "admin")}
+                    disabled={Boolean(updatingMemberIds[member.userId])}
+                    aria-label={`Promote ${member.userId} to admin`}
                     className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                   >
                     Make admin
@@ -254,9 +398,20 @@ export function TeamSettingsClient({
                   <button
                     type="button"
                     onClick={() => void updateRole(member.userId, "member")}
+                    disabled={Boolean(updatingMemberIds[member.userId])}
+                    aria-label={`Set ${member.userId} as member`}
                     className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
                   >
                     Make member
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingMemberIds[member.userId])}
+                    onClick={() => setConfirmAction({ kind: "remove-member", userId: member.userId })}
+                    aria-label={`Remove ${member.userId} from team`}
+                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Remove
                   </button>
                 </div>
               )}
@@ -281,7 +436,17 @@ export function TeamSettingsClient({
                     {status} • expires {new Date(invite.expiresAt).toLocaleString()}
                   </p>
                   {status === "pending" && (
-                    <p className="mt-1 break-all text-xs text-sky-300">{inviteLink}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="break-all text-xs text-sky-300">{inviteLink}</p>
+                      <button
+                        type="button"
+                        onClick={() => void resendInvite(invite)}
+                        disabled={Boolean(resendingInviteIds[invite.id])}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {resendingInviteIds[invite.id] ? "Sending..." : "Re-send"}
+                      </button>
+                    </div>
                   )}
                 </li>
               );
@@ -289,6 +454,65 @@ export function TeamSettingsClient({
           </ul>
         )}
       </article>
+
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60 lg:col-span-2">
+        <h2 className="text-lg font-semibold text-slate-100">Danger zone</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          These actions are permanent. Review team impact before continuing.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {canDeleteTeam ? (
+            <button
+              type="button"
+              onClick={() => setConfirmAction({ kind: "delete-team" })}
+              className="rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/20"
+            >
+              Delete team
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmAction({ kind: "leave-team" })}
+              className="rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/20"
+            >
+              Leave team
+            </button>
+          )}
+        </div>
+      </article>
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        busy={confirmState === "saving"}
+        onCancel={() => {
+          if (confirmState !== "saving") {
+            setConfirmAction(null);
+          }
+        }}
+        onConfirm={confirmCurrentAction}
+        tone={confirmAction?.kind === "remove-member" || confirmAction?.kind === "delete-team" ? "danger" : "default"}
+        title={
+          confirmAction?.kind === "remove-member"
+            ? "Remove team member?"
+            : confirmAction?.kind === "leave-team"
+              ? "Leave this team?"
+              : "Delete this team?"
+        }
+        description={
+          confirmAction?.kind === "remove-member"
+            ? `Remove ${removeMemberTarget} from this team. They will lose access immediately.`
+            : confirmAction?.kind === "leave-team"
+              ? "You will lose access to this shared watchlist and team settings."
+              : "This permanently deletes the team, member links, invites, and shared watchlist entries."
+        }
+        confirmLabel={
+          confirmAction?.kind === "remove-member"
+            ? "Remove member"
+            : confirmAction?.kind === "leave-team"
+              ? "Leave team"
+              : "Delete team"
+        }
+      />
     </section>
   );
 }

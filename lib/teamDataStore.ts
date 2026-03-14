@@ -18,11 +18,13 @@ import {
   type TeamMemberRecord,
   type TeamRecord,
   type TeamRole,
+  type TeamScanActivityRecord,
   type TeamWatchlistEntry
 } from "@/lib/teamData";
 
 const TEAM_DATA_FILE_PATH = path.join(process.cwd(), "data", "team-data.json");
 const DEFAULT_INVITE_EXPIRY_DAYS = 7;
+const MAX_SCAN_ACTIVITY_PER_TEAM = 400;
 
 export type TeamSummary = TeamRecord & {
   role: TeamRole;
@@ -32,9 +34,11 @@ export type TeamSummary = TeamRecord & {
 
 export type TeamSnapshot = {
   team: TeamSummary;
+  viewerUserId: string;
   members: TeamMemberRecord[];
   invites: TeamInviteRecord[];
   watchlist: TeamWatchlistEntry[];
+  scanActivity: TeamScanActivityRecord[];
 };
 
 export type InviteAcceptanceResult =
@@ -103,6 +107,27 @@ function normalizeTeamInviteRecord(value: unknown): TeamInviteRecord | null {
   };
 }
 
+function normalizeTeamScanActivityRecord(value: unknown): TeamScanActivityRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<TeamScanActivityRecord>;
+  if (typeof candidate.id !== "string" || !candidate.id.trim()) return null;
+  if (typeof candidate.teamId !== "string" || !candidate.teamId.trim()) return null;
+  if (candidate.entryId !== null && typeof candidate.entryId !== "string") return null;
+  if (typeof candidate.url !== "string" || !candidate.url.trim()) return null;
+  if (typeof candidate.grade !== "string" || !candidate.grade.trim()) return null;
+  if (!isValidIsoTimestamp(candidate.scannedAt)) return null;
+  if (typeof candidate.scannedByUserId !== "string" || !candidate.scannedByUserId.trim()) return null;
+  return {
+    id: candidate.id,
+    teamId: candidate.teamId.trim(),
+    entryId: candidate.entryId ?? null,
+    url: candidate.url.trim(),
+    grade: candidate.grade.trim().toUpperCase(),
+    scannedAt: new Date(candidate.scannedAt).toISOString(),
+    scannedByUserId: normalizeUserId(candidate.scannedByUserId)
+  };
+}
+
 function normalizeDataFile(value: unknown): TeamDataFile {
   if (!value || typeof value !== "object") {
     return createEmptyTeamDataFile();
@@ -128,12 +153,18 @@ function normalizeDataFile(value: unknown): TeamDataFile {
   const teamWatchlist = Array.isArray(parsed.teamWatchlist)
     ? normalizeTeamWatchlistEntries(parsed.teamWatchlist).filter((entry) => teamIdSet.has(entry.teamId))
     : [];
+  const teamScanActivity = Array.isArray(parsed.teamScanActivity)
+    ? parsed.teamScanActivity
+        .map(normalizeTeamScanActivityRecord)
+        .filter((activity): activity is TeamScanActivityRecord => Boolean(activity && teamIdSet.has(activity.teamId)))
+    : [];
 
   return {
     teams,
     teamMembers,
     teamInvites,
-    teamWatchlist
+    teamWatchlist,
+    teamScanActivity
   };
 }
 
@@ -251,6 +282,36 @@ function resolveActorTeam(data: TeamDataFile, slug: string, actorUserId: string)
   return { team, actor };
 }
 
+function recordTeamScanActivity(input: {
+  data: TeamDataFile;
+  teamId: string;
+  entryId: string | null;
+  url: string;
+  grade: string;
+  scannedAt: string;
+  scannedByUserId: string;
+}): TeamScanActivityRecord {
+  const activity: TeamScanActivityRecord = {
+    id: randomUUID(),
+    teamId: input.teamId,
+    entryId: input.entryId,
+    url: input.url,
+    grade: input.grade.trim().toUpperCase(),
+    scannedAt: new Date(input.scannedAt).toISOString(),
+    scannedByUserId: normalizeUserId(input.scannedByUserId)
+  };
+  input.data.teamScanActivity.push(activity);
+  const teamItems = input.data.teamScanActivity
+    .filter((candidate) => candidate.teamId === input.teamId)
+    .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
+    .slice(0, MAX_SCAN_ACTIVITY_PER_TEAM);
+  input.data.teamScanActivity = [
+    ...input.data.teamScanActivity.filter((candidate) => candidate.teamId !== input.teamId),
+    ...teamItems
+  ];
+  return activity;
+}
+
 export async function listTeamsForUser(userId: string): Promise<TeamSummary[]> {
   const normalizedUserId = normalizeUserId(userId);
   const data = await readDataFile();
@@ -318,12 +379,18 @@ export async function getTeamSnapshotBySlugForUser(input: {
   const watchlist = data.teamWatchlist
     .filter((entry) => entry.teamId === team.id)
     .sort((a, b) => new Date(b.lastCheckedAt).getTime() - new Date(a.lastCheckedAt).getTime());
+  const scanActivity = data.teamScanActivity
+    .filter((activity) => activity.teamId === team.id)
+    .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
+    .slice(0, MAX_SCAN_ACTIVITY_PER_TEAM);
 
   return {
     team: buildTeamSummary(data, team, membership.role),
+    viewerUserId: membership.userId,
     members,
     invites,
-    watchlist
+    watchlist,
+    scanActivity
   };
 }
 
@@ -348,6 +415,7 @@ export async function inviteUserToTeamBySlug(input: {
   actorUserId: string;
   email: string;
   expiresInDays?: number;
+  resend?: boolean;
 }): Promise<TeamInviteRecord> {
   const requestedEmail = validateInviteEmail(input.email);
   const expiresInDays = Math.max(1, Math.min(input.expiresInDays ?? DEFAULT_INVITE_EXPIRY_DAYS, 30));
@@ -355,6 +423,7 @@ export async function inviteUserToTeamBySlug(input: {
   return mutateDataFile((data) => {
     const { team, actor } = resolveActorTeam(data, input.slug, input.actorUserId);
     requireManagerRole(actor.role);
+    const now = new Date();
     if (data.teamMembers.some((member) => member.teamId === team.id && member.userId === requestedEmail)) {
       throw new Error("That user is already a team member.");
     }
@@ -367,10 +436,23 @@ export async function inviteUserToTeamBySlug(input: {
         new Date(invite.expiresAt).getTime() > Date.now()
     );
     if (pendingInvite) {
+      if (input.resend) {
+        const refreshed: TeamInviteRecord = {
+          ...pendingInvite,
+          token: inviteToken(),
+          createdAt: now.toISOString(),
+          invitedByUserId: normalizeUserId(input.actorUserId),
+          expiresAt: new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const index = data.teamInvites.findIndex((invite) => invite.id === pendingInvite.id);
+        if (index >= 0) {
+          data.teamInvites[index] = refreshed;
+        }
+        return refreshed;
+      }
       return pendingInvite;
     }
 
-    const now = new Date();
     const invite: TeamInviteRecord = {
       id: randomUUID(),
       teamId: team.id,
@@ -427,6 +509,67 @@ export async function updateTeamMemberRoleBySlug(input: {
     };
     data.teamMembers[targetIndex] = nextMember;
     return nextMember;
+  });
+}
+
+export async function removeTeamMemberBySlug(input: {
+  slug: string;
+  actorUserId: string;
+  targetUserId: string;
+}): Promise<boolean> {
+  return mutateDataFile((data) => {
+    const { team, actor } = resolveActorTeam(data, input.slug, input.actorUserId);
+    const targetUserId = normalizeUserId(input.targetUserId);
+    const targetIndex = data.teamMembers.findIndex(
+      (member) => member.teamId === team.id && member.userId === targetUserId
+    );
+    if (targetIndex < 0) {
+      throw new Error("Team member not found.");
+    }
+
+    const target = data.teamMembers[targetIndex];
+    if (target.role === "owner") {
+      throw new Error("Team owner cannot be removed.");
+    }
+
+    if (actor.userId === targetUserId) {
+      if (actor.role === "owner") {
+        throw new Error("Team owner cannot leave the team. Delete the team or transfer ownership first.");
+      }
+    } else if (actor.role === "admin") {
+      if (target.role !== "member") {
+        throw new Error("Admins can only remove members.");
+      }
+    } else if (actor.role !== "owner") {
+      throw new Error("Only team owner/admin can remove members.");
+    }
+
+    data.teamMembers.splice(targetIndex, 1);
+    return true;
+  });
+}
+
+export async function leaveTeamBySlug(input: { slug: string; actorUserId: string }): Promise<boolean> {
+  return removeTeamMemberBySlug({
+    slug: input.slug,
+    actorUserId: input.actorUserId,
+    targetUserId: input.actorUserId
+  });
+}
+
+export async function deleteTeamBySlug(input: { slug: string; actorUserId: string }): Promise<boolean> {
+  return mutateDataFile((data) => {
+    const { team, actor } = resolveActorTeam(data, input.slug, input.actorUserId);
+    if (actor.role !== "owner") {
+      throw new Error("Only team owner can delete the team.");
+    }
+
+    data.teams = data.teams.filter((candidate) => candidate.id !== team.id);
+    data.teamMembers = data.teamMembers.filter((member) => member.teamId !== team.id);
+    data.teamInvites = data.teamInvites.filter((invite) => invite.teamId !== team.id);
+    data.teamWatchlist = data.teamWatchlist.filter((entry) => entry.teamId !== team.id);
+    data.teamScanActivity = data.teamScanActivity.filter((activity) => activity.teamId !== team.id);
+    return true;
   });
 }
 
@@ -503,9 +646,10 @@ export async function addOrUpdateTeamWatchlistEntryBySlug(input: {
   url: string;
   grade: string;
   checkedAt: string;
-}): Promise<TeamWatchlistEntry> {
+}): Promise<{ entry: TeamWatchlistEntry; activity: TeamScanActivityRecord }> {
   return mutateDataFile((data) => {
     const { team } = resolveActorTeam(data, input.slug, input.actorUserId);
+    const actorUserId = normalizeUserId(input.actorUserId);
     const checkedAt = new Date(input.checkedAt).toISOString();
     const normalizedUrl = normalizeTargetUrl(input.url);
     const currentGrade = input.grade.trim().toUpperCase();
@@ -520,10 +664,20 @@ export async function addOrUpdateTeamWatchlistEntryBySlug(input: {
         url: normalizedUrl,
         lastGrade: currentGrade,
         previousGrade: changed ? existing.lastGrade : null,
-        lastCheckedAt: checkedAt
+        lastCheckedAt: checkedAt,
+        lastScannedByUserId: actorUserId
       };
       data.teamWatchlist[existingIndex] = nextEntry;
-      return nextEntry;
+      const activity = recordTeamScanActivity({
+        data,
+        teamId: team.id,
+        entryId: nextEntry.id,
+        url: nextEntry.url,
+        grade: nextEntry.lastGrade,
+        scannedAt: nextEntry.lastCheckedAt,
+        scannedByUserId: actorUserId
+      });
+      return { entry: nextEntry, activity };
     }
 
     const now = new Date().toISOString();
@@ -535,10 +689,20 @@ export async function addOrUpdateTeamWatchlistEntryBySlug(input: {
       previousGrade: null,
       lastCheckedAt: checkedAt,
       createdAt: now,
-      createdByUserId: normalizeUserId(input.actorUserId)
+      createdByUserId: actorUserId,
+      lastScannedByUserId: actorUserId
     };
     data.teamWatchlist.push(created);
-    return created;
+    const activity = recordTeamScanActivity({
+      data,
+      teamId: team.id,
+      entryId: created.id,
+      url: created.url,
+      grade: created.lastGrade,
+      scannedAt: created.lastCheckedAt,
+      scannedByUserId: actorUserId
+    });
+    return { entry: created, activity };
   });
 }
 

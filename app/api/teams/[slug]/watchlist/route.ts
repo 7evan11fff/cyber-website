@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { runSecurityScan } from "@/lib/securityReport";
 import { hasTeamAccess } from "@/lib/teamAccess";
 import {
@@ -8,7 +7,7 @@ import {
   listTeamWatchlistBySlugForUser,
   removeTeamWatchlistEntryBySlug
 } from "@/lib/teamDataStore";
-import { getUserKeyFromSessionUser } from "@/lib/userDataStore";
+import { resolveTeamRequestIdentity } from "@/lib/teamRequestIdentity";
 
 export const runtime = "nodejs";
 
@@ -28,13 +27,25 @@ function mapAccessError(error: unknown) {
 }
 
 export async function GET(_request: Request, { params }: { params: { slug: string } }) {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  if (!userKey) {
-    return unauthorized();
+  const identity = await resolveTeamRequestIdentity(_request);
+  const rateLimit = enforceApiRateLimit({
+    request: _request,
+    route: "teams.slug.watchlist",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  if (!userKey) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   try {
@@ -42,52 +53,79 @@ export async function GET(_request: Request, { params }: { params: { slug: strin
       slug: params.slug,
       userId: userKey
     });
-    return NextResponse.json({ watchlist });
+    return withApiRateLimitHeaders(NextResponse.json({ watchlist }), rateLimit.state);
   } catch (error) {
-    return NextResponse.json({ error: "Team not found." }, { status: mapAccessError(error) });
+    return withApiRateLimitHeaders(
+      NextResponse.json({ error: "Team not found." }, { status: mapAccessError(error) }),
+      rateLimit.state
+    );
   }
 }
 
 export async function POST(request: Request, { params }: { params: { slug: string } }) {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  if (!userKey) {
-    return unauthorized();
+  const identity = await resolveTeamRequestIdentity(request);
+  const rateLimit = enforceApiRateLimit({
+    request,
+    route: "teams.slug.watchlist",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  if (!userKey) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   const body = (await request.json().catch(() => null)) as { url?: unknown } | null;
   const url = typeof body?.url === "string" ? body.url : "";
   if (!url.trim()) {
-    return NextResponse.json({ error: "URL is required." }, { status: 400 });
+    return withApiRateLimitHeaders(NextResponse.json({ error: "URL is required." }, { status: 400 }), rateLimit.state);
   }
 
   try {
     const report = await runSecurityScan(url);
-    const entry = await addOrUpdateTeamWatchlistEntryBySlug({
+    const { entry, activity } = await addOrUpdateTeamWatchlistEntryBySlug({
       slug: params.slug,
       actorUserId: userKey,
       url: report.checkedUrl,
       grade: report.grade,
       checkedAt: report.checkedAt
     });
-    return NextResponse.json({ entry }, { status: 201 });
+    return withApiRateLimitHeaders(NextResponse.json({ entry, activity }, { status: 201 }), rateLimit.state);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save watchlist entry.";
-    return NextResponse.json({ error: message }, { status: mapAccessError(error) });
+    return withApiRateLimitHeaders(NextResponse.json({ error: message }, { status: mapAccessError(error) }), rateLimit.state);
   }
 }
 
 export async function PATCH(request: Request, { params }: { params: { slug: string } }) {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  if (!userKey) {
-    return unauthorized();
+  const identity = await resolveTeamRequestIdentity(request);
+  const rateLimit = enforceApiRateLimit({
+    request,
+    route: "teams.slug.watchlist",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  if (!userKey) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   const body = (await request.json().catch(() => null)) as { entryId?: unknown } | null;
@@ -100,6 +138,7 @@ export async function PATCH(request: Request, { params }: { params: { slug: stri
     });
     const targets = entryId ? watchlist.filter((entry) => entry.id === entryId) : watchlist;
     const updated = [];
+    const activities = [];
     const errors: string[] = [];
 
     for (const entry of targets) {
@@ -112,7 +151,8 @@ export async function PATCH(request: Request, { params }: { params: { slug: stri
           grade: report.grade,
           checkedAt: report.checkedAt
         });
-        updated.push(saved);
+        updated.push(saved.entry);
+        activities.push(saved.activity);
       } catch (error) {
         if (errors.length < 20) {
           errors.push(
@@ -122,29 +162,44 @@ export async function PATCH(request: Request, { params }: { params: { slug: stri
       }
     }
 
-    return NextResponse.json({ updated, errors });
+    return withApiRateLimitHeaders(NextResponse.json({ updated, activities, errors }), rateLimit.state);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not refresh watchlist." },
-      { status: mapAccessError(error) }
+    return withApiRateLimitHeaders(
+      NextResponse.json(
+        { error: error instanceof Error ? error.message : "Could not refresh watchlist." },
+        { status: mapAccessError(error) }
+      ),
+      rateLimit.state
     );
   }
 }
 
 export async function DELETE(request: Request, { params }: { params: { slug: string } }) {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  if (!userKey) {
-    return unauthorized();
+  const identity = await resolveTeamRequestIdentity(request);
+  const rateLimit = enforceApiRateLimit({
+    request,
+    route: "teams.slug.watchlist",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  if (!userKey) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   const body = (await request.json().catch(() => null)) as { entryId?: unknown } | null;
   const entryId = typeof body?.entryId === "string" ? body.entryId : "";
   if (!entryId.trim()) {
-    return NextResponse.json({ error: "entryId is required." }, { status: 400 });
+    return withApiRateLimitHeaders(NextResponse.json({ error: "entryId is required." }, { status: 400 }), rateLimit.state);
   }
 
   try {
@@ -153,11 +208,14 @@ export async function DELETE(request: Request, { params }: { params: { slug: str
       actorUserId: userKey,
       entryId
     });
-    return NextResponse.json({ removed });
+    return withApiRateLimitHeaders(NextResponse.json({ removed }), rateLimit.state);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not remove watchlist entry." },
-      { status: mapAccessError(error) }
+    return withApiRateLimitHeaders(
+      NextResponse.json(
+        { error: error instanceof Error ? error.message : "Could not remove watchlist entry." },
+        { status: mapAccessError(error) }
+      ),
+      rateLimit.state
     );
   }
 }

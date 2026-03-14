@@ -3,29 +3,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockGetServerSession,
-  mockGetUserKeyFromSessionUser,
+  mockResolveTeamRequestIdentity,
+  mockEnforceApiRateLimit,
+  mockWithApiRateLimitHeaders,
   mockHasTeamAccess,
   mockListTeamsForUser,
   mockCreateTeamForUser
 } = vi.hoisted(() => ({
-  mockGetServerSession: vi.fn(),
-  mockGetUserKeyFromSessionUser: vi.fn(),
+  mockResolveTeamRequestIdentity: vi.fn(),
+  mockEnforceApiRateLimit: vi.fn(),
+  mockWithApiRateLimitHeaders: vi.fn((response: Response) => response),
   mockHasTeamAccess: vi.fn(),
   mockListTeamsForUser: vi.fn(),
   mockCreateTeamForUser: vi.fn()
 }));
 
-vi.mock("next-auth", () => ({
-  getServerSession: mockGetServerSession
+vi.mock("@/lib/teamRequestIdentity", () => ({
+  resolveTeamRequestIdentity: mockResolveTeamRequestIdentity
 }));
 
-vi.mock("@/lib/auth", () => ({
-  authOptions: {}
-}));
-
-vi.mock("@/lib/userDataStore", () => ({
-  getUserKeyFromSessionUser: mockGetUserKeyFromSessionUser
+vi.mock("@/lib/apiRateLimit", () => ({
+  enforceApiRateLimit: mockEnforceApiRateLimit,
+  withApiRateLimitHeaders: mockWithApiRateLimitHeaders
 }));
 
 vi.mock("@/lib/teamAccess", () => ({
@@ -42,8 +41,15 @@ import { GET, POST } from "@/app/api/teams/route";
 describe("teams route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetServerSession.mockResolvedValue({ user: { email: "owner@example.com" } });
-    mockGetUserKeyFromSessionUser.mockReturnValue("owner@example.com");
+    mockResolveTeamRequestIdentity.mockResolvedValue({
+      userKey: "owner@example.com",
+      userEmail: "owner@example.com",
+      sessionUser: { email: "owner@example.com" }
+    });
+    mockEnforceApiRateLimit.mockReturnValue({
+      ok: true,
+      state: { limit: 100, remaining: 99, resetAt: Date.now() + 60_000 }
+    });
     mockHasTeamAccess.mockReturnValue(true);
     mockListTeamsForUser.mockResolvedValue([]);
     mockCreateTeamForUser.mockResolvedValue({
@@ -57,8 +63,12 @@ describe("teams route", () => {
   });
 
   it("returns unauthorized when user key is missing", async () => {
-    mockGetUserKeyFromSessionUser.mockReturnValueOnce(null);
-    const response = await GET();
+    mockResolveTeamRequestIdentity.mockResolvedValueOnce({
+      userKey: null,
+      userEmail: null,
+      sessionUser: null
+    });
+    const response = await GET(new Request("http://localhost/api/teams"));
     expect(response.status).toBe(401);
   });
 
@@ -74,7 +84,7 @@ describe("teams route", () => {
       }
     ]);
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/teams"));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       teams: [{ slug: "acme-team", memberCount: 2 }]
@@ -115,5 +125,15 @@ describe("teams route", () => {
       error: "Team name is required."
     });
     expect(mockCreateTeamForUser).not.toHaveBeenCalled();
+  });
+
+  it("returns rate limit response when request is throttled", async () => {
+    mockEnforceApiRateLimit.mockReturnValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 })
+    });
+    const response = await GET(new Request("http://localhost/api/teams"));
+    expect(response.status).toBe(429);
+    expect(mockListTeamsForUser).not.toHaveBeenCalled();
   });
 });

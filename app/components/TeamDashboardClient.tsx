@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ConfirmDialog } from "@/app/components/ConfirmDialog";
+import { MiniScoreTrendChart } from "@/app/components/MiniScoreTrendChart";
+import { useToast } from "@/app/components/ToastProvider";
+import { gradeToScore } from "@/lib/gradeTrends";
 
 type TeamRole = "owner" | "admin" | "member";
 
@@ -13,6 +17,7 @@ type TeamSnapshot = {
     memberCount: number;
     pendingInviteCount: number;
   };
+  viewerUserId: string;
   members: Array<{
     teamId: string;
     userId: string;
@@ -29,6 +34,16 @@ type TeamSnapshot = {
     lastCheckedAt: string;
     createdAt: string;
     createdByUserId: string;
+    lastScannedByUserId: string;
+  }>;
+  scanActivity: Array<{
+    id: string;
+    teamId: string;
+    entryId: string | null;
+    url: string;
+    grade: string;
+    scannedAt: string;
+    scannedByUserId: string;
   }>;
 };
 
@@ -44,12 +59,16 @@ export function TeamDashboardClient({
   slug: string;
   initialSnapshot: TeamSnapshot;
 }) {
+  const { notify } = useToast();
   const [members] = useState(initialSnapshot.members);
   const [watchlist, setWatchlist] = useState(initialSnapshot.watchlist);
+  const [scanActivity, setScanActivity] = useState(initialSnapshot.scanActivity);
   const [newUrl, setNewUrl] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [refreshingIds, setRefreshingIds] = useState<Record<string, boolean>>({});
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [pendingRemovalEntryId, setPendingRemovalEntryId] = useState<string | null>(null);
+  const [removeState, setRemoveState] = useState<"idle" | "saving">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const sortedMembers = useMemo(
@@ -61,6 +80,49 @@ export function TeamDashboardClient({
       }),
     [members]
   );
+  const memberNameById = useMemo(
+    () => new Map(sortedMembers.map((member) => [member.userId, member.userId])),
+    [sortedMembers]
+  );
+  const recentActivity = useMemo(
+    () =>
+      [...scanActivity]
+        .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
+        .slice(0, 10),
+    [scanActivity]
+  );
+  const trendPoints = useMemo(() => {
+    const dayLabels: string[] = [];
+    const dayKeys: string[] = [];
+    const now = new Date();
+    for (let dayOffset = 6; dayOffset >= 0; dayOffset -= 1) {
+      const dayDate = new Date(now.getTime() - dayOffset * 24 * 60 * 60 * 1000);
+      const key = `${dayDate.getUTCFullYear()}-${String(dayDate.getUTCMonth() + 1).padStart(2, "0")}-${String(dayDate.getUTCDate()).padStart(2, "0")}`;
+      dayKeys.push(key);
+      dayLabels.push(dayDate.toLocaleDateString(undefined, { weekday: "short" }));
+    }
+    const dayKeySet = new Set(dayKeys);
+    const scoresByDay = new Map<string, number[]>();
+    for (const activity of scanActivity) {
+      const scannedAt = new Date(activity.scannedAt);
+      if (!Number.isFinite(scannedAt.getTime())) continue;
+      const key = `${scannedAt.getUTCFullYear()}-${String(scannedAt.getUTCMonth() + 1).padStart(2, "0")}-${String(scannedAt.getUTCDate()).padStart(2, "0")}`;
+      if (!dayKeySet.has(key)) continue;
+      const score = gradeToScore(activity.grade);
+      if (score <= 0) continue;
+      const existing = scoresByDay.get(key);
+      if (existing) {
+        existing.push(score);
+      } else {
+        scoresByDay.set(key, [score]);
+      }
+    }
+    return dayKeys.map((dayKey, index) => {
+      const scores = scoresByDay.get(dayKey);
+      const value = scores && scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
+      return { label: dayLabels[index], value };
+    });
+  }, [scanActivity]);
 
   async function addWatchlistEntry() {
     if (!newUrl.trim() || saveState === "saving") return;
@@ -73,7 +135,7 @@ export function TeamDashboardClient({
         body: JSON.stringify({ url: newUrl.trim() })
       });
       const payload = (await response.json().catch(() => null)) as
-        | { entry?: TeamSnapshot["watchlist"][number]; error?: string }
+        | { entry?: TeamSnapshot["watchlist"][number]; activity?: TeamSnapshot["scanActivity"][number]; error?: string }
         | null;
       if (!response.ok || !payload?.entry) {
         throw new Error(payload?.error ?? "Could not add URL to team watchlist.");
@@ -84,11 +146,17 @@ export function TeamDashboardClient({
           (a, b) => new Date(b.lastCheckedAt).getTime() - new Date(a.lastCheckedAt).getTime()
         );
       });
+      if (payload.activity) {
+        setScanActivity((previous) => [payload.activity!, ...previous]);
+      }
+      notify({ tone: "success", message: "Domain added to team watchlist." });
       setNewUrl("");
       setSaveState("idle");
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not add URL.";
       setSaveState("error");
-      setErrorMessage(error instanceof Error ? error.message : "Could not add URL.");
+      setErrorMessage(message);
+      notify({ tone: "error", message });
       window.setTimeout(() => setSaveState("idle"), 2500);
     }
   }
@@ -105,6 +173,7 @@ export function TeamDashboardClient({
       const payload = (await response.json().catch(() => null)) as
         | {
             updated?: TeamSnapshot["watchlist"];
+            activities?: TeamSnapshot["scanActivity"];
             errors?: string[];
             error?: string;
           }
@@ -120,11 +189,19 @@ export function TeamDashboardClient({
             .sort((a, b) => new Date(b.lastCheckedAt).getTime() - new Date(a.lastCheckedAt).getTime())
         );
       }
+      if (payload?.activities?.length) {
+        setScanActivity((previous) => [...payload.activities!, ...previous].slice(0, 200));
+      }
       if (payload?.errors?.length) {
         setErrorMessage(payload.errors[0]);
+        notify({ tone: "error", message: payload.errors[0] });
+      } else {
+        notify({ tone: "info", message: "Watchlist entry refreshed." });
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not refresh entry.");
+      const message = error instanceof Error ? error.message : "Could not refresh entry.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
     } finally {
       setRefreshingIds((previous) => {
         const next = { ...previous };
@@ -147,6 +224,7 @@ export function TeamDashboardClient({
       const payload = (await response.json().catch(() => null)) as
         | {
             updated?: TeamSnapshot["watchlist"];
+            activities?: TeamSnapshot["scanActivity"];
             errors?: string[];
             error?: string;
           }
@@ -162,29 +240,48 @@ export function TeamDashboardClient({
             .sort((a, b) => new Date(b.lastCheckedAt).getTime() - new Date(a.lastCheckedAt).getTime())
         );
       }
+      if (payload?.activities?.length) {
+        setScanActivity((previous) => [...payload.activities!, ...previous].slice(0, 400));
+      }
       if (payload?.errors?.length) {
         setErrorMessage(payload.errors[0]);
+        notify({ tone: "error", message: payload.errors[0] });
+      } else {
+        notify({ tone: "info", message: "Team watchlist refreshed." });
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not refresh team watchlist.");
+      const message = error instanceof Error ? error.message : "Could not refresh team watchlist.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
     } finally {
       setRefreshingAll(false);
     }
   }
 
   async function removeEntry(entryId: string) {
+    if (removeState === "saving") return;
+    setRemoveState("saving");
     setErrorMessage(null);
-    const response = await fetch(`/api/teams/${encodeURIComponent(slug)}/watchlist`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entryId })
-    });
-    const payload = (await response.json().catch(() => null)) as { removed?: boolean; error?: string } | null;
-    if (!response.ok || !payload?.removed) {
-      setErrorMessage(payload?.error ?? "Could not remove watchlist entry.");
-      return;
+    try {
+      const response = await fetch(`/api/teams/${encodeURIComponent(slug)}/watchlist`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryId })
+      });
+      const payload = (await response.json().catch(() => null)) as { removed?: boolean; error?: string } | null;
+      if (!response.ok || !payload?.removed) {
+        throw new Error(payload?.error ?? "Could not remove watchlist entry.");
+      }
+      setWatchlist((previous) => previous.filter((entry) => entry.id !== entryId));
+      notify({ tone: "success", message: "Watchlist item removed." });
+      setPendingRemovalEntryId(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not remove watchlist entry.";
+      setErrorMessage(message);
+      notify({ tone: "error", message });
+    } finally {
+      setRemoveState("idle");
     }
-    setWatchlist((previous) => previous.filter((entry) => entry.id !== entryId));
   }
 
   return (
@@ -248,6 +345,9 @@ export function TeamDashboardClient({
                     <p className="text-xs text-slate-500">
                       Last checked {new Date(entry.lastCheckedAt).toLocaleString()}
                     </p>
+                    <p className="text-xs text-slate-500">
+                      Last scanned by {memberNameById.get(entry.lastScannedByUserId) ?? entry.lastScannedByUserId}
+                    </p>
                   </div>
                   <p className="text-sm font-semibold text-sky-200">Grade {entry.lastGrade}</p>
                 </div>
@@ -270,7 +370,7 @@ export function TeamDashboardClient({
                   </a>
                   <button
                     type="button"
-                    onClick={() => void removeEntry(entry.id)}
+                    onClick={() => setPendingRemovalEntryId(entry.id)}
                     className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-rose-500/50 hover:text-rose-200"
                   >
                     Remove
@@ -296,6 +396,73 @@ export function TeamDashboardClient({
           ))}
         </ul>
       </article>
+
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60 lg:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">Team grade trend</h2>
+            <p className="mt-1 text-xs text-slate-400">Average grade score across team scans in the last 7 days.</p>
+          </div>
+          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
+            {scanActivity.length} scans recorded
+          </span>
+        </div>
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-slate-200">
+          <MiniScoreTrendChart
+            points={trendPoints}
+            className="h-24 w-full"
+            ariaLabel="Team watchlist grade trend over the last 7 days"
+          />
+          <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] text-slate-400">
+            {trendPoints.map((point) => (
+              <span key={point.label}>{point.label}</span>
+            ))}
+          </div>
+        </div>
+      </article>
+
+      <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60 lg:col-span-3">
+        <h2 className="text-lg font-semibold text-slate-100">Recent scan activity</h2>
+        {recentActivity.length === 0 ? (
+          <p className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-400">
+            Team scan activity will appear here after members refresh or add watchlist domains.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {recentActivity.map((activity) => (
+              <li key={activity.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-slate-100">{activity.url}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {memberNameById.get(activity.scannedByUserId) ?? activity.scannedByUserId} scanned at{" "}
+                      {new Date(activity.scannedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-200">
+                    Grade {activity.grade}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+
+      <ConfirmDialog
+        open={Boolean(pendingRemovalEntryId)}
+        busy={removeState === "saving"}
+        onCancel={() => {
+          if (removeState !== "saving") {
+            setPendingRemovalEntryId(null);
+          }
+        }}
+        onConfirm={() => (pendingRemovalEntryId ? removeEntry(pendingRemovalEntryId) : undefined)}
+        title="Remove watchlist item?"
+        description="This will remove the URL from the shared team watchlist."
+        confirmLabel="Remove"
+        tone="danger"
+      />
     </section>
   );
 }

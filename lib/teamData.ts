@@ -40,6 +40,17 @@ export type TeamWatchlistEntry = {
   lastCheckedAt: string;
   createdAt: string;
   createdByUserId: string;
+  lastScannedByUserId: string;
+};
+
+export type TeamScanActivityRecord = {
+  id: string;
+  teamId: string;
+  entryId: string | null;
+  url: string;
+  grade: string;
+  scannedAt: string;
+  scannedByUserId: string;
 };
 
 export type TeamDataFile = {
@@ -47,6 +58,7 @@ export type TeamDataFile = {
   teamMembers: TeamMemberRecord[];
   teamInvites: TeamInviteRecord[];
   teamWatchlist: TeamWatchlistEntry[];
+  teamScanActivity: TeamScanActivityRecord[];
 };
 
 export function createEmptyTeamDataFile(): TeamDataFile {
@@ -54,7 +66,8 @@ export function createEmptyTeamDataFile(): TeamDataFile {
     teams: [],
     teamMembers: [],
     teamInvites: [],
-    teamWatchlist: []
+    teamWatchlist: [],
+    teamScanActivity: []
   };
 }
 
@@ -131,7 +144,11 @@ export function normalizeTeamWatchlistEntries(entries: unknown[]): TeamWatchlist
             : null,
       lastCheckedAt: normalizeIsoTimestamp(entry.lastCheckedAt, new Date(0).toISOString()),
       createdAt: normalizeIsoTimestamp(entry.createdAt, new Date(0).toISOString()),
-      createdByUserId: normalizeUserId(entry.createdByUserId)
+      createdByUserId: normalizeUserId(entry.createdByUserId),
+      lastScannedByUserId:
+        typeof entry.lastScannedByUserId === "string" && entry.lastScannedByUserId.trim()
+          ? normalizeUserId(entry.lastScannedByUserId)
+          : normalizeUserId(entry.createdByUserId)
     };
     deduped.set(`${normalizedEntry.teamId}:${normalizedEntry.url.toLowerCase()}`, normalizedEntry);
   }

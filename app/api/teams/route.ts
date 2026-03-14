@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { hasTeamAccess } from "@/lib/teamAccess";
 import { createTeamForUser, listTeamsForUser } from "@/lib/teamDataStore";
-import { getUserKeyFromSessionUser } from "@/lib/userDataStore";
+import { resolveTeamRequestIdentity } from "@/lib/teamRequestIdentity";
 
 export const runtime = "nodejs";
 
@@ -15,43 +14,67 @@ function forbidden() {
   return NextResponse.json({ error: "Team features are not available for this account." }, { status: 403 });
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  if (!userKey) {
-    return unauthorized();
+export async function GET(request: Request) {
+  const identity = await resolveTeamRequestIdentity(request);
+  const rateLimit = enforceApiRateLimit({
+    request,
+    route: "teams",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  if (!userKey) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   const teams = await listTeamsForUser(userKey);
-  return NextResponse.json({ teams });
+  return withApiRateLimitHeaders(NextResponse.json({ teams }), rateLimit.state);
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  if (!userKey) {
-    return unauthorized();
+  const identity = await resolveTeamRequestIdentity(request);
+  const rateLimit = enforceApiRateLimit({
+    request,
+    route: "teams",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  if (!userKey) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   const body = (await request.json().catch(() => null)) as { name?: unknown } | null;
   const name = typeof body?.name === "string" ? body.name : "";
   if (!name.trim()) {
-    return NextResponse.json({ error: "Team name is required." }, { status: 400 });
+    return withApiRateLimitHeaders(NextResponse.json({ error: "Team name is required." }, { status: 400 }), rateLimit.state);
   }
 
   try {
     const team = await createTeamForUser({ userId: userKey, name });
-    return NextResponse.json({ team }, { status: 201 });
+    return withApiRateLimitHeaders(NextResponse.json({ team }, { status: 201 }), rateLimit.state);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not create team." },
-      { status: 400 }
+    return withApiRateLimitHeaders(
+      NextResponse.json({ error: error instanceof Error ? error.message : "Could not create team." }, { status: 400 }),
+      rateLimit.state
     );
   }
 }

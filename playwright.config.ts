@@ -28,6 +28,11 @@ export default defineConfig({
     command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
     url: "http://127.0.0.1:3000",
     timeout: 180_000,
-    reuseExistingServer: !isCI
+    reuseExistingServer: !isCI,
+    env: {
+      ...process.env,
+      E2E_TEAM_AUTH_BYPASS: "1",
+      ENABLE_TEAM_FEATURES: "1"
+    }
   }
 });

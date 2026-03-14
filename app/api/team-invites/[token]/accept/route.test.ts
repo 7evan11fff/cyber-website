@@ -3,27 +3,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockGetServerSession,
-  mockGetUserKeyFromSessionUser,
+  mockResolveTeamRequestIdentity,
+  mockEnforceApiRateLimit,
+  mockWithApiRateLimitHeaders,
   mockHasTeamAccess,
   mockAcceptTeamInvite
 } = vi.hoisted(() => ({
-  mockGetServerSession: vi.fn(),
-  mockGetUserKeyFromSessionUser: vi.fn(),
+  mockResolveTeamRequestIdentity: vi.fn(),
+  mockEnforceApiRateLimit: vi.fn(),
+  mockWithApiRateLimitHeaders: vi.fn((response: Response) => response),
   mockHasTeamAccess: vi.fn(),
   mockAcceptTeamInvite: vi.fn()
 }));
 
-vi.mock("next-auth", () => ({
-  getServerSession: mockGetServerSession
+vi.mock("@/lib/teamRequestIdentity", () => ({
+  resolveTeamRequestIdentity: mockResolveTeamRequestIdentity
 }));
 
-vi.mock("@/lib/auth", () => ({
-  authOptions: {}
-}));
-
-vi.mock("@/lib/userDataStore", () => ({
-  getUserKeyFromSessionUser: mockGetUserKeyFromSessionUser
+vi.mock("@/lib/apiRateLimit", () => ({
+  enforceApiRateLimit: mockEnforceApiRateLimit,
+  withApiRateLimitHeaders: mockWithApiRateLimitHeaders
 }));
 
 vi.mock("@/lib/teamAccess", () => ({
@@ -39,8 +38,15 @@ import { POST } from "@/app/api/team-invites/[token]/accept/route";
 describe("team invite acceptance route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetServerSession.mockResolvedValue({ user: { email: "member@example.com" } });
-    mockGetUserKeyFromSessionUser.mockReturnValue("member@example.com");
+    mockResolveTeamRequestIdentity.mockResolvedValue({
+      userKey: "member@example.com",
+      userEmail: "member@example.com",
+      sessionUser: { email: "member@example.com" }
+    });
+    mockEnforceApiRateLimit.mockReturnValue({
+      ok: true,
+      state: { limit: 100, remaining: 99, resetAt: Date.now() + 60_000 }
+    });
     mockHasTeamAccess.mockReturnValue(true);
     mockAcceptTeamInvite.mockResolvedValue({ ok: true, teamSlug: "acme-team" });
   });
@@ -76,14 +82,29 @@ describe("team invite acceptance route", () => {
   });
 
   it("requires authenticated session email", async () => {
-    mockGetServerSession.mockResolvedValueOnce({ user: { name: "No Email User" } });
-    mockGetUserKeyFromSessionUser.mockReturnValueOnce("no-email-user");
+    mockResolveTeamRequestIdentity.mockResolvedValueOnce({
+      userKey: "no-email-user",
+      userEmail: null,
+      sessionUser: { name: "No Email User" }
+    });
 
     const response = await POST(new Request("http://localhost/api/team-invites/token/accept"), {
       params: { token: "invite-token" }
     });
 
     expect(response.status).toBe(401);
+    expect(mockAcceptTeamInvite).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 when rate limited", async () => {
+    mockEnforceApiRateLimit.mockReturnValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 })
+    });
+    const response = await POST(new Request("http://localhost/api/team-invites/token/accept"), {
+      params: { token: "invite-token" }
+    });
+    expect(response.status).toBe(429);
     expect(mockAcceptTeamInvite).not.toHaveBeenCalled();
   });
 });

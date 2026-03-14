@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { hasTeamAccess } from "@/lib/teamAccess";
 import { acceptTeamInvite } from "@/lib/teamDataStore";
-import { getUserKeyFromSessionUser } from "@/lib/userDataStore";
+import { resolveTeamRequestIdentity } from "@/lib/teamRequestIdentity";
 
 export const runtime = "nodejs";
 
@@ -16,14 +15,26 @@ function forbidden() {
 }
 
 export async function POST(_request: Request, { params }: { params: { token: string } }) {
-  const session = await getServerSession(authOptions);
-  const userKey = getUserKeyFromSessionUser(session?.user);
-  const userEmail = session?.user?.email?.trim().toLowerCase() ?? null;
-  if (!userKey || !userEmail) {
-    return unauthorized();
+  const identity = await resolveTeamRequestIdentity(_request);
+  const rateLimit = enforceApiRateLimit({
+    request: _request,
+    route: "team-invites.accept",
+    identity: {
+      isAuthenticated: Boolean(identity.userKey),
+      userKey: identity.userKey
+    }
+  });
+  if (!rateLimit.ok) {
+    return rateLimit.response;
   }
-  if (!hasTeamAccess(session?.user)) {
-    return forbidden();
+
+  const userKey = identity.userKey;
+  const userEmail = identity.userEmail;
+  if (!userKey || !userEmail) {
+    return withApiRateLimitHeaders(unauthorized(), rateLimit.state);
+  }
+  if (!hasTeamAccess(identity.sessionUser)) {
+    return withApiRateLimitHeaders(forbidden(), rateLimit.state);
   }
 
   const result = await acceptTeamInvite({
@@ -32,20 +43,23 @@ export async function POST(_request: Request, { params }: { params: { token: str
     acceptingEmail: userEmail
   });
   if (!result.ok) {
-    return NextResponse.json(
-      {
-        error:
-          result.reason === "expired"
-            ? "This invite link has expired."
-            : result.reason === "already_accepted"
-              ? "This invite has already been accepted."
-              : result.reason === "email_mismatch"
-                ? "This invite was sent to a different email address."
-                : "Invite not found."
-      },
-      { status: 400 }
+    return withApiRateLimitHeaders(
+      NextResponse.json(
+        {
+          error:
+            result.reason === "expired"
+              ? "This invite link has expired."
+              : result.reason === "already_accepted"
+                ? "This invite has already been accepted."
+                : result.reason === "email_mismatch"
+                  ? "This invite was sent to a different email address."
+                  : "Invite not found."
+        },
+        { status: 400 }
+      ),
+      rateLimit.state
     );
   }
 
-  return NextResponse.json({ ok: true, teamSlug: result.teamSlug });
+  return withApiRateLimitHeaders(NextResponse.json({ ok: true, teamSlug: result.teamSlug }), rateLimit.state);
 }
