@@ -202,7 +202,7 @@ export async function POST(request: Request) {
 
     const inputUrl = parsedBody.data.url;
     const report = await runSecurityScan(inputUrl, parsedBody.data.options);
-    await recordPublicScan(report).catch(() => {
+    void recordPublicScan(report).catch(() => {
       // Public stats should not block scan responses.
     });
     return respond(report);
