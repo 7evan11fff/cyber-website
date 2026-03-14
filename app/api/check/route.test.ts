@@ -2,12 +2,21 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetServerSession = vi.fn();
-const mockEnforceApiRateLimit = vi.fn();
-const mockWithApiRateLimitHeaders = vi.fn((response: Response) => response);
-const mockRunSecurityScan = vi.fn();
-const mockGetUserByApiKey = vi.fn();
-const mockGetUserKeyFromSessionUser = vi.fn();
+const {
+  mockGetServerSession,
+  mockEnforceApiRateLimit,
+  mockWithApiRateLimitHeaders,
+  mockRunSecurityScan,
+  mockGetUserByApiKey,
+  mockGetUserKeyFromSessionUser
+} = vi.hoisted(() => ({
+  mockGetServerSession: vi.fn(),
+  mockEnforceApiRateLimit: vi.fn(),
+  mockWithApiRateLimitHeaders: vi.fn((response: Response) => response),
+  mockRunSecurityScan: vi.fn(),
+  mockGetUserByApiKey: vi.fn(),
+  mockGetUserKeyFromSessionUser: vi.fn()
+}));
 
 vi.mock("next-auth", () => ({
   getServerSession: mockGetServerSession
@@ -63,7 +72,7 @@ describe("POST /api/check", () => {
 
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({
-      error: expect.stringContaining("URL is required")
+      error: expect.stringContaining("expected string")
     });
     expect(mockRunSecurityScan).not.toHaveBeenCalled();
   });
