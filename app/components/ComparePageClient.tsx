@@ -523,7 +523,9 @@ export function ComparePageClient() {
       trackEvent("scan_complete", {
         mode: "compare",
         gradeA: siteA.grade,
-        gradeB: siteB.grade
+        gradeB: siteB.grade,
+        domainA: extractHost(siteA.finalUrl || siteA.checkedUrl),
+        domainB: extractHost(siteB.finalUrl || siteB.checkedUrl)
       });
       notify({ tone: "success", message: "Comparison complete." });
 

@@ -1,6 +1,8 @@
 "use client";
 
-type AnalyticsEventName = "scan_complete" | "report_shared" | "bulk_scan";
+import { track as trackVercelEvent } from "@vercel/analytics";
+
+type AnalyticsEventName = "scan_complete" | "report_shared" | "bulk_scan" | "popular_domain_opened" | "scan_again_clicked";
 type AnalyticsProps = Record<string, string | number | boolean>;
 
 export function trackEvent(name: AnalyticsEventName, props?: AnalyticsProps) {
@@ -8,23 +10,21 @@ export function trackEvent(name: AnalyticsEventName, props?: AnalyticsProps) {
     return;
   }
 
-  if (!process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN) {
-    return;
-  }
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN?.trim();
+  const normalizedProps = props ? Object.fromEntries(Object.entries(props).map(([key, value]) => [key, String(value)])) : undefined;
 
   const plausible = (window as Window & {
     plausible?: (eventName: string, options?: { props?: Record<string, string> }) => void;
   }).plausible;
-  if (typeof plausible !== "function") {
-    return;
+  if (plausibleDomain && typeof plausible === "function") {
+    if (!normalizedProps || Object.keys(normalizedProps).length === 0) {
+      plausible(name);
+    } else {
+      plausible(name, { props: normalizedProps });
+    }
   }
 
-  if (!props || Object.keys(props).length === 0) {
-    plausible(name);
-    return;
+  if (process.env.NEXT_PUBLIC_VERCEL_ANALYTICS_DISABLED !== "true") {
+    trackVercelEvent(name, props ?? {});
   }
-
-  plausible(name, {
-    props: Object.fromEntries(Object.entries(props).map(([key, value]) => [key, String(value)]))
-  });
 }

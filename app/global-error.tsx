@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useTransition } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { ErrorFallbackCard } from "@/app/components/ErrorBoundary";
 
 export default function GlobalError({
@@ -14,6 +15,7 @@ export default function GlobalError({
 
   useEffect(() => {
     console.error("Global app error:", error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

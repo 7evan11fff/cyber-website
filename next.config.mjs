@@ -1,3 +1,10 @@
+import createBundleAnalyzer from "@next/bundle-analyzer";
+import { withSentryConfig } from "@sentry/nextjs";
+
+const withBundleAnalyzer = createBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true"
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -15,4 +22,10 @@ const nextConfig = {
   }
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(
+  withSentryConfig(nextConfig, {
+    silent: true,
+    disableLogger: true,
+    tunnelRoute: "/monitoring"
+  })
+);

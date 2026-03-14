@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
@@ -24,6 +25,8 @@
   "homepage": "https://github.com/7evan11fff/cyber-website#readme",
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
+    "@sentry/nextjs": "^10.43.0",
+    "@vercel/analytics": "^2.0.1",
     "canvas-confetti": "^1.9.4",
     "next": "^14.2.35",
     "next-auth": "^4.24.13",
@@ -36,6 +39,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.1.6",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

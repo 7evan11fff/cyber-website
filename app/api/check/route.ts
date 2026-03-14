@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit";
 import { authOptions } from "@/lib/auth";
@@ -108,6 +109,14 @@ export async function POST(request: Request) {
     const report = await runSecurityScan(inputUrl, parsedBody.data.options);
     return respond(report);
   } catch (error) {
+    if (!(error instanceof Error && error.name === "AbortError")) {
+      Sentry.captureException(error, {
+        tags: {
+          endpoint: "/api/check"
+        }
+      });
+    }
+
     const message =
       error instanceof Error && error.name === "AbortError"
         ? "Request timed out while fetching headers."
