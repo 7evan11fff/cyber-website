@@ -62,6 +62,12 @@ const RESPONSE_EXAMPLE = `{
   "checkedAt": "2026-03-14T16:20:47.328Z"
 }`;
 
+const CLI_EXAMPLE = `# Zero-install run
+px @security-header-checker/cli https://example.com --fail-under B
+
+# JSON mode for pipelines
+px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_HEADERS_API_KEY"`;
+
 function CodeBlock({ code }: { code: string }) {
   return (
     <pre className="mt-3 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
@@ -157,6 +163,15 @@ export default function ApiDocsPage() {
       </section>
 
       <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70">
+        <article>
+          <h2 className="text-xl font-semibold text-slate-100">Official CLI</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            Install-free usage is available through <code>px @security-header-checker/cli</code>. The CLI wraps{" "}
+            <code>/api/check</code> and supports <code>--json</code>, <code>--fail-under</code>, <code>--api-key</code>
+            , and <code>--timeout</code>.
+          </p>
+          <CodeBlock code={CLI_EXAMPLE} />
+        </article>
         <article>
           <h2 className="text-xl font-semibold text-slate-100">curl example</h2>
           <CodeBlock code={CURL_EXAMPLE} />

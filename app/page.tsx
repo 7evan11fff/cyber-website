@@ -184,6 +184,14 @@ const LAUNCH_FEATURES: LaunchFeature[] = [
     cta: "Read API docs"
   }
 ];
+const INTEGRATE_CLI_SNIPPET = `px @security-header-checker/cli https://example.com --fail-under B
+px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_HEADERS_API_KEY"`;
+const INTEGRATE_ACTION_SNIPPET = `- name: Security header scan
+  uses: ./.github/actions/security-headers
+  with:
+    url: https://example.com
+    fail-under: B
+    api-key: \${{ secrets.SECURITY_HEADERS_API_KEY }}`;
 const TRUSTED_BY_LOGOS = ["DevOps teams", "Security engineers", "QA squads", "Platform teams", "Startup founders"];
 const TRUSTED_BY_METRICS: TrustedByMetric[] = [
   {
@@ -2236,6 +2244,60 @@ export default function Home() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section
+        id="integrate"
+        data-reveal-id="integrate"
+        className={`${revealClass("integrate")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Integrate</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">
+              Plug checks into your delivery pipeline
+            </h2>
+          </div>
+          <p className="max-w-xl text-sm text-slate-300">
+            Use the official CLI for quick automation, or run the GitHub Action to gate pull requests and publish scan
+            outputs.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+            <h3 className="text-base font-semibold text-slate-100">CLI in CI</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Run an install-free scan and fail the job automatically when grade policy is not met.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+              <code>{INTEGRATE_CLI_SNIPPET}</code>
+            </pre>
+          </article>
+
+          <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+            <h3 className="text-base font-semibold text-slate-100">GitHub Action</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Composite action for pull requests and workflow dispatch runs with outputs for grade, score, and shared
+              report URL.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+              <code>{INTEGRATE_ACTION_SNIPPET}</code>
+            </pre>
+          </article>
+        </div>
+
+        <p className="mt-4 text-sm text-slate-300">
+          Need full examples?{" "}
+          <Link href="/docs/ci-cd" className="text-sky-300 transition hover:text-sky-200">
+            Open CI/CD docs
+          </Link>{" "}
+          and{" "}
+          <Link href="/docs/api" className="text-sky-300 transition hover:text-sky-200">
+            API reference
+          </Link>
+          .
+        </p>
       </section>
 
       <section

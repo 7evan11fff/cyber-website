@@ -40,6 +40,16 @@ export default function DocsPage() {
 const report = await response.json();
 console.log(report.grade, report.score);`;
 
+  const cliExample = `px @security-header-checker/cli https://example.com --fail-under B
+px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_HEADERS_API_KEY"`;
+
+  const actionExample = `- name: Security header scan
+  uses: ./.github/actions/security-headers
+  with:
+    url: https://example.com
+    fail-under: B
+    api-key: \${{ secrets.SECURITY_HEADERS_API_KEY }}`;
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-10 sm:px-6 lg:px-8">
       <script
@@ -84,6 +94,26 @@ console.log(report.grade, report.score);`;
           >
             Open CI/CD guide
           </Link>
+        </article>
+
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">CLI</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">@security-header-checker/cli</h2>
+          <p className="mt-3 text-sm text-slate-300">
+            Run header checks locally or in CI with a single command. Supports threshold gates, JSON output, API keys,
+            and custom timeouts.
+          </p>
+          <CodeBlock code={cliExample} />
+        </article>
+
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">GitHub Action</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">CI gate + PR comment</h2>
+          <p className="mt-3 text-sm text-slate-300">
+            Use the bundled action to scan URLs in pull requests and workflow dispatch runs. It publishes outputs and
+            posts a formatted PR comment with scan results.
+          </p>
+          <CodeBlock code={actionExample} />
         </article>
       </section>
 

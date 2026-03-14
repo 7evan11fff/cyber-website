@@ -69,6 +69,43 @@ fi
 
 echo "Security header gate passed: grade=$grade score=$score."`;
 
+const CLI_CI_EXAMPLE = `# Fail build when grade is lower than B
+px @security-header-checker/cli https://example.com --fail-under B
+
+# Use API key + JSON output
+px @security-header-checker/cli https://example.com --json --api-key "$SECURITY_HEADERS_API_KEY"`;
+
+const SECURITY_HEADERS_ACTION_EXAMPLE = `name: Security Header Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: URL to scan
+        required: true
+        default: https://example.com
+
+jobs:
+  security-headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Security header scan
+        id: headers
+        uses: ./.github/actions/security-headers
+        with:
+          url: \${{ github.event.inputs.url || 'https://example.com' }}
+          fail-under: B
+          api-key: \${{ secrets.SECURITY_HEADERS_API_KEY }}
+
+      - name: Print outputs
+        run: |
+          echo "Grade: \${{ steps.headers.outputs.grade }}"
+          echo "Score: \${{ steps.headers.outputs.score }}"
+          echo "Report URL: \${{ steps.headers.outputs['report-url'] }}"`;
+
 const GITHUB_ACTIONS_EXAMPLE = `name: Security Header Gate
 
 on:
@@ -133,16 +170,36 @@ export default function CiCdDocsPage() {
       <section className="space-y-5 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
           <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 1</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">Use the official CLI in CI</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            The CLI wraps <code>/api/check</code> and returns a non-zero exit code when your grade gate fails, making
+            it ideal for pull request checks and deployment pipelines.
+          </p>
+          <CodeBlock code={CLI_CI_EXAMPLE} />
+        </article>
+
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 2</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-100">GitHub Action (PR + workflow_dispatch)</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            Use the bundled action to run the CLI, expose grade/score/report outputs, and post a formatted comment on
+            pull requests.
+          </p>
+          <CodeBlock code={SECURITY_HEADERS_ACTION_EXAMPLE} />
+        </article>
+
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 3</p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-100">Use /api/check with curl + jq</h2>
           <p className="mt-2 text-sm text-slate-300">
-            This script calls <code>/api/check</code>, parses the returned grade using <code>jq</code>, and exits
-            non-zero when the grade is lower than your threshold.
+            Prefer shell-only pipelines? This script uses <code>curl</code> + <code>jq</code> and enforces a minimum
+            grade without additional tooling.
           </p>
           <CodeBlock code={CURL_WITH_JQ_EXAMPLE} />
         </article>
 
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 2</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 4</p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-100">GitHub Actions workflow</h2>
           <p className="mt-2 text-sm text-slate-300">
             Run on pull requests and pushes to main. The job fails automatically when the script exits with code 1.
@@ -151,7 +208,7 @@ export default function CiCdDocsPage() {
         </article>
 
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 3</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 5</p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-100">GitLab CI example</h2>
           <p className="mt-2 text-sm text-slate-300">
             Works in merge requests and main branch pipelines. Ensure <code>SECURITY_HEADERS_API_KEY</code> is set in
@@ -161,7 +218,7 @@ export default function CiCdDocsPage() {
         </article>
 
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 4</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Step 6</p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-100">Generic shell usage</h2>
           <p className="mt-2 text-sm text-slate-300">
             Use the same shell gate in Jenkins, CircleCI, Buildkite, Azure Pipelines, or any runner that supports

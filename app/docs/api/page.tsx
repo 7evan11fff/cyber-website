@@ -84,6 +84,13 @@ const CRON_EXAMPLE = `curl -X GET "https://security-header-checker.vercel.app/ap
 const BADGE_EXAMPLE =
   `https://security-header-checker.vercel.app/api/badge/github.com?style=flat-square`;
 
+const CLI_INSTALL_EXAMPLE = `# Run instantly (no install)
+px @security-header-checker/cli https://example.com
+
+# Optional: install globally
+npm install -g @security-header-checker/cli
+security-header-checker https://example.com --fail-under B`;
+
 export default function ApiReferencePage() {
   const structuredData = {
     "@context": "https://schema.org",
@@ -149,6 +156,15 @@ export default function ApiReferencePage() {
               <code>x-cron-secret</code>.
             </li>
           </ul>
+        </article>
+
+        <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">
+          <h2 className="text-xl font-semibold text-slate-100">CLI installation and usage</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            Prefer a command-line workflow? The official CLI wraps <code>/api/check</code> and works both with public
+            rate limits and API key authentication.
+          </p>
+          <CodeBlock code={CLI_INSTALL_EXAMPLE} />
         </article>
 
         <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-5">

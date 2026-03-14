@@ -1,0 +1,27 @@
+{
+  "name": "@security-header-checker/cli",
+  "version": "0.1.0",
+  "description": "CLI for Security Header Checker /api/check endpoint",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "security-header-checker": "bin/security-header-checker.js",
+    "shc": "bin/security-header-checker.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "keywords": [
+    "security",
+    "headers",
+    "cli",
+    "cicd",
+    "devsecops"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2"
+  }
+}
