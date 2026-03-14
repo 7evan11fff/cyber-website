@@ -12,6 +12,12 @@ export function DashboardActions() {
       >
         Settings
       </Link>
+      <Link
+        href="/dashboard/trends"
+        className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+      >
+        Trends
+      </Link>
       <button
         type="button"
         onClick={() => void signOut({ callbackUrl: "/" })}

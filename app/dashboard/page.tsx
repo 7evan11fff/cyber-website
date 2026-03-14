@@ -319,7 +319,7 @@ export default async function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-100">Quick actions</h2>
             <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">One click</span>
           </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <Link
               href="/"
               className="pressable rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
@@ -337,6 +337,12 @@ export default async function DashboardPage() {
               className="pressable rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
             >
               Compare Sites
+            </Link>
+            <Link
+              href="/dashboard/trends"
+              className="pressable rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
+            >
+              Trends
             </Link>
           </div>
           <p className="mt-3 text-xs text-slate-500">

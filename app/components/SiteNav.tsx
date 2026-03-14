@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/badge", label: "Badge" },
   { href: "/fixes", label: "Fixes" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/trends", label: "Trends" },
   { href: "/settings", label: "Settings" },
   { href: "/pricing", label: "Pricing" },
   { href: "/blog", label: "Blog" },
@@ -25,7 +26,7 @@ const NAV_LINKS = [
   { href: "/contact", label: "Contact" },
   { href: "/about", label: "About" }
 ];
-const HOVER_PREFETCH_ROUTES = new Set(["/fixes", "/dashboard"]);
+const HOVER_PREFETCH_ROUTES = new Set(["/fixes", "/dashboard", "/dashboard/trends"]);
 
 export function SiteNav({ trailing }: { trailing?: ReactNode }) {
   const pathname = usePathname();
@@ -45,7 +46,8 @@ export function SiteNav({ trailing }: { trailing?: ReactNode }) {
       { href: "/", label: "New Scan", aliases: ["scanner", "single", "home"] },
       { href: "/bulk", label: "Bulk Scan", aliases: ["multi", "batch"] },
       { href: "/compare", label: "Compare Sites", aliases: ["comparison"] },
-      { href: "/dashboard", label: "Dashboard", aliases: ["watchlist", "history"] }
+      { href: "/dashboard", label: "Dashboard", aliases: ["watchlist", "history"] },
+      { href: "/dashboard/trends", label: "Trend Dashboard", aliases: ["trends", "analytics", "posture"] }
     ];
 
     const deduped = new Map<string, { href: string; label: string; aliases: string[] }>();
