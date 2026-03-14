@@ -1,4 +1,5 @@
 import { calculateGrade } from "@/lib/grading";
+import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
 
@@ -22,8 +23,10 @@ export type SecurityReport = {
   finalUrl: string;
   statusCode: number;
   score: number;
+  maxScore: number;
   grade: string;
   results: HeaderResult[];
+  cookieAnalysis: CookieSecurityAnalysis;
   checkedAt: string;
   framework: FrameworkInfo;
 };
@@ -137,15 +140,21 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
   }
 
   const results = analyzeSecurityHeaders(upstreamResponse.headers);
-  const { score, grade } = calculateGrade(results);
+  const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
+  const { score, grade, maxScore } = calculateGrade(results, {
+    additionalScore: cookieAnalysis.score,
+    additionalMaxScore: cookieAnalysis.maxScore
+  });
 
   const report: SecurityReport = {
     checkedUrl: targetUrl,
     finalUrl: upstreamResponse.url,
     statusCode: upstreamResponse.status,
     score,
+    maxScore,
     grade,
     results,
+    cookieAnalysis,
     checkedAt: new Date().toISOString(),
     framework: detectFrameworkInfo(upstreamResponse.headers)
   };

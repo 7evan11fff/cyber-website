@@ -16,6 +16,7 @@ type ReportResponse = {
   finalUrl: string;
   statusCode: number;
   score: number;
+  maxScore?: number;
   grade: string;
   results: HeaderResult[];
   checkedAt: string;
@@ -64,6 +65,13 @@ function gradeColor(grade: string) {
 
 function normalizeUrl(value: string) {
   return value.trim();
+}
+
+function resolveMaxScore(report: ReportResponse): number {
+  if (typeof report.maxScore === "number" && Number.isFinite(report.maxScore)) {
+    return Math.max(0, report.maxScore);
+  }
+  return report.results.length * 2;
 }
 
 function parseApiError(payload: unknown): string | null {
@@ -175,7 +183,7 @@ function toMarkdownExportRow(entry: BulkScanResult): [string, string, string, st
     ];
   }
 
-  const score = `${report.score}/${report.results.length * 2}`;
+  const score = `${report.score}/${resolveMaxScore(report)}`;
   const missingHeaders = entry.missingHeaders.length > 0 ? entry.missingHeaders.join("; ") : "None";
 
   return [report.finalUrl || entry.inputUrl, report.grade, score, missingHeaders, formatCheckedAt(report.checkedAt)];
@@ -203,7 +211,7 @@ function toCsvExportRow(entry: BulkScanResult, headerLabels: string[]): string[]
     return [entry.inputUrl, "--", "--", ...headerLabels.map(() => "--")];
   }
 
-  const score = `${report.score}/${report.results.length * 2}`;
+  const score = `${report.score}/${resolveMaxScore(report)}`;
   const statusByLabel = new Map(report.results.map((result) => [result.label, result.status]));
   const perHeaderStatus = headerLabels.map((label) => statusByLabel.get(label) ?? "--");
 
@@ -812,7 +820,7 @@ export function BulkPageClient() {
                         Grade {entry.report?.grade ?? "--"}
                       </span>
                       <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
-                        Score {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                        Score {entry.report ? `${entry.report.score}/${resolveMaxScore(entry.report)}` : "--"}
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-slate-400">{entry.report ? formatCheckedAt(entry.report.checkedAt) : "--"}</p>
@@ -944,7 +952,7 @@ export function BulkPageClient() {
                           )}
                         </td>
                         <td className="px-4 py-3 align-top text-slate-300">
-                          {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                          {entry.report ? `${entry.report.score}/${resolveMaxScore(entry.report)}` : "--"}
                         </td>
                         <td className="px-4 py-3 align-top text-slate-300">
                           {entry.report ? (
@@ -1071,7 +1079,7 @@ export function BulkPageClient() {
                   <div>
                     <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Score</p>
                     <p className="mt-1 text-xl font-semibold text-slate-100">
-                      {detailsTarget.report.score}/{detailsTarget.report.results.length * 2}
+                      {detailsTarget.report.score}/{resolveMaxScore(detailsTarget.report)}
                     </p>
                   </div>
                   <div>

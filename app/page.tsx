@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
@@ -82,8 +83,10 @@ type ReportResponse = {
   finalUrl: string;
   statusCode: number;
   score: number;
+  maxScore?: number;
   grade: string;
   results: HeaderResult[];
+  cookieAnalysis?: CookieSecurityAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   scanDurationMs?: number;
@@ -338,15 +341,32 @@ const gradeStyles: Record<string, string> = {
   F: "text-rose-300"
 };
 
+const cookieStatusStyles: Record<HeaderResult["status"], string> = {
+  good: "border-emerald-500/30 bg-emerald-500/15 text-emerald-200",
+  weak: "border-amber-500/30 bg-amber-500/15 text-amber-200",
+  missing: "border-rose-500/30 bg-rose-500/15 text-rose-200"
+};
+
 function isReportResponse(value: unknown): value is ReportResponse {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ReportResponse>;
+  const validMaxScore = candidate.maxScore === undefined || typeof candidate.maxScore === "number";
+  const validCookieAnalysis =
+    candidate.cookieAnalysis === undefined ||
+    (typeof candidate.cookieAnalysis === "object" &&
+      candidate.cookieAnalysis !== null &&
+      Array.isArray(candidate.cookieAnalysis.cookies) &&
+      typeof candidate.cookieAnalysis.score === "number" &&
+      typeof candidate.cookieAnalysis.maxScore === "number" &&
+      typeof candidate.cookieAnalysis.summary === "string");
 
   return (
     typeof candidate.checkedUrl === "string" &&
     typeof candidate.finalUrl === "string" &&
     typeof candidate.statusCode === "number" &&
     typeof candidate.score === "number" &&
+    validMaxScore &&
+    validCookieAnalysis &&
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string" &&
     Array.isArray(candidate.results)
@@ -500,6 +520,13 @@ function toScorePercentage(score: number, maxScore: number): number {
   return Math.round((score / maxScore) * 100);
 }
 
+function resolveMaxScore(report: Pick<ReportResponse, "results" | "maxScore">): number {
+  if (typeof report.maxScore === "number" && Number.isFinite(report.maxScore)) {
+    return Math.max(0, report.maxScore);
+  }
+  return report.results.length * 2;
+}
+
 function isTextInputLikeTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
@@ -589,6 +616,7 @@ function escapeMarkdownCell(value: string): string {
 
 function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null): string {
   const checkedAt = new Date(report.checkedAt).toLocaleString();
+  const maxScore = resolveMaxScore(report);
   const lines = [
     "## Security Header Checker Report",
     "",
@@ -596,7 +624,8 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **Final URL:** ${report.finalUrl}`,
     `- **Status Code:** ${report.statusCode}`,
     `- **Grade:** ${report.grade}`,
-    `- **Score:** ${report.score}/${report.results.length * 2}`,
+    `- **Score:** ${report.score}/${maxScore}`,
+    `- **Cookie Security:** ${report.cookieAnalysis?.summary ?? "No Set-Cookie headers returned."}`,
     `- **Checked At:** ${checkedAt}`,
     `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs) ?? "Not available"}`,
     `- **Detected Stack:** ${report.framework?.detected?.label ?? "Unknown"}`,
@@ -806,7 +835,7 @@ function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: Re
         </p>
       </div>
       <p className="mt-2 text-sm text-slate-300">
-        Score: {report.score}/{report.results.length * 2}
+        Score: {report.score}/{resolveMaxScore(report)}
       </p>
       <div className="mt-4 space-y-1 text-sm text-slate-300">
         <p>
@@ -1038,7 +1067,7 @@ export default function Home() {
   }, [suggestedFixPlatform]);
   const scorePercent = useMemo(() => {
     if (!report) return null;
-    return toScorePercentage(report.score, report.results.length * 2);
+    return toScorePercentage(report.score, resolveMaxScore(report));
   }, [report]);
   const compareWithAnotherSiteHref = useMemo(() => {
     if (!report) return "/compare";
@@ -1508,7 +1537,7 @@ export default function Home() {
       grade: nextReport.grade,
       checkedAt: nextReport.checkedAt,
       score: nextReport.score,
-      maxScore: nextReport.results.length * 2,
+      maxScore: resolveMaxScore(nextReport),
       headerStatuses: buildHeaderStatusSnapshot(nextReport.results)
     };
 
@@ -2171,7 +2200,7 @@ export default function Home() {
           reportData?.finalUrl ?? "",
           reportData ? String(reportData.statusCode) : "",
           reportData?.grade ?? "",
-          reportData ? `${reportData.score}/${reportData.results.length * 2}` : "",
+          reportData ? `${reportData.score}/${resolveMaxScore(reportData)}` : "",
           reportData?.checkedAt ?? "",
           entry.error ?? ""
         ];
@@ -3371,7 +3400,7 @@ export default function Home() {
                       Grade {entry.report?.grade ?? "--"}
                     </span>
                     <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
-                      Score {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                      Score {entry.report ? `${entry.report.score}/${resolveMaxScore(entry.report)}` : "--"}
                     </span>
                     <span className="rounded-md border border-slate-700 px-2 py-1 text-slate-300">
                       HTTP {entry.report?.statusCode ?? "--"}
@@ -3424,7 +3453,7 @@ export default function Home() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-300">
-                        {entry.report ? `${entry.report.score}/${entry.report.results.length * 2}` : "--"}
+                        {entry.report ? `${entry.report.score}/${resolveMaxScore(entry.report)}` : "--"}
                       </td>
                       <td className="px-4 py-3 text-slate-300">
                         {entry.report ? entry.report.statusCode : "--"}
@@ -3803,12 +3832,12 @@ export default function Home() {
               <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
               <AnimatedGradeCircle
                 score={report.score}
-                total={report.results.length * 2}
+                total={resolveMaxScore(report)}
                 grade={report.grade}
                 gradeClassName={singleGradeColor}
               />
               <p className="mt-1 text-sm text-slate-300">
-                Score: {report.score}/{report.results.length * 2}
+                Score: {report.score}/{resolveMaxScore(report)}
               </p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <button
@@ -4040,6 +4069,70 @@ export default function Home() {
                   />
                 ))}
               </div>
+            </section>
+            <section className="mt-4">
+              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
+                <summary className="cursor-pointer list-none">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">
+                        Cookie security analysis
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-400">
+                        {report.cookieAnalysis?.summary ?? "No Set-Cookie headers were returned by this response."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
+                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
+                        Grade {report.cookieAnalysis?.grade ?? "N/A"}
+                      </span>
+                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
+                        {report.cookieAnalysis
+                          ? `${report.cookieAnalysis.score}/${report.cookieAnalysis.maxScore || 0}`
+                          : "0/0"}
+                      </span>
+                    </div>
+                  </div>
+                </summary>
+
+                {report.cookieAnalysis && report.cookieAnalysis.cookieCount > 0 ? (
+                  <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {report.cookieAnalysis.cookies.map((cookie) => (
+                      <li
+                        key={`${cookie.name}-${cookie.raw}`}
+                        className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="break-all text-sm font-semibold text-slate-100">{cookie.name}</p>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase ${
+                              cookieStatusStyles[cookie.status]
+                            }`}
+                          >
+                            {cookie.status}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">
+                          HttpOnly: <span className="text-slate-200">{cookie.httpOnly ? "Yes" : "No"}</span> · Secure:{" "}
+                          <span className="text-slate-200">{cookie.secure ? "Yes" : "No"}</span> · SameSite:{" "}
+                          <span className="text-slate-200">{cookie.sameSite}</span>
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Path: <span className="text-slate-200">{cookie.path ?? "(default)"}</span> · Domain:{" "}
+                          <span className="text-slate-200">{cookie.domain ?? "(host-only)"}</span>
+                        </p>
+                        {cookie.findings.length > 0 && (
+                          <p className="mt-2 text-xs text-slate-400">
+                            Findings: <span className="text-slate-200">{cookie.findings.join(", ")}</span>
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-400">No cookies were set in the scanned response.</p>
+                )}
+              </details>
             </section>
             <Suspense fallback={<SuspensePanelFallback label="Fix suggestions panel" />}>
               <FixSuggestionsPanel results={report.results} framework={report.framework} />

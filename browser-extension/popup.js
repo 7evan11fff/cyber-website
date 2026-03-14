@@ -11,6 +11,9 @@ const summaryTextEl = document.getElementById("summaryText");
 const summaryMetaEl = document.getElementById("summaryMeta");
 const headerCountEl = document.getElementById("headerCount");
 const resultsListEl = document.getElementById("resultsList");
+const cookieCountEl = document.getElementById("cookieCount");
+const cookieSummaryTextEl = document.getElementById("cookieSummaryText");
+const cookieListEl = document.getElementById("cookieList");
 const fullReportLinkEl = document.getElementById("fullReportLink");
 const rescanButtonEl = document.getElementById("rescanButton");
 const apiOriginInputEl = document.getElementById("apiOriginInput");
@@ -41,6 +44,9 @@ function setLoading() {
   summaryMetaEl.textContent = "Calling /api/check";
   headerCountEl.textContent = "0 headers";
   resultsListEl.innerHTML = "";
+  cookieCountEl.textContent = "0 cookies";
+  cookieSummaryTextEl.textContent = "Checking Set-Cookie security…";
+  cookieListEl.innerHTML = "";
   const item = document.createElement("li");
   item.className = "result-item";
   item.innerHTML = '<span class="result-label">Working...</span><span class="status-chip">pending</span>';
@@ -58,7 +64,8 @@ function createStatusChip(status) {
 function renderResults(report) {
   setGrade(report.grade);
   const score = Number.isFinite(report.score) ? report.score : 0;
-  const total = Array.isArray(report.results) ? report.results.length * 2 : 0;
+  const fallbackTotal = Array.isArray(report.results) ? report.results.length * 2 : 0;
+  const total = Number.isFinite(report.maxScore) ? report.maxScore : fallbackTotal;
   summaryTextEl.textContent = `Grade ${report.grade} · ${score}/${total}`;
   summaryMetaEl.textContent = `Status ${report.statusCode} · ${new Date(report.checkedAt).toLocaleTimeString()}`;
 
@@ -82,6 +89,46 @@ function renderResults(report) {
     label.textContent = typeof result.label === "string" ? result.label : "Unknown header";
     item.append(label, createStatusChip(result.status));
     resultsListEl.append(item);
+  }
+
+  const cookieAnalysis =
+    report && typeof report.cookieAnalysis === "object" && report.cookieAnalysis
+      ? report.cookieAnalysis
+      : null;
+  const cookies = cookieAnalysis && Array.isArray(cookieAnalysis.cookies) ? cookieAnalysis.cookies : [];
+  cookieCountEl.textContent = `${cookies.length} cookies`;
+  cookieSummaryTextEl.textContent =
+    cookieAnalysis && typeof cookieAnalysis.summary === "string"
+      ? cookieAnalysis.summary
+      : "No Set-Cookie headers were returned by this response.";
+  cookieListEl.innerHTML = "";
+
+  if (cookies.length === 0) {
+    const item = document.createElement("li");
+    item.className = "result-item";
+    item.innerHTML = '<span class="result-label">No cookies found in this response.</span>';
+    cookieListEl.append(item);
+    return;
+  }
+
+  for (const cookie of cookies.slice(0, 6)) {
+    const item = document.createElement("li");
+    item.className = "result-item";
+    const label = document.createElement("span");
+    label.className = "result-label";
+    const name = typeof cookie.name === "string" && cookie.name.trim() ? cookie.name : "Unnamed cookie";
+    const grade = typeof cookie.grade === "string" ? cookie.grade : "?";
+    label.textContent = `${name} (Grade ${grade})`;
+    item.append(label, createStatusChip(cookie.status));
+    cookieListEl.append(item);
+  }
+
+  if (cookies.length > 6) {
+    const moreItem = document.createElement("li");
+    moreItem.className = "result-item";
+    const remaining = cookies.length - 6;
+    moreItem.innerHTML = `<span class="result-label">+${remaining} more cookie${remaining === 1 ? "" : "s"} in full report</span>`;
+    cookieListEl.append(moreItem);
   }
 }
 
@@ -122,6 +169,9 @@ async function scanActivePage() {
     summaryMetaEl.textContent = "Only http/https pages can be scanned.";
     resultsListEl.innerHTML = "";
     headerCountEl.textContent = "0 headers";
+    cookieCountEl.textContent = "0 cookies";
+    cookieSummaryTextEl.textContent = "Cookie scan unavailable.";
+    cookieListEl.innerHTML = "";
     return;
   }
 
@@ -133,6 +183,9 @@ async function scanActivePage() {
     summaryMetaEl.textContent =
       response && typeof response.error === "string" ? response.error : "Could not complete scan.";
     resultsListEl.innerHTML = "";
+    cookieCountEl.textContent = "0 cookies";
+    cookieSummaryTextEl.textContent = "Cookie scan unavailable.";
+    cookieListEl.innerHTML = "";
     const item = document.createElement("li");
     item.className = "result-item";
     item.innerHTML = '<span class="result-label">Try again or verify API endpoint settings.</span>';

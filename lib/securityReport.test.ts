@@ -17,8 +17,17 @@ function buildReport(domain: string): SecurityReport {
     finalUrl: `https://${domain}/`,
     statusCode: 200,
     score: 10,
+    maxScore: 20,
     grade: "C",
     results: [],
+    cookieAnalysis: {
+      cookies: [],
+      cookieCount: 0,
+      score: 0,
+      maxScore: 0,
+      grade: "N/A",
+      summary: "No Set-Cookie headers were returned by the scanned response."
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -82,13 +91,16 @@ describe("securityReport", () => {
   });
 
   it("generates reports by scanning upstream headers", async () => {
+    const headers = new Headers({
+      "content-security-policy": "default-src 'self'",
+      "x-frame-options": "DENY",
+      "x-content-type-options": "nosniff",
+      server: "nginx"
+    });
+    headers.append("set-cookie", "session=abc; Path=/auth; HttpOnly; Secure; SameSite=Strict");
+
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      headers: new Headers({
-        "content-security-policy": "default-src 'self'",
-        "x-frame-options": "DENY",
-        "x-content-type-options": "nosniff",
-        server: "nginx"
-      }),
+      headers,
       url: "https://example.com/",
       status: 200
     } as Response);
@@ -106,7 +118,9 @@ describe("securityReport", () => {
     expect(report.checkedUrl).toBe("https://example.com/");
     expect(report.finalUrl).toBe("https://example.com/");
     expect(report.results).toHaveLength(11);
+    expect(report.cookieAnalysis.cookieCount).toBe(1);
     expect(report.score).toBeGreaterThan(0);
+    expect(report.maxScore).toBeGreaterThanOrEqual(report.score);
     expect(["A", "B", "C", "D", "F"]).toContain(report.grade);
     expect(report.framework.detected?.id).toBe("nginx");
   });

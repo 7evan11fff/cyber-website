@@ -1,5 +1,6 @@
 import React from "react";
 import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-pdf/renderer";
+import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { SITE_NAME } from "@/lib/seo";
 
@@ -8,8 +9,10 @@ type ReportResponse = {
   finalUrl: string;
   statusCode: number;
   score: number;
+  maxScore?: number;
   grade: string;
   results: HeaderResult[];
+  cookieAnalysis?: CookieSecurityAnalysis;
   checkedAt: string;
 };
 
@@ -283,6 +286,13 @@ function formatTimestamp(input: string) {
   return date.toLocaleString();
 }
 
+function resolveMaxScore(report: ReportResponse) {
+  if (typeof report.maxScore === "number" && Number.isFinite(report.maxScore)) {
+    return report.maxScore;
+  }
+  return report.results.length * 2;
+}
+
 function BrandLogoMark() {
   return (
     <Svg viewBox="0 0 40 40" style={styles.brandMark}>
@@ -308,6 +318,7 @@ function BrandLogoMark() {
 function SecurityReportDocument({ report, generatedAt }: { report: ReportResponse; generatedAt: string }) {
   const statusSummary = summaryLine(report.results);
   const recommendations = collectRecommendationItems(report.results);
+  const maxScore = resolveMaxScore(report);
 
   return (
     <Document title={`${SITE_NAME} Report`} author={SITE_NAME} subject="Security header scan report">
@@ -354,7 +365,7 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
           <View style={[styles.highlightCard, styles.highlightCardSpaced]}>
             <Text style={styles.highlightLabel}>Score</Text>
             <Text style={styles.highlightValue}>
-              {report.score}/{report.results.length * 2}
+              {report.score}/{maxScore}
             </Text>
             <Text style={styles.highlightSubtext}>Weighted header score</Text>
           </View>
@@ -367,7 +378,7 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             {statusSummary.missing}
           </Text>
           <Text style={styles.summaryBullet}>
-            • Overall grade is {report.grade}, based on a weighted score of {report.score}/{report.results.length * 2}.
+            • Overall grade is {report.grade}, based on a weighted score of {report.score}/{maxScore}.
           </Text>
           <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.

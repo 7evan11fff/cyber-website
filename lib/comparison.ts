@@ -3,6 +3,7 @@ import type { HeaderResult } from "@/lib/securityHeaders";
 export type ComparisonSiteReport = {
   score: number;
   grade: string;
+  maxScore?: number;
   results: HeaderResult[];
 };
 
@@ -185,8 +186,14 @@ export function buildComparisonSummary(
     siteBLabel: string;
   }
 ): ComparisonSummary {
-  const siteAMaxScore = Math.max(0, comparison.siteA.results.length * 2);
-  const siteBMaxScore = Math.max(0, comparison.siteB.results.length * 2);
+  const siteAMaxScore = Math.max(
+    0,
+    typeof comparison.siteA.maxScore === "number" ? comparison.siteA.maxScore : comparison.siteA.results.length * 2
+  );
+  const siteBMaxScore = Math.max(
+    0,
+    typeof comparison.siteB.maxScore === "number" ? comparison.siteB.maxScore : comparison.siteB.results.length * 2
+  );
   const siteAGradeLabel = formatGradeWithModifier(comparison.siteA.grade, comparison.siteA.score, siteAMaxScore);
   const siteBGradeLabel = formatGradeWithModifier(comparison.siteB.grade, comparison.siteB.score, siteBMaxScore);
   const scoreDifference = comparison.siteA.score - comparison.siteB.score;

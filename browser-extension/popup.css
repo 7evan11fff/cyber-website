@@ -149,6 +149,11 @@ body {
   overflow-y: auto;
 }
 
+.result-list--compact {
+  margin-top: 8px;
+  max-height: 132px;
+}
+
 .result-item {
   border: 1px solid rgba(51, 65, 85, 0.85);
   border-radius: 8px;

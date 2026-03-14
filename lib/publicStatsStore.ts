@@ -235,7 +235,8 @@ export async function recordPublicScan(report: SecurityReport): Promise<void> {
   data.scansByDate[dayKey] = clampInt(data.scansByDate[dayKey]) + 1;
   data.gradeCounts[grade] = clampInt(data.gradeCounts[grade]) + 1;
 
-  const maxScore = Math.max(0, report.results.length * 2);
+  const derivedMaxScore = report.results.length * 2;
+  const maxScore = Math.max(0, typeof report.maxScore === "number" ? report.maxScore : derivedMaxScore);
   const safeScore = Math.max(0, Math.min(Math.trunc(report.score), maxScore));
   const scoreBucket = data.scoreByDate[dayKey] ?? { totalScore: 0, totalMaxScore: 0, scans: 0 };
   scoreBucket.totalScore += safeScore;

@@ -24,7 +24,8 @@ function gradeColor(grade: string) {
 }
 
 function scoreLabel(report: SharedScanReport): string {
-  return `${report.score}/${report.results.length * 2}`;
+  const maxScore = typeof report.maxScore === "number" ? report.maxScore : report.results.length * 2;
+  return `${report.score}/${maxScore}`;
 }
 
 function hostLabel(value: string): string {
@@ -105,6 +106,51 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
             </p>
           </article>
         ))}
+      </section>
+
+      <section className="mt-5">
+        <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
+          <summary className="cursor-pointer list-none">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-100">Cookie Security Analysis</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  {report.cookieAnalysis?.summary ?? "No Set-Cookie headers were captured for this scan."}
+                </p>
+              </div>
+              <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                {report.cookieAnalysis
+                  ? `${report.cookieAnalysis.score}/${report.cookieAnalysis.maxScore || 0}`
+                  : "0/0"}
+              </span>
+            </div>
+          </summary>
+          {report.cookieAnalysis && report.cookieAnalysis.cookieCount > 0 ? (
+            <ul className="mt-4 space-y-3">
+              {report.cookieAnalysis.cookies.map((cookie) => (
+                <li key={`${cookie.name}-${cookie.raw}`} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="break-all text-sm font-semibold text-slate-100">{cookie.name}</p>
+                    <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-xs text-slate-300">
+                      Grade {cookie.grade}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    HttpOnly: <span className="text-slate-200">{cookie.httpOnly ? "Yes" : "No"}</span> · Secure:{" "}
+                    <span className="text-slate-200">{cookie.secure ? "Yes" : "No"}</span> · SameSite:{" "}
+                    <span className="text-slate-200">{cookie.sameSite}</span>
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Path: <span className="text-slate-200">{cookie.path ?? "(default)"}</span> · Domain:{" "}
+                    <span className="text-slate-200">{cookie.domain ?? "(host-only)"}</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-slate-400">No cookies were set in the scanned response.</p>
+          )}
+        </details>
       </section>
     </>
   );
@@ -273,7 +319,11 @@ export default async function SharedReportPage({
               {
                 "@type": "PropertyValue",
                 name: "Score",
-                value: `${shared.payload.report.score}/${shared.payload.report.results.length * 2}`
+                value: `${shared.payload.report.score}/${
+                  typeof shared.payload.report.maxScore === "number"
+                    ? shared.payload.report.maxScore
+                    : shared.payload.report.results.length * 2
+                }`
               }
             ]
           }

@@ -39,6 +39,7 @@ type ReportResponse = {
   finalUrl: string;
   statusCode: number;
   score: number;
+  maxScore?: number;
   grade: string;
   results: HeaderResult[];
   checkedAt: string;
@@ -71,6 +72,13 @@ function gradeColor(grade: string) {
 
 function normalizeUrl(value: string) {
   return value.trim();
+}
+
+function resolveMaxScore(report: ReportResponse): number {
+  if (typeof report.maxScore === "number" && Number.isFinite(report.maxScore)) {
+    return Math.max(0, report.maxScore);
+  }
+  return report.results.length * 2;
 }
 
 function parseSitesQueryParam(value: string | null): { siteA: string; siteB: string } | null {
@@ -460,7 +468,7 @@ export function ComparePageClient() {
         grade: report.grade,
         checkedAt: report.checkedAt,
         score: report.score,
-        maxScore: report.results.length * 2,
+        maxScore: resolveMaxScore(report),
         headerStatuses: buildHeaderStatusSnapshot(report.results)
       }));
 
@@ -875,7 +883,7 @@ export function ComparePageClient() {
                   {comparisonSummary?.siteAGradeLabel ?? comparison.siteA.grade}
                 </p>
                 <p className="text-sm text-slate-300">
-                  Score {comparison.siteA.score}/{comparison.siteA.results.length * 2}
+                  Score {comparison.siteA.score}/{resolveMaxScore(comparison.siteA)}
                 </p>
               </article>
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
@@ -889,7 +897,7 @@ export function ComparePageClient() {
                   {comparisonSummary?.siteBGradeLabel ?? comparison.siteB.grade}
                 </p>
                 <p className="text-sm text-slate-300">
-                  Score {comparison.siteB.score}/{comparison.siteB.results.length * 2}
+                  Score {comparison.siteB.score}/{resolveMaxScore(comparison.siteB)}
                 </p>
               </article>
             </div>

@@ -21,6 +21,31 @@ const HEADER_RESULT_SCHEMA = z.object({
   guidance: z.string()
 });
 
+const COOKIE_RESULT_SCHEMA = z.object({
+  name: z.string().min(1),
+  raw: z.string().min(1),
+  httpOnly: z.boolean(),
+  secure: z.boolean(),
+  sameSite: z.enum(["Strict", "Lax", "None", "Missing", "Invalid"]),
+  path: z.string().nullable(),
+  domain: z.string().nullable(),
+  score: z.number().int().nonnegative().max(2),
+  maxScore: z.literal(2),
+  status: z.enum(["good", "weak", "missing"]),
+  grade: z.string().min(1).max(8),
+  findings: z.array(z.string().min(1)).max(10),
+  guidance: z.array(z.string().min(1)).max(10)
+});
+
+const COOKIE_ANALYSIS_SCHEMA = z.object({
+  cookies: z.array(COOKIE_RESULT_SCHEMA).max(60),
+  cookieCount: z.number().int().nonnegative().max(60),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  summary: z.string().min(1).max(320)
+});
+
 const FRAMEWORK_SCHEMA = z.object({
   server: z.string().nullable(),
   poweredBy: z.string().nullable(),
@@ -46,8 +71,10 @@ const REPORT_SCHEMA = z.object({
   finalUrl: z.string().url(),
   statusCode: z.number().int(),
   score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative().optional(),
   grade: z.string().min(1).max(8),
   results: z.array(HEADER_RESULT_SCHEMA).min(1).max(40),
+  cookieAnalysis: COOKIE_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
   framework: FRAMEWORK_SCHEMA.optional().default({
     server: null,

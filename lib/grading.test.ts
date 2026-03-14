@@ -21,42 +21,56 @@ function buildResults(statuses: HeaderResult["status"][]): HeaderResult[] {
 
 describe("calculateGrade", () => {
   it("returns an F when there are no results", () => {
-    expect(calculateGrade([])).toEqual({ score: 0, grade: "F" });
+    expect(calculateGrade([])).toEqual({ score: 0, grade: "F", maxScore: 0 });
   });
 
   it("scores good as 2 points and weak as 1 point", () => {
     const results = buildResults(["good", "weak", "missing"]);
-    expect(calculateGrade(results)).toEqual({ score: 3, grade: "D" });
+    expect(calculateGrade(results)).toEqual({ score: 3, grade: "D", maxScore: 6 });
   });
 
   it("uses score ratio thresholds for letter grades", () => {
     expect(calculateGrade(buildResults(["good", "good", "good", "good", "good", "good", "good", "good", "good", "weak"]))).toEqual({
       score: 19,
-      grade: "A"
+      grade: "A",
+      maxScore: 20
     });
     expect(
       calculateGrade(buildResults(["good", "good", "good", "good", "good", "good", "good", "good", "missing", "missing"]))
     ).toEqual({
       score: 16,
-      grade: "B"
+      grade: "B",
+      maxScore: 20
     });
     expect(
       calculateGrade(buildResults(["good", "good", "good", "good", "good", "good", "weak", "missing", "missing", "missing"]))
     ).toEqual({
       score: 13,
-      grade: "C"
+      grade: "C",
+      maxScore: 20
     });
     expect(
       calculateGrade(buildResults(["good", "good", "good", "good", "good", "missing", "missing", "missing", "missing", "missing"]))
     ).toEqual({
       score: 10,
-      grade: "D"
+      grade: "D",
+      maxScore: 20
     });
     expect(
       calculateGrade(buildResults(["good", "good", "good", "good", "weak", "missing", "missing", "missing", "missing", "missing"]))
     ).toEqual({
       score: 9,
-      grade: "F"
+      grade: "F",
+      maxScore: 20
+    });
+  });
+
+  it("combines optional additional scoring inputs", () => {
+    const results = buildResults(["good", "good", "missing", "missing"]);
+    expect(calculateGrade(results, { additionalScore: 2, additionalMaxScore: 4 })).toEqual({
+      score: 6,
+      maxScore: 12,
+      grade: "D"
     });
   });
 });
