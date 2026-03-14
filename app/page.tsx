@@ -66,15 +66,14 @@ type MobileCompareView = "siteA" | "siteB";
 type ShareState = "idle" | "copied" | "shared" | "error";
 type BadgeStyle = "flat" | "flat-square";
 type BadgeCopyState = "idle" | "markdown" | "html" | "error";
-type LandingStep = {
+type LaunchFeature = {
   title: string;
   description: string;
-  icon: "scan" | "analyze" | "monitor";
+  cta: string;
 };
-type Testimonial = {
-  quote: string;
-  name: string;
-  role: string;
+type TrustedByMetric = {
+  label: string;
+  value: string;
 };
 type FaqItem = {
   question: string;
@@ -100,44 +99,45 @@ const POPULAR_CACHE_STORAGE_KEY = "security-header-checker:popular-sites-cache";
 const POPULAR_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const MAX_BULK_URLS = 10;
 const SHARE_QUERY_PARAM = "share";
-const HOW_IT_WORKS_STEPS: LandingStep[] = [
+const LAUNCH_FEATURES: LaunchFeature[] = [
   {
-    title: "Scan any site",
+    title: "Bulk checks at release speed",
     description:
-      "Enter a domain or full URL and run an instant scan from the browser-safe API.",
-    icon: "scan"
+      "Scan up to 10 domains in one run, then export CSV results for triage and sprint planning.",
+    cta: "Open Bulk Scan mode"
   },
   {
-    title: "Understand risks quickly",
+    title: "Side-by-side comparison",
     description:
-      "Get clear pass/weak/missing status with guidance for each important security header.",
-    icon: "analyze"
+      "Compare two environments or competitors to spot missing headers and policy differences instantly.",
+    cta: "Compare two sites"
   },
   {
-    title: "Monitor and alert",
+    title: "Watchlist and grade alerts",
     description:
-      "Save URLs to your watchlist, refresh on schedule, and receive grade-change email alerts.",
-    icon: "monitor"
+      "Track critical domains, detect regressions early, and trigger notifications on security posture changes.",
+    cta: "Monitor with watchlist"
+  },
+  {
+    title: "API access for automation",
+    description:
+      "Call /api/check from CI jobs, scripts, or internal tooling with your personal API key.",
+    cta: "Read API docs"
   }
 ];
-const TESTIMONIALS: Testimonial[] = [
+const TRUSTED_BY_LOGOS = ["DevOps teams", "Security engineers", "QA squads", "Platform teams", "Startup founders"];
+const TRUSTED_BY_METRICS: TrustedByMetric[] = [
   {
-    quote:
-      "The side-by-side compare view helped us prioritize header fixes in one sprint and catch regressions faster.",
-    name: "Maya S.",
-    role: "Security Engineer"
+    label: "Checks run",
+    value: "120k+"
   },
   {
-    quote:
-      "Our QA team now uses this before release cutoffs. The grade and guidance are clear enough for non-security folks.",
-    name: "Jordan T.",
-    role: "QA Lead"
+    label: "Teams monitoring domains",
+    value: "2,400+"
   },
   {
-    quote:
-      "Watchlist notifications make it easy to spot when infrastructure changes accidentally weaken protections.",
-    name: "Alex R.",
-    role: "Platform Team"
+    label: "Average scan time",
+    value: "< 3 sec"
   }
 ];
 const SHORTCUT_ROWS = [
@@ -342,37 +342,6 @@ function HeroShieldIcon() {
         />
       </svg>
     </div>
-  );
-}
-
-function StepIcon({ icon }: { icon: LandingStep["icon"] }) {
-  if (icon === "scan") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 text-sky-200">
-        <path
-          d="M11 4a7 7 0 1 0 4.2 12.6L20 21l1-1-4.3-4.3A7 7 0 0 0 11 4Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"
-          fill="currentColor"
-        />
-      </svg>
-    );
-  }
-  if (icon === "analyze") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 text-sky-200">
-        <path
-          d="M4 20h16v1H4v-1Zm2-2V9h2v9H6Zm5 0V4h2v14h-2Zm5 0v-6h2v6h-2Z"
-          fill="currentColor"
-        />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 text-sky-200">
-      <path
-        d="M12 2 4 6v6c0 5.2 3.4 9.7 8 11 4.6-1.3 8-5.8 8-11V6l-8-4Zm0 2.2 6 3v4.8c0 4.2-2.6 8-6 9.2-3.4-1.2-6-5-6-9.2V7.2l6-3Zm-1 5.3v2.5H8v2h3v2.5h2V14h3v-2h-3V9.5h-2Z"
-        fill="currentColor"
-      />
-    </svg>
   );
 }
 
@@ -628,6 +597,14 @@ export default function Home() {
       `reveal-section ${revealedSections[id] ? "reveal-visible" : ""}`.trim(),
     [revealedSections]
   );
+  const scrollToScanInput = useCallback(() => {
+    setMode("single");
+    window.requestAnimationFrame(() => {
+      if (!singleUrlInputRef.current) return;
+      singleUrlInputRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      singleUrlInputRef.current.focus();
+    });
+  }, []);
 
   const singleGradeColor = useMemo(() => {
     if (!report) return "text-slate-200";
@@ -1808,37 +1785,38 @@ export default function Home() {
       <section className="mb-6 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-sky-950/40 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
         <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
           <div>
-            <h1 className="text-3xl font-semibold text-slate-100 sm:text-5xl">
-              Know Your Security Headers in Seconds
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">Product launch edition</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-5xl">
+              Ship safer websites with instant security header checks
             </h1>
             <p className="mt-4 max-w-2xl text-slate-300">
-              Security headers tell browsers how to protect your users from attacks like XSS, clickjacking,
-              and data leaks. Scan one URL or compare two sites to instantly see where defenses are strong or
-              missing.
+              Run scans, compare environments, and monitor regressions from one dashboard. Security Header Checker
+              helps teams tighten HTTP protections before every release without slowing down delivery.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
-                Fast scans
+                Launch-ready checks
               </span>
               <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
-                Side-by-side compare
+                CI-friendly API
               </span>
               <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-100">
-                Shareable reports
+                Watchlist alerts
               </span>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={scrollToScanInput}
+                className="rounded-lg bg-sky-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-950 transition hover:bg-sky-400"
+              >
+                Start scanning now
+              </button>
               <a
-                href="#how-it-works"
+                href="#feature-cards"
                 className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
               >
-                How it works
-              </a>
-              <a
-                href="#testimonials"
-                className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200"
-              >
-                Testimonials
+                Explore features
               </a>
             </div>
           </div>
@@ -1847,67 +1825,69 @@ export default function Home() {
       </section>
 
       <section
-        id="how-it-works"
-        data-reveal-id="how-it-works"
-        className={`${revealClass("how-it-works")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+        id="trusted-by"
+        data-reveal-id="trusted-by"
+        className={`${revealClass("trusted-by")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">How it works</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">
-              Three steps to improve header posture
-            </h2>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Trusted by</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Teams shipping every week</h2>
           </div>
           <p className="max-w-xl text-sm text-slate-300">
-            Run scans, prioritize guidance, and keep an eye on regressions through watchlist refreshes.
+            Example launch metrics and logos to show product confidence before customer references are finalized.
           </p>
         </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {TRUSTED_BY_LOGOS.map((logo) => (
+            <span
+              key={logo}
+              className="motion-card rounded-lg border border-slate-700/90 bg-slate-950/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300"
+            >
+              {logo}
+            </span>
+          ))}
+        </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {HOW_IT_WORKS_STEPS.map((step) => (
+          {TRUSTED_BY_METRICS.map((metric) => (
+            <article key={metric.label} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-400">{metric.label}</p>
+              <p className="mt-2 text-2xl font-semibold text-sky-200">{metric.value}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="feature-cards"
+        data-reveal-id="feature-cards"
+        className={`${revealClass("feature-cards")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Feature highlights</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">Built for modern release workflows</h2>
+          </div>
+          <p className="max-w-xl text-sm text-slate-300">
+            Everything you need to scan manually, compare instantly, monitor continuously, and automate checks.
+          </p>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {LAUNCH_FEATURES.map((feature) => (
             <article
-              key={step.title}
+              key={feature.title}
               className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4 transition hover:border-sky-500/40"
             >
-              <div className="inline-flex items-center justify-center rounded-lg border border-sky-500/30 bg-sky-500/10 p-2">
-                <StepIcon icon={step.icon} />
-              </div>
-              <h3 className="mt-3 text-base font-semibold text-slate-100">{step.title}</h3>
-              <p className="mt-2 text-sm text-slate-300">{step.description}</p>
+              <h3 className="text-base font-semibold text-slate-100">{feature.title}</h3>
+              <p className="mt-2 text-sm text-slate-300">{feature.description}</p>
+              <p className="mt-4 text-xs uppercase tracking-[0.14em] text-sky-300">{feature.cta}</p>
             </article>
           ))}
         </div>
       </section>
 
       <section
-        id="testimonials"
-        data-reveal-id="testimonials"
-        className={`${revealClass("testimonials")} lazy-section mb-6 rounded-2xl border border-slate-800/90 bg-slate-900/60 p-6 shadow-xl shadow-slate-950/60`}
-      >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-sky-300">Testimonials</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-100 sm:text-3xl">
-              Teams use it before every release
-            </h2>
-          </div>
-          <p className="max-w-xl text-sm text-slate-300">
-            Placeholder launch testimonials while final customer quotes are collected.
-          </p>
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {TESTIMONIALS.map((item) => (
-            <article key={item.name} className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
-              <p className="text-sm text-slate-200">
-                &ldquo;{item.quote}&rdquo;
-              </p>
-              <p className="mt-4 text-sm font-semibold text-slate-100">{item.name}</p>
-              <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{item.role}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section
+        id="scan-workbench"
         className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur"
         aria-busy={loading}
       >
