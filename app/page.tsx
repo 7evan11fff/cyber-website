@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
+import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
@@ -87,8 +88,10 @@ type ReportResponse = {
   grade: string;
   results: HeaderResult[];
   cookieAnalysis?: CookieSecurityAnalysis;
+  corsAnalysis?: CorsAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
+  responseTimeMs?: number;
   scanDurationMs?: number;
 };
 
@@ -347,10 +350,32 @@ const cookieStatusStyles: Record<HeaderResult["status"], string> = {
   missing: "border-rose-500/30 bg-rose-500/15 text-rose-200"
 };
 
+const corsSeverityStyles: Record<"low" | "medium" | "high" | "critical", string> = {
+  low: "border-emerald-500/30 bg-emerald-500/15 text-emerald-200",
+  medium: "border-amber-500/30 bg-amber-500/15 text-amber-200",
+  high: "border-orange-500/30 bg-orange-500/15 text-orange-200",
+  critical: "border-rose-500/40 bg-rose-500/20 text-rose-200"
+};
+
+function isCorsAnalysis(value: unknown): value is CorsAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<CorsAnalysis>;
+  return (
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.summary === "string" &&
+    Array.isArray(candidate.findings)
+  );
+}
+
 function isReportResponse(value: unknown): value is ReportResponse {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ReportResponse>;
   const validMaxScore = candidate.maxScore === undefined || typeof candidate.maxScore === "number";
+  const validResponseTime = candidate.responseTimeMs === undefined || typeof candidate.responseTimeMs === "number";
+  const validScanDuration = candidate.scanDurationMs === undefined || typeof candidate.scanDurationMs === "number";
+  const validCorsAnalysis = candidate.corsAnalysis === undefined || isCorsAnalysis(candidate.corsAnalysis);
   const validCookieAnalysis =
     candidate.cookieAnalysis === undefined ||
     (typeof candidate.cookieAnalysis === "object" &&
@@ -366,6 +391,9 @@ function isReportResponse(value: unknown): value is ReportResponse {
     typeof candidate.statusCode === "number" &&
     typeof candidate.score === "number" &&
     validMaxScore &&
+    validResponseTime &&
+    validScanDuration &&
+    validCorsAnalysis &&
     validCookieAnalysis &&
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string" &&
@@ -527,6 +555,16 @@ function resolveMaxScore(report: Pick<ReportResponse, "results" | "maxScore">): 
   return report.results.length * 2;
 }
 
+function resolveResponseTimeMs(report: Pick<ReportResponse, "responseTimeMs" | "scanDurationMs">): number | null {
+  if (typeof report.responseTimeMs === "number" && Number.isFinite(report.responseTimeMs) && report.responseTimeMs >= 0) {
+    return Math.round(report.responseTimeMs);
+  }
+  if (typeof report.scanDurationMs === "number" && Number.isFinite(report.scanDurationMs) && report.scanDurationMs >= 0) {
+    return Math.round(report.scanDurationMs);
+  }
+  return null;
+}
+
 function isTextInputLikeTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
@@ -541,6 +579,13 @@ function formatScanDuration(durationMs: number | null | undefined): string | nul
     return null;
   }
   return `Scan completed in ${(durationMs / 1000).toFixed(2)}s`;
+}
+
+function formatLatencyBadge(durationMs: number | null | undefined): string | null {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs < 0) {
+    return null;
+  }
+  return `${Math.round(durationMs)} ms`;
 }
 
 function formatRelativeTime(value: string): string | null {
@@ -617,6 +662,7 @@ function escapeMarkdownCell(value: string): string {
 function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null): string {
   const checkedAt = new Date(report.checkedAt).toLocaleString();
   const maxScore = resolveMaxScore(report);
+  const responseTimeMs = resolveResponseTimeMs(report);
   const lines = [
     "## Security Header Checker Report",
     "",
@@ -625,9 +671,11 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **Status Code:** ${report.statusCode}`,
     `- **Grade:** ${report.grade}`,
     `- **Score:** ${report.score}/${maxScore}`,
+    `- **Response Time:** ${responseTimeMs === null ? "Not available" : `${responseTimeMs} ms`}`,
     `- **Cookie Security:** ${report.cookieAnalysis?.summary ?? "No Set-Cookie headers returned."}`,
+    `- **CORS:** ${report.corsAnalysis?.summary ?? "Not available"}`,
     `- **Checked At:** ${checkedAt}`,
-    `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs) ?? "Not available"}`,
+    `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs ?? responseTimeMs) ?? "Not available"}`,
     `- **Detected Stack:** ${report.framework?.detected?.label ?? "Unknown"}`,
     shareUrl ? `- **Share Link:** ${shareUrl}` : null,
     "",
@@ -820,11 +868,17 @@ function ScanResultsLoadingSkeleton({ mode }: { mode: ScanMode }) {
 }
 
 function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: ReportResponse; delayMs?: number }) {
+  const responseTimeMs = resolveResponseTimeMs(report);
   return (
     <article className="motion-card rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{title}</p>
+          {formatLatencyBadge(responseTimeMs) && (
+            <span className="mt-2 inline-flex rounded-full border border-sky-500/35 bg-sky-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+              {formatLatencyBadge(responseTimeMs)}
+            </span>
+          )}
           <p className="mt-2 break-all text-sm text-slate-300">{report.checkedUrl}</p>
         </div>
         <p
@@ -847,9 +901,9 @@ function SiteSummary({ title, report, delayMs = 0 }: { title: string; report: Re
         <p>
           <span className="text-slate-500">Time:</span> {new Date(report.checkedAt).toLocaleString()}
         </p>
-        {formatScanDuration(report.scanDurationMs) && (
+        {formatScanDuration(report.scanDurationMs ?? responseTimeMs) && (
           <p className="text-xs uppercase tracking-[0.12em] text-sky-300/90">
-            {formatScanDuration(report.scanDurationMs)}
+            {formatScanDuration(report.scanDurationMs ?? responseTimeMs)}
           </p>
         )}
       </div>
@@ -1582,9 +1636,18 @@ export default function Home() {
       }
 
       const finishedAt = performance.now();
+      const measuredDurationMs = Math.max(0, finishedAt - startedAt);
+      const payloadReport = payload as ReportResponse;
       return {
-        ...(payload as ReportResponse),
-        scanDurationMs: Math.max(0, finishedAt - startedAt)
+        ...payloadReport,
+        responseTimeMs:
+          typeof payloadReport.responseTimeMs === "number" && Number.isFinite(payloadReport.responseTimeMs)
+            ? payloadReport.responseTimeMs
+            : measuredDurationMs,
+        scanDurationMs:
+          typeof payloadReport.scanDurationMs === "number" && Number.isFinite(payloadReport.scanDurationMs)
+            ? payloadReport.scanDurationMs
+            : measuredDurationMs
       };
     },
     []
@@ -3479,9 +3542,13 @@ export default function Home() {
                               </svg>
                               Complete
                             </span>
-                            {formatScanDuration(entry.report?.scanDurationMs) && (
+                            {formatScanDuration(
+                              entry.report ? entry.report.scanDurationMs ?? resolveResponseTimeMs(entry.report) : null
+                            ) && (
                               <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-sky-300/90">
-                                {formatScanDuration(entry.report?.scanDurationMs)}
+                                {formatScanDuration(
+                                  entry.report ? entry.report.scanDurationMs ?? resolveResponseTimeMs(entry.report) : null
+                                )}
                               </p>
                             )}
                           </div>
@@ -3829,7 +3896,14 @@ export default function Home() {
             )}
             <section className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
               <article className="motion-card rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-              <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Overall Grade</p>
+                {formatLatencyBadge(resolveResponseTimeMs(report)) && (
+                  <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                    {formatLatencyBadge(resolveResponseTimeMs(report))}
+                  </span>
+                )}
+              </div>
               <AnimatedGradeCircle
                 score={report.score}
                 total={resolveMaxScore(report)}
@@ -4026,6 +4100,14 @@ export default function Home() {
                 <p>
                   <span className="text-slate-500">Result source:</span> {reportSourceLabel(reportSource)}
                 </p>
+                {formatLatencyBadge(resolveResponseTimeMs(report)) && (
+                  <p>
+                    <span className="text-slate-500">Response time:</span>{" "}
+                    <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                      {formatLatencyBadge(resolveResponseTimeMs(report))}
+                    </span>
+                  </p>
+                )}
                 {reportSource === "cache" && reportCachedAt && (
                   <p>
                     <span className="text-slate-500">Cache status:</span>{" "}
@@ -4035,9 +4117,9 @@ export default function Home() {
                     </time>
                   </p>
                 )}
-                {formatScanDuration(report.scanDurationMs) && (
+                {formatScanDuration(report.scanDurationMs ?? resolveResponseTimeMs(report)) && (
                   <p className="text-xs uppercase tracking-[0.12em] text-sky-300/90">
-                    {formatScanDuration(report.scanDurationMs)}
+                    {formatScanDuration(report.scanDurationMs ?? resolveResponseTimeMs(report))}
                   </p>
                 )}
                 {frameworkSummaryLabel(report.framework) && (
@@ -4069,6 +4151,84 @@ export default function Home() {
                   />
                 ))}
               </div>
+            </section>
+            <section className="mt-4">
+              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
+                <summary className="cursor-pointer list-none">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">CORS analysis</h3>
+                      <p className="mt-1 text-sm text-slate-400">
+                        {report.corsAnalysis?.summary ??
+                          "No CORS analysis is available for this report snapshot."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
+                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
+                        Grade {report.corsAnalysis?.grade ?? "N/A"}
+                      </span>
+                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
+                        {report.corsAnalysis ? `${report.corsAnalysis.score}/${report.corsAnalysis.maxScore}` : "0/0"}
+                      </span>
+                    </div>
+                  </div>
+                </summary>
+
+                {report.corsAnalysis ? (
+                  <div className="mt-4 space-y-4">
+                    <dl className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Origin</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.corsAnalysis.allowOrigin ?? "Missing"}</dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Methods</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.corsAnalysis.allowMethods ?? "Missing"}</dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Headers</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.corsAnalysis.allowHeaders ?? "Missing"}</dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Credentials</dt>
+                        <dd className="mt-1 break-all text-slate-200">
+                          {report.corsAnalysis.allowCredentials ?? "Missing"}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {report.corsAnalysis.findings.length === 0 ? (
+                      <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                        No risky CORS findings were detected.
+                      </p>
+                    ) : (
+                      <ul className="grid gap-3 sm:grid-cols-2">
+                        {report.corsAnalysis.findings.map((finding) => (
+                          <li
+                            key={finding.id}
+                            className={`rounded-xl border px-3 py-3 text-sm ${corsSeverityStyles[finding.severity]}`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-semibold text-slate-100">{finding.message}</p>
+                              <span className="rounded-full border border-slate-700/60 bg-slate-950/70 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-slate-200">
+                                {finding.severity}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-200/90">
+                              <span className="text-slate-300">Header:</span> {finding.header}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-200/90">
+                              <span className="text-slate-300">Recommendation:</span> {finding.recommendation}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-400">This report does not include CORS analysis details.</p>
+                )}
+              </details>
             </section>
             <section className="mt-4">
               <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>

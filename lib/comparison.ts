@@ -5,6 +5,8 @@ export type ComparisonSiteReport = {
   grade: string;
   maxScore?: number;
   results: HeaderResult[];
+  responseTimeMs?: number;
+  scanDurationMs?: number;
 };
 
 export type ComparisonReportData = {

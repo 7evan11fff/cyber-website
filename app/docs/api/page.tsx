@@ -61,8 +61,11 @@ const CHECK_RESPONSE_EXAMPLE = `{
   "checkedUrl": "https://example.com",
   "finalUrl": "https://example.com/",
   "statusCode": 200,
-  "score": 14,
+  "score": 15,
+  "maxScore": 28,
   "grade": "B",
+  "responseTimeMs": 142,
+  "scanDurationMs": 142,
   "results": [
     {
       "key": "strict-transport-security",
@@ -72,6 +75,29 @@ const CHECK_RESPONSE_EXAMPLE = `{
       "guidance": "Use at least one year with includeSubDomains."
     }
   ],
+  "corsAnalysis": {
+    "allowOrigin": "*",
+    "allowMethods": "GET, POST",
+    "allowHeaders": "Content-Type",
+    "allowCredentials": "false",
+    "allowsAnyOrigin": true,
+    "allowsCredentials": false,
+    "isOverlyPermissive": true,
+    "score": 2,
+    "maxScore": 4,
+    "grade": "D",
+    "summary": "CORS findings detected: 1 high risk issue.",
+    "findings": [
+      {
+        "id": "wildcard-origin",
+        "header": "access-control-allow-origin",
+        "severity": "high",
+        "message": "Access-Control-Allow-Origin allows all origins.",
+        "recommendation": "Restrict Access-Control-Allow-Origin to explicit trusted origins.",
+        "value": "*"
+      }
+    ]
+  },
   "checkedAt": "2026-03-14T16:20:47.328Z"
 }`;
 
@@ -289,6 +315,17 @@ export default function ApiReferencePage() {
         >
           <p>Body: {`{ "url": "https://example.com" }`}</p>
           <CodeBlock code={CHECK_REQUEST_EXAMPLE} />
+          <ul className="mt-4 list-disc space-y-1 pl-5 text-xs text-slate-400">
+            <li>
+              <code>responseTimeMs</code> reports measured upstream latency in milliseconds.
+            </li>
+            <li>
+              <code>scanDurationMs</code> is kept for backward compatibility and mirrors response timing.
+            </li>
+            <li>
+              <code>corsAnalysis</code> includes CORS findings, score, grade, and parsed allow-* headers.
+            </li>
+          </ul>
           <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Sample response</p>
           <CodeBlock code={CHECK_RESPONSE_EXAMPLE} />
         </EndpointCard>

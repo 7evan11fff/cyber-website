@@ -28,6 +28,20 @@ function buildReport(domain: string): SecurityReport {
       grade: "N/A",
       summary: "No Set-Cookie headers were returned by the scanned response."
     },
+    corsAnalysis: {
+      allowOrigin: null,
+      allowMethods: null,
+      allowHeaders: null,
+      allowCredentials: null,
+      allowsAnyOrigin: false,
+      allowsCredentials: false,
+      isOverlyPermissive: false,
+      score: 4,
+      maxScore: 4,
+      grade: "A",
+      findings: [],
+      summary: "No CORS headers were returned. Cross-origin access is likely restricted by default."
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -38,7 +52,9 @@ function buildReport(domain: string): SecurityReport {
         reason: "Detected from Server response header.",
         evidence: [{ header: "server", value: "nginx" }]
       }
-    }
+    },
+    responseTimeMs: 120,
+    scanDurationMs: 120
   };
 }
 
@@ -119,6 +135,9 @@ describe("securityReport", () => {
     expect(report.finalUrl).toBe("https://example.com/");
     expect(report.results).toHaveLength(11);
     expect(report.cookieAnalysis.cookieCount).toBe(1);
+    expect(report.corsAnalysis.maxScore).toBe(4);
+    expect(report.responseTimeMs).toBeGreaterThanOrEqual(0);
+    expect(report.scanDurationMs).toBe(report.responseTimeMs);
     expect(report.score).toBeGreaterThan(0);
     expect(report.maxScore).toBeGreaterThanOrEqual(report.score);
     expect(["A", "B", "C", "D", "F"]).toContain(report.grade);

@@ -61,6 +61,46 @@ export default function SecurityHeadersGuidePage() {
         ))}
       </section>
 
+      <section className="mt-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/70 backdrop-blur">
+        <h2 className="text-2xl font-semibold text-slate-100">CORS configuration guidance</h2>
+        <p className="mt-2 text-sm text-slate-300">
+          CORS is evaluated separately from core security headers. It controls which origins can access your API from a
+          browser context. Overly broad settings can expose authenticated endpoints across untrusted origins.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-300">Recommended baseline</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+              <li>
+                Set <code className="rounded bg-slate-900 px-1 py-0.5 text-slate-200">Access-Control-Allow-Origin</code>{" "}
+                to explicit trusted origins (no wildcard).
+              </li>
+              <li>
+                Keep methods and request headers minimal for each endpoint.
+              </li>
+              <li>
+                Enable credentials only when required, and only with explicit origin allowlists.
+              </li>
+            </ul>
+          </article>
+          <article className="rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-300">Critical misconfiguration</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              <code className="rounded bg-slate-900 px-1 py-0.5 text-slate-200">Access-Control-Allow-Origin: *</code>{" "}
+              combined with{" "}
+              <code className="rounded bg-slate-900 px-1 py-0.5 text-slate-200">
+                Access-Control-Allow-Credentials: true
+              </code>{" "}
+              is treated as a critical finding.
+            </p>
+            <p className="mt-2 text-sm text-slate-300">
+              Use explicit origin allowlists and include <code className="rounded bg-slate-900 px-1 py-0.5 text-slate-200">Vary: Origin</code>{" "}
+              when dynamically selecting allowed origins.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <p className="mt-6 text-sm text-slate-300">
         Want to verify your live headers?{" "}
         <Link href="/" className="text-sky-300 transition hover:text-sky-200">

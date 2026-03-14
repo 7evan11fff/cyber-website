@@ -43,6 +43,8 @@ type ReportResponse = {
   grade: string;
   results: HeaderResult[];
   checkedAt: string;
+  responseTimeMs?: number;
+  scanDurationMs?: number;
 };
 
 type ComparisonReport = {
@@ -79,6 +81,16 @@ function resolveMaxScore(report: ReportResponse): number {
     return Math.max(0, report.maxScore);
   }
   return report.results.length * 2;
+}
+
+function resolveResponseTimeMs(report: ReportResponse): number | null {
+  if (typeof report.responseTimeMs === "number" && Number.isFinite(report.responseTimeMs) && report.responseTimeMs >= 0) {
+    return Math.round(report.responseTimeMs);
+  }
+  if (typeof report.scanDurationMs === "number" && Number.isFinite(report.scanDurationMs) && report.scanDurationMs >= 0) {
+    return Math.round(report.scanDurationMs);
+  }
+  return null;
 }
 
 function parseSitesQueryParam(value: string | null): { siteA: string; siteB: string } | null {
@@ -243,6 +255,7 @@ function ComparisonResultsSkeleton() {
 async function requestReport(targetUrl: string): Promise<ReportResponse> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), CLIENT_SCAN_REQUEST_TIMEOUT_MS);
+  const startedAt = performance.now();
   let response: Response;
 
   try {
@@ -263,7 +276,20 @@ async function requestReport(targetUrl: string): Promise<ReportResponse> {
     throw new Error(normalizeCheckError(response.status, payload));
   }
 
-  return payload as ReportResponse;
+  const finishedAt = performance.now();
+  const measuredDurationMs = Math.max(0, finishedAt - startedAt);
+  const report = payload as ReportResponse;
+  return {
+    ...report,
+    responseTimeMs:
+      typeof report.responseTimeMs === "number" && Number.isFinite(report.responseTimeMs)
+        ? report.responseTimeMs
+        : measuredDurationMs,
+    scanDurationMs:
+      typeof report.scanDurationMs === "number" && Number.isFinite(report.scanDurationMs)
+        ? report.scanDurationMs
+        : measuredDurationMs
+  };
 }
 
 export function ComparePageClient() {
@@ -873,7 +899,14 @@ export function ComparePageClient() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
+                  {resolveResponseTimeMs(comparison.siteA) !== null && (
+                    <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                      {resolveResponseTimeMs(comparison.siteA)} ms
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteA.checkedUrl}</p>
                 <p
                   className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(
@@ -887,7 +920,14 @@ export function ComparePageClient() {
                 </p>
               </article>
               <article className="motion-card rounded-xl border border-slate-800/90 bg-slate-950/60 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
+                  {resolveResponseTimeMs(comparison.siteB) !== null && (
+                    <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                      {resolveResponseTimeMs(comparison.siteB)} ms
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteB.checkedUrl}</p>
                 <p
                   className={`grade-badge-in mt-3 text-3xl font-bold sm:text-4xl ${gradeColor(

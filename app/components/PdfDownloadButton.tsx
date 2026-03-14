@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
+import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
 type ReportResponse = {
@@ -10,7 +12,11 @@ type ReportResponse = {
   score: number;
   grade: string;
   results: HeaderResult[];
+  cookieAnalysis?: CookieSecurityAnalysis;
+  corsAnalysis?: CorsAnalysis;
   checkedAt: string;
+  responseTimeMs?: number;
+  scanDurationMs?: number;
 };
 
 type PdfDownloadState = "idle" | "generating" | "error";

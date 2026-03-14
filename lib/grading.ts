@@ -9,7 +9,26 @@ export type GradeResult = {
 type GradeOptions = {
   additionalScore?: number;
   additionalMaxScore?: number;
+  corsScore?: number;
+  corsMaxScore?: number;
 };
+
+const CORS_SCORE_WEIGHT = 0.5;
+
+function toWeightedScorePair(score: number, maxScore: number, weight: number): { score: number; maxScore: number } {
+  const safeMaxScore = Math.max(0, Math.trunc(maxScore));
+  if (safeMaxScore <= 0 || !Number.isFinite(weight) || weight <= 0) {
+    return { score: 0, maxScore: 0 };
+  }
+
+  const safeScore = Math.max(0, Math.min(Math.trunc(score), safeMaxScore));
+  const weightedMaxScore = Math.max(1, Math.round(safeMaxScore * weight));
+  const weightedScore = Math.round((safeScore / safeMaxScore) * weightedMaxScore);
+  return {
+    score: Math.max(0, Math.min(weightedScore, weightedMaxScore)),
+    maxScore: weightedMaxScore
+  };
+}
 
 export function calculateGrade(results: HeaderResult[], options: GradeOptions = {}): GradeResult {
   const headerScore = results.reduce((total, result) => {
@@ -21,8 +40,11 @@ export function calculateGrade(results: HeaderResult[], options: GradeOptions = 
   const headerMaxScore = results.length * 2;
   const additionalMaxScore = Math.max(0, Math.trunc(options.additionalMaxScore ?? 0));
   const additionalScore = Math.max(0, Math.min(Math.trunc(options.additionalScore ?? 0), additionalMaxScore));
-  const score = headerScore + additionalScore;
-  const maxScore = headerMaxScore + additionalMaxScore;
+  const corsRawMaxScore = Math.max(0, Math.trunc(options.corsMaxScore ?? 0));
+  const corsRawScore = Math.max(0, Math.min(Math.trunc(options.corsScore ?? 0), corsRawMaxScore));
+  const corsWeighted = toWeightedScorePair(corsRawScore, corsRawMaxScore, CORS_SCORE_WEIGHT);
+  const score = headerScore + additionalScore + corsWeighted.score;
+  const maxScore = headerMaxScore + additionalMaxScore + corsWeighted.maxScore;
   const ratio = maxScore > 0 ? score / maxScore : 0;
 
   let grade = "F";

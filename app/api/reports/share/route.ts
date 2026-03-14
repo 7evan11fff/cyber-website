@@ -66,6 +66,35 @@ const FRAMEWORK_SCHEMA = z.object({
     .nullable()
 });
 
+const CORS_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  header: z.enum([
+    "access-control-allow-origin",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "access-control-allow-credentials"
+  ]),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  message: z.string().min(1).max(320),
+  recommendation: z.string().min(1).max(400),
+  value: z.string().nullable()
+});
+
+const CORS_ANALYSIS_SCHEMA = z.object({
+  allowOrigin: z.string().nullable(),
+  allowMethods: z.string().nullable(),
+  allowHeaders: z.string().nullable(),
+  allowCredentials: z.string().nullable(),
+  allowsAnyOrigin: z.boolean(),
+  allowsCredentials: z.boolean(),
+  isOverlyPermissive: z.boolean(),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  findings: z.array(CORS_FINDING_SCHEMA).max(12),
+  summary: z.string().min(1).max(500)
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -75,7 +104,10 @@ const REPORT_SCHEMA = z.object({
   grade: z.string().min(1).max(8),
   results: z.array(HEADER_RESULT_SCHEMA).min(1).max(40),
   cookieAnalysis: COOKIE_ANALYSIS_SCHEMA.optional(),
+  corsAnalysis: CORS_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
+  responseTimeMs: z.number().int().nonnegative().optional(),
+  scanDurationMs: z.number().int().nonnegative().optional(),
   framework: FRAMEWORK_SCHEMA.optional().default({
     server: null,
     poweredBy: null,

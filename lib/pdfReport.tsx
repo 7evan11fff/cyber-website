@@ -1,6 +1,7 @@
 import React from "react";
 import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-pdf/renderer";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
+import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { SITE_NAME } from "@/lib/seo";
 
@@ -13,7 +14,10 @@ type ReportResponse = {
   grade: string;
   results: HeaderResult[];
   cookieAnalysis?: CookieSecurityAnalysis;
+  corsAnalysis?: CorsAnalysis;
   checkedAt: string;
+  responseTimeMs?: number;
+  scanDurationMs?: number;
 };
 
 type RecommendationItem = Pick<HeaderResult, "key" | "label" | "status" | "riskLevel" | "guidance">;
@@ -286,6 +290,16 @@ function formatTimestamp(input: string) {
   return date.toLocaleString();
 }
 
+function resolveResponseTimeMs(report: ReportResponse): number | null {
+  if (typeof report.responseTimeMs === "number" && Number.isFinite(report.responseTimeMs) && report.responseTimeMs >= 0) {
+    return Math.round(report.responseTimeMs);
+  }
+  if (typeof report.scanDurationMs === "number" && Number.isFinite(report.scanDurationMs) && report.scanDurationMs >= 0) {
+    return Math.round(report.scanDurationMs);
+  }
+  return null;
+}
+
 function resolveMaxScore(report: ReportResponse) {
   if (typeof report.maxScore === "number" && Number.isFinite(report.maxScore)) {
     return report.maxScore;
@@ -319,6 +333,7 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
   const statusSummary = summaryLine(report.results);
   const recommendations = collectRecommendationItems(report.results);
   const maxScore = resolveMaxScore(report);
+  const responseTimeMs = resolveResponseTimeMs(report);
 
   return (
     <Document title={`${SITE_NAME} Report`} author={SITE_NAME} subject="Security header scan report">
@@ -350,6 +365,10 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             <Text style={styles.metadataKey}>Scan date</Text>
             <Text style={styles.metadataValue}>{formatTimestamp(report.checkedAt)}</Text>
           </View>
+          <View style={styles.metadataRow}>
+            <Text style={styles.metadataKey}>Response time</Text>
+            <Text style={styles.metadataValue}>{responseTimeMs === null ? "Not available" : `${responseTimeMs} ms`}</Text>
+          </View>
           <View style={styles.metadataRowLast}>
             <Text style={styles.metadataKey}>HTTP status</Text>
             <Text style={styles.metadataValue}>{String(report.statusCode)}</Text>
@@ -379,6 +398,9 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
           </Text>
           <Text style={styles.summaryBullet}>
             • Overall grade is {report.grade}, based on a weighted score of {report.score}/{maxScore}.
+          </Text>
+          <Text style={styles.summaryBullet}>
+            • CORS posture: {report.corsAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.

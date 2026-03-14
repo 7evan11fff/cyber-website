@@ -36,6 +36,16 @@ function hostLabel(value: string): string {
   }
 }
 
+function resolveResponseTimeMs(report: SharedScanReport): number | null {
+  if (typeof report.responseTimeMs === "number" && Number.isFinite(report.responseTimeMs) && report.responseTimeMs >= 0) {
+    return Math.round(report.responseTimeMs);
+  }
+  if (typeof report.scanDurationMs === "number" && Number.isFinite(report.scanDurationMs) && report.scanDurationMs >= 0) {
+    return Math.round(report.scanDurationMs);
+  }
+  return null;
+}
+
 function SingleReportSection({ report }: { report: SharedScanReport }) {
   const suggestedPlatform = getSuggestedPlatformFromFramework(report.framework?.detected);
   const quickFixesHref = suggestedPlatform
@@ -65,6 +75,14 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
           <p>
             <span className="text-slate-500">Checked at:</span> {new Date(report.checkedAt).toLocaleString()}
           </p>
+          {resolveResponseTimeMs(report) !== null && (
+            <p>
+              <span className="text-slate-500">Response time:</span>{" "}
+              <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                {resolveResponseTimeMs(report)} ms
+              </span>
+            </p>
+          )}
           {report.framework?.detected && (
             <p className="sm:col-span-3">
               <span className="text-slate-500">Detected stack:</span> {report.framework.detected.label} (
@@ -107,6 +125,42 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
           </article>
         ))}
       </section>
+
+      {report.corsAnalysis && (
+        <section className="mt-5">
+          <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-100">CORS Analysis</h2>
+                  <p className="mt-1 text-sm text-slate-400">{report.corsAnalysis.summary}</p>
+                </div>
+                <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                  {`${report.corsAnalysis.score}/${report.corsAnalysis.maxScore}`}
+                </span>
+              </div>
+            </summary>
+            {report.corsAnalysis.findings.length === 0 ? (
+              <p className="mt-3 text-sm text-emerald-200">No risky CORS findings were detected.</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {report.corsAnalysis.findings.map((finding) => (
+                  <li key={finding.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-sm font-semibold text-slate-100">{finding.message}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Severity: <span className="text-slate-200">{finding.severity}</span> · Header:{" "}
+                      <span className="text-slate-200">{finding.header}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Recommendation: <span className="text-slate-200">{finding.recommendation}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+        </section>
+      )}
 
       <section className="mt-5">
         <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
@@ -165,13 +219,27 @@ function CompareReportSection({ comparison }: { comparison: SharedComparisonRepo
     <>
       <section className="grid gap-4 sm:grid-cols-2">
         <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site A</p>
+            {resolveResponseTimeMs(comparison.siteA) !== null && (
+              <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                {resolveResponseTimeMs(comparison.siteA)} ms
+              </span>
+            )}
+          </div>
           <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteA.checkedUrl}</p>
           <p className={`mt-3 text-4xl font-bold ${gradeColor(comparison.siteA.grade)}`}>{comparison.siteA.grade}</p>
           <p className="mt-1 text-sm text-slate-300">Score {scoreLabel(comparison.siteA)}</p>
         </article>
         <article className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-xl shadow-slate-950/60">
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Site B</p>
+            {resolveResponseTimeMs(comparison.siteB) !== null && (
+              <span className="rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-200">
+                {resolveResponseTimeMs(comparison.siteB)} ms
+              </span>
+            )}
+          </div>
           <p className="mt-1 break-all text-sm text-slate-300">{comparison.siteB.checkedUrl}</p>
           <p className={`mt-3 text-4xl font-bold ${gradeColor(comparison.siteB.grade)}`}>{comparison.siteB.grade}</p>
           <p className="mt-1 text-sm text-slate-300">Score {scoreLabel(comparison.siteB)}</p>

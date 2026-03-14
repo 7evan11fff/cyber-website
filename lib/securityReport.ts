@@ -1,4 +1,5 @@
 import { calculateGrade } from "@/lib/grading";
+import { analyzeCorsConfiguration, type CorsAnalysis } from "@/lib/corsAnalysis";
 import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
@@ -27,8 +28,11 @@ export type SecurityReport = {
   grade: string;
   results: HeaderResult[];
   cookieAnalysis: CookieSecurityAnalysis;
+  corsAnalysis: CorsAnalysis;
   checkedAt: string;
   framework: FrameworkInfo;
+  responseTimeMs: number;
+  scanDurationMs: number;
 };
 
 const domainBadgeCache = new Map<string, CachedDomainReport>();
@@ -120,6 +124,7 @@ function normalizeScanOptions(options?: SecurityScanOptions) {
 export async function runSecurityScan(inputUrl: string, options?: SecurityScanOptions): Promise<SecurityReport> {
   const targetUrl = normalizeTargetUrl(inputUrl);
   const normalizedOptions = normalizeScanOptions(options);
+  const requestStartedAtMs = Date.now();
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), normalizedOptions.timeoutMs);
@@ -141,10 +146,14 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
 
   const results = analyzeSecurityHeaders(upstreamResponse.headers);
   const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
+  const corsAnalysis = analyzeCorsConfiguration(upstreamResponse.headers);
   const { score, grade, maxScore } = calculateGrade(results, {
     additionalScore: cookieAnalysis.score,
-    additionalMaxScore: cookieAnalysis.maxScore
+    additionalMaxScore: cookieAnalysis.maxScore,
+    corsScore: corsAnalysis.score,
+    corsMaxScore: corsAnalysis.maxScore
   });
+  const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
   const report: SecurityReport = {
     checkedUrl: targetUrl,
@@ -155,8 +164,11 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     grade,
     results,
     cookieAnalysis,
+    corsAnalysis,
     checkedAt: new Date().toISOString(),
-    framework: detectFrameworkInfo(upstreamResponse.headers)
+    framework: detectFrameworkInfo(upstreamResponse.headers),
+    responseTimeMs,
+    scanDurationMs: responseTimeMs
   };
 
   cacheDomainReport(report);

@@ -73,4 +73,13 @@ describe("calculateGrade", () => {
       grade: "D"
     });
   });
+
+  it("weights CORS scoring lower than core header scoring", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(calculateGrade(results, { corsScore: 4, corsMaxScore: 4 })).toEqual({
+      score: 8,
+      maxScore: 10,
+      grade: "B"
+    });
+  });
 });
