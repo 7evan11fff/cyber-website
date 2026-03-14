@@ -12,7 +12,7 @@ type HeroScanTypewriterProps = {
 };
 
 export function HeroScanTypewriter({ domains }: HeroScanTypewriterProps) {
-  const safeDomains = domains.length > 0 ? domains : ["example.com"];
+  const safeDomains = useMemo(() => (domains.length > 0 ? domains : ["example.com"]), [domains]);
   const [domainIndex, setDomainIndex] = useState(0);
   const [typedDomain, setTypedDomain] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -59,7 +59,7 @@ export function HeroScanTypewriter({ domains }: HeroScanTypewriterProps) {
     }
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeDomain, deleting, reducedMotion, safeDomains.length, typedDomain]);
+  }, [activeDomain, deleting, reducedMotion, safeDomains, typedDomain]);
 
   return (
     <aside className="motion-card rounded-2xl border border-slate-700/80 bg-slate-950/70 p-4 shadow-xl shadow-slate-950/70">
