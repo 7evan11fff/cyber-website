@@ -20,7 +20,7 @@ describe("buildTlsAnalysisFromProbe", () => {
       issuer: "Let's Encrypt",
       subject: "example.com",
       validFrom: "Jan 01 00:00:00 2026 GMT",
-      validTo: "Jan 31 00:00:00 2026 GMT",
+      validTo: "Jan 31 00:00:00 2030 GMT",
       daysUntilExpiration: 12,
       chainLength: 3,
       authorized: true,
