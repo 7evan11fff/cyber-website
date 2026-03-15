@@ -5,7 +5,7 @@ import { getOrCreateDomainReport, normalizeDomain } from "@/lib/securityReport";
 
 type BadgeStyle = "flat" | "flat-square";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const LEFT_LABEL = "security headers";
 const FALLBACK_COLOR = "#9f9f9f";

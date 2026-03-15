@@ -173,9 +173,9 @@ function estimateChainLength(certificate: tls.PeerCertificate | tls.DetailedPeer
     }
 
     length += 1;
-    const issuerCertificate =
+    const issuerCertificate: tls.PeerCertificate | tls.DetailedPeerCertificate | undefined =
       "issuerCertificate" in current && current.issuerCertificate && typeof current.issuerCertificate === "object"
-        ? current.issuerCertificate
+        ? (current.issuerCertificate as tls.PeerCertificate | tls.DetailedPeerCertificate)
         : undefined;
     if (!issuerCertificate || issuerCertificate === current) {
       break;

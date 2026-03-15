@@ -3,7 +3,7 @@ import { enforceApiRateLimit, withApiRateLimitHeaders } from "@/lib/apiRateLimit
 import { normalizeBadgeLabel, normalizeBadgeStyle, normalizeBadgeTheme, normalizeGrade, renderBadgeSvg } from "@/lib/badge";
 import { getOrCreateDomainReport, normalizeDomain } from "@/lib/securityReport";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(request: Request, { params }: { params: { domain: string } }) {
   const rateLimitResult = enforceApiRateLimit({
