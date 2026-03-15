@@ -7,7 +7,9 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { CaaAnalysis } from "@/lib/caaAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
+import type { DnssecAnalysis } from "@/lib/dnssecAnalysis";
 import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
@@ -23,6 +25,8 @@ import { HeaderResultsGrid } from "@/app/components/HeaderResultsGrid";
 import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
 import { MixedContentCard } from "@/app/components/MixedContentCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
+import { DnssecCard } from "@/app/components/DnssecCard";
+import { CaaCard } from "@/app/components/CaaCard";
 import { CookieSecurityCard } from "@/app/components/CookieSecurityCard";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -101,6 +105,8 @@ type ReportResponse = {
   cookieAnalysis?: CookieSecurityAnalysis;
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
+  dnssecAnalysis?: DnssecAnalysis;
+  caaAnalysis?: CaaAnalysis;
   sriAnalysis?: SriAnalysis;
   mixedContentAnalysis?: MixedContentAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
@@ -412,6 +418,41 @@ function isTlsAnalysis(value: unknown): value is TlsAnalysis {
   );
 }
 
+function isDnssecAnalysis(value: unknown): value is DnssecAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<DnssecAnalysis>;
+  return (
+    typeof candidate.available === "boolean" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.zoneSigned === "boolean" &&
+    typeof candidate.parentHasDs === "boolean" &&
+    typeof candidate.chainValid === "boolean" &&
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.summary === "string" &&
+    Array.isArray(candidate.findings)
+  );
+}
+
+function isCaaAnalysis(value: unknown): value is CaaAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<CaaAnalysis>;
+  return (
+    typeof candidate.available === "boolean" &&
+    typeof candidate.hasRecords === "boolean" &&
+    typeof candidate.restrictsIssuance === "boolean" &&
+    typeof candidate.specificCaOnly === "boolean" &&
+    Array.isArray(candidate.allowedCertificateAuthorities) &&
+    Array.isArray(candidate.directives) &&
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.summary === "string" &&
+    Array.isArray(candidate.findings)
+  );
+}
+
 function isSriAnalysis(value: unknown): value is SriAnalysis {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Partial<SriAnalysis>;
@@ -494,6 +535,8 @@ function isReportResponse(value: unknown): value is ReportResponse {
   const validScanDuration = candidate.scanDurationMs === undefined || typeof candidate.scanDurationMs === "number";
   const validCorsAnalysis = candidate.corsAnalysis === undefined || isCorsAnalysis(candidate.corsAnalysis);
   const validTlsAnalysis = candidate.tlsAnalysis === undefined || isTlsAnalysis(candidate.tlsAnalysis);
+  const validDnssecAnalysis = candidate.dnssecAnalysis === undefined || isDnssecAnalysis(candidate.dnssecAnalysis);
+  const validCaaAnalysis = candidate.caaAnalysis === undefined || isCaaAnalysis(candidate.caaAnalysis);
   const validSriAnalysis = candidate.sriAnalysis === undefined || isSriAnalysis(candidate.sriAnalysis);
   const validMixedContentAnalysis =
     candidate.mixedContentAnalysis === undefined || isMixedContentAnalysis(candidate.mixedContentAnalysis);
@@ -520,6 +563,8 @@ function isReportResponse(value: unknown): value is ReportResponse {
     validScanDuration &&
     validCorsAnalysis &&
     validTlsAnalysis &&
+    validDnssecAnalysis &&
+    validCaaAnalysis &&
     validSriAnalysis &&
     validMixedContentAnalysis &&
     validSecurityTxtAnalysis &&
@@ -805,6 +850,8 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **Cookie Security:** ${report.cookieAnalysis?.summary ?? "No Set-Cookie headers returned."}`,
     `- **CORS:** ${report.corsAnalysis?.summary ?? "Not available"}`,
     `- **TLS/SSL:** ${report.tlsAnalysis?.summary ?? "Not available"}`,
+    `- **DNSSEC:** ${report.dnssecAnalysis?.summary ?? "Not available"}`,
+    `- **CAA:** ${report.caaAnalysis?.summary ?? "Not available"}`,
     `- **SRI:** ${report.sriAnalysis?.summary ?? "Not available"}`,
     `- **Mixed Content:** ${report.mixedContentAnalysis?.summary ?? "Not available"}`,
     `- **security.txt:** ${report.securityTxtAnalysis?.summary ?? "Not available"}`,
@@ -4216,6 +4263,12 @@ export default function Home() {
                   <p className="mt-3 text-sm text-slate-400">This report does not include TLS analysis details.</p>
                 )}
               </details>
+            </section>
+            <section className="mt-4">
+              <DnssecCard analysis={report.dnssecAnalysis} />
+            </section>
+            <section className="mt-4">
+              <CaaCard analysis={report.caaAnalysis} />
             </section>
             <section className="mt-4">
               <EmailSecurityCard analysis={report.emailSecurityAnalysis} />

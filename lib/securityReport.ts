@@ -1,7 +1,9 @@
 import { calculateGrade } from "@/lib/grading";
 import { analyzeCorsConfiguration, type CorsAnalysis } from "@/lib/corsAnalysis";
+import { analyzeCaaConfiguration, type CaaAnalysis } from "@/lib/caaAnalysis";
 import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import { analyzeDnsConfiguration, type DnsAnalysis } from "@/lib/dnsAnalysis";
+import { analyzeDnssecConfiguration, type DnssecAnalysis } from "@/lib/dnssecAnalysis";
 import { analyzeEmailSecurity, type EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import {
@@ -41,6 +43,8 @@ export type SecurityReport = {
   corsAnalysis: CorsAnalysis;
   tlsAnalysis: TlsAnalysis;
   dnsAnalysis: DnsAnalysis;
+  dnssecAnalysis: DnssecAnalysis;
+  caaAnalysis: CaaAnalysis;
   emailSecurityAnalysis: EmailSecurityAnalysis;
   mixedContentAnalysis: MixedContentAnalysis;
   sriAnalysis: SriAnalysis;
@@ -192,11 +196,14 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     );
   }
 
-  const [tlsAnalysis, dnsAnalysis, emailSecurityAnalysis, sriAnalysis, securityTxtAnalysis] = await Promise.all([
+  const [tlsAnalysis, dnsAnalysis, dnssecAnalysis, caaAnalysis, emailSecurityAnalysis, sriAnalysis, securityTxtAnalysis] =
+    await Promise.all([
     analyzeTlsConfiguration(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs
     }),
     analyzeDnsConfiguration(finalUrl),
+    analyzeDnssecConfiguration(finalUrl),
+    analyzeCaaConfiguration(finalUrl),
     analyzeEmailSecurity(emailAnalysisDomain),
     analyzeSubresourceIntegrity(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs,
@@ -208,7 +215,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
       followRedirects: normalizedOptions.followRedirects,
       userAgent: normalizedOptions.userAgent
     })
-  ]);
+    ]);
   const { score, grade, maxScore } = calculateGrade(results, {
     additionalScore: cookieAnalysis.score,
     additionalMaxScore: cookieAnalysis.maxScore,
@@ -225,7 +232,11 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     emailSecurityScore: emailSecurityAnalysis.score,
     emailSecurityMaxScore: emailSecurityAnalysis.maxScore,
     mixedContentScore: mixedContentAnalysis.score,
-    mixedContentMaxScore: mixedContentAnalysis.maxScore
+    mixedContentMaxScore: mixedContentAnalysis.maxScore,
+    dnssecScore: dnssecAnalysis.score,
+    dnssecMaxScore: dnssecAnalysis.maxScore,
+    caaScore: caaAnalysis.score,
+    caaMaxScore: caaAnalysis.maxScore
   });
   const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
@@ -241,6 +252,8 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     corsAnalysis,
     tlsAnalysis,
     dnsAnalysis,
+    dnssecAnalysis,
+    caaAnalysis,
     emailSecurityAnalysis,
     mixedContentAnalysis,
     sriAnalysis,

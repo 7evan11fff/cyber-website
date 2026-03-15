@@ -5,6 +5,12 @@ const { mockAnalyzeTlsConfiguration } = vi.hoisted(() => ({
 const { mockAnalyzeDnsConfiguration } = vi.hoisted(() => ({
   mockAnalyzeDnsConfiguration: vi.fn()
 }));
+const { mockAnalyzeDnssecConfiguration } = vi.hoisted(() => ({
+  mockAnalyzeDnssecConfiguration: vi.fn()
+}));
+const { mockAnalyzeCaaConfiguration } = vi.hoisted(() => ({
+  mockAnalyzeCaaConfiguration: vi.fn()
+}));
 const { mockAnalyzeSubresourceIntegrity } = vi.hoisted(() => ({
   mockAnalyzeSubresourceIntegrity: vi.fn()
 }));
@@ -23,6 +29,12 @@ vi.mock("@/lib/tlsAnalysis", () => ({
 }));
 vi.mock("@/lib/dnsAnalysis", () => ({
   analyzeDnsConfiguration: mockAnalyzeDnsConfiguration
+}));
+vi.mock("@/lib/dnssecAnalysis", () => ({
+  analyzeDnssecConfiguration: mockAnalyzeDnssecConfiguration
+}));
+vi.mock("@/lib/caaAnalysis", () => ({
+  analyzeCaaConfiguration: mockAnalyzeCaaConfiguration
 }));
 vi.mock("@/lib/sriAnalysis", () => ({
   analyzeSubresourceIntegrity: mockAnalyzeSubresourceIntegrity
@@ -154,6 +166,54 @@ function buildReport(domain: string): SecurityReport {
       grade: "A",
       findings: [],
       summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
+    },
+    dnssecAnalysis: {
+      available: true,
+      checkedHostname: domain,
+      status: "enabled",
+      zoneSigned: true,
+      parentHasDs: true,
+      chainValid: true,
+      dnskeyRecordCount: 2,
+      dsRecordCount: 1,
+      dnskeyRecords: ["flags=257, protocol=3, algorithm=13"],
+      dsRecords: ["keyTag=12345, algorithm=13, digestType=2"],
+      queryErrors: {
+        dnskey: null,
+        ds: null
+      },
+      score: 3,
+      maxScore: 3,
+      grade: "A",
+      findings: [],
+      summary: "DNSSEC is enabled with both DNSKEY and DS records present."
+    },
+    caaAnalysis: {
+      available: true,
+      checkedHostname: domain,
+      hasRecords: true,
+      restrictsIssuance: true,
+      specificCaOnly: true,
+      allowedCertificateAuthorities: ["letsencrypt.org"],
+      directives: [
+        {
+          tag: "issue",
+          value: "letsencrypt.org",
+          critical: false,
+          meaning: "Authorizes this CA to issue certificates for the domain."
+        },
+        {
+          tag: "iodef",
+          value: "mailto:security@example.com",
+          critical: false,
+          meaning: "Specifies where CAA incident reports should be sent."
+        }
+      ],
+      score: 3,
+      maxScore: 3,
+      grade: "A",
+      findings: [],
+      summary: "CAA records are present and restrict issuance to specific certificate authorities."
     },
     emailSecurityAnalysis: {
       domain: domain.toLowerCase(),
@@ -336,6 +396,54 @@ describe("securityReport", () => {
       findings: [],
       summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
     });
+    mockAnalyzeDnssecConfiguration.mockResolvedValue({
+      available: true,
+      checkedHostname: "example.com",
+      status: "enabled",
+      zoneSigned: true,
+      parentHasDs: true,
+      chainValid: true,
+      dnskeyRecordCount: 2,
+      dsRecordCount: 1,
+      dnskeyRecords: ["flags=257, protocol=3, algorithm=13"],
+      dsRecords: ["keyTag=12345, algorithm=13, digestType=2"],
+      queryErrors: {
+        dnskey: null,
+        ds: null
+      },
+      score: 3,
+      maxScore: 3,
+      grade: "A",
+      findings: [],
+      summary: "DNSSEC is enabled with both DNSKEY and DS records present."
+    });
+    mockAnalyzeCaaConfiguration.mockResolvedValue({
+      available: true,
+      checkedHostname: "example.com",
+      hasRecords: true,
+      restrictsIssuance: true,
+      specificCaOnly: true,
+      allowedCertificateAuthorities: ["letsencrypt.org"],
+      directives: [
+        {
+          tag: "issue",
+          value: "letsencrypt.org",
+          critical: false,
+          meaning: "Authorizes this CA to issue certificates for the domain."
+        },
+        {
+          tag: "iodef",
+          value: "mailto:security@example.com",
+          critical: false,
+          meaning: "Specifies where CAA incident reports should be sent."
+        }
+      ],
+      score: 3,
+      maxScore: 3,
+      grade: "A",
+      findings: [],
+      summary: "CAA records are present and restrict issuance to specific certificate authorities."
+    });
     mockAnalyzeSubresourceIntegrity.mockResolvedValue({
       available: true,
       scannedUrl: "https://example.com/",
@@ -515,6 +623,8 @@ describe("securityReport", () => {
     expect(report.corsAnalysis.maxScore).toBe(4);
     expect(report.tlsAnalysis.maxScore).toBe(10);
     expect(report.dnsAnalysis.maxScore).toBe(10);
+    expect(report.dnssecAnalysis.maxScore).toBe(3);
+    expect(report.caaAnalysis.maxScore).toBe(3);
     expect(report.sriAnalysis.maxScore).toBe(8);
     expect(report.mixedContentAnalysis.maxScore).toBe(10);
     expect(report.securityTxtAnalysis.maxScore).toBe(1);
@@ -523,6 +633,8 @@ describe("securityReport", () => {
       timeoutMs: 10000
     });
     expect(mockAnalyzeDnsConfiguration).toHaveBeenCalledWith("https://example.com/");
+    expect(mockAnalyzeDnssecConfiguration).toHaveBeenCalledWith("https://example.com/");
+    expect(mockAnalyzeCaaConfiguration).toHaveBeenCalledWith("https://example.com/");
     expect(mockAnalyzeSubresourceIntegrity).toHaveBeenCalledWith(
       "https://example.com/",
       expect.objectContaining({

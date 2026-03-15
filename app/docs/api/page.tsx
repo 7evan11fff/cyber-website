@@ -166,6 +166,54 @@ const CHECK_RESPONSE_EXAMPLE = `{
     "summary": "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state.",
     "findings": []
   },
+  "dnssecAnalysis": {
+    "available": true,
+    "checkedHostname": "example.com",
+    "status": "enabled",
+    "zoneSigned": true,
+    "parentHasDs": true,
+    "chainValid": true,
+    "dnskeyRecordCount": 2,
+    "dsRecordCount": 1,
+    "dnskeyRecords": ["flags=257, protocol=3, algorithm=13"],
+    "dsRecords": ["keyTag=12345, algorithm=13, digestType=2"],
+    "queryErrors": {
+      "dnskey": null,
+      "ds": null
+    },
+    "score": 3,
+    "maxScore": 3,
+    "grade": "A",
+    "summary": "DNSSEC is enabled with both DNSKEY and DS records present.",
+    "findings": []
+  },
+  "caaAnalysis": {
+    "available": true,
+    "checkedHostname": "example.com",
+    "hasRecords": true,
+    "restrictsIssuance": true,
+    "specificCaOnly": true,
+    "allowedCertificateAuthorities": ["letsencrypt.org"],
+    "directives": [
+      {
+        "tag": "issue",
+        "value": "letsencrypt.org",
+        "critical": false,
+        "meaning": "Authorizes this CA to issue certificates for the domain."
+      },
+      {
+        "tag": "iodef",
+        "value": "mailto:security@example.com",
+        "critical": false,
+        "meaning": "Specifies where CAA incident reports should be sent."
+      }
+    ],
+    "score": 3,
+    "maxScore": 3,
+    "grade": "A",
+    "summary": "CAA records are present and restrict issuance to specific certificate authorities.",
+    "findings": []
+  },
   "sriAnalysis": {
     "available": true,
     "scannedUrl": "https://example.com/",
@@ -461,6 +509,14 @@ export default function ApiReferencePage() {
             </li>
             <li>
               <code>dnsAnalysis</code> includes DNSSEC, CAA, SPF, DMARC, and DNS response-time posture with findings.
+            </li>
+            <li>
+              <code>dnssecAnalysis</code> reports DNSKEY/DS discovery, DNSSEC chain completeness, and bonus scoring when
+              fully enabled.
+            </li>
+            <li>
+              <code>caaAnalysis</code> reports CAA directives, certificate authority allowlists, and score impact when
+              CAA is missing.
             </li>
             <li>
               <code>sriAnalysis</code> includes external script/stylesheet SRI coverage, crossorigin posture, and

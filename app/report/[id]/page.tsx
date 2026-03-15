@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
+import { CaaCard } from "@/app/components/CaaCard";
+import { DnssecCard } from "@/app/components/DnssecCard";
 import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
 import { MixedContentCard } from "@/app/components/MixedContentCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
@@ -402,6 +404,14 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
           </details>
         </section>
       )}
+
+      <section className="mt-5">
+        <DnssecCard analysis={report.dnssecAnalysis} />
+      </section>
+
+      <section className="mt-5">
+        <CaaCard analysis={report.caaAnalysis} />
+      </section>
 
       <section className="mt-5">
         <EmailSecurityCard analysis={report.emailSecurityAnalysis} />

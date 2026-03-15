@@ -3,6 +3,8 @@ import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-p
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
+import type { DnssecAnalysis } from "@/lib/dnssecAnalysis";
+import type { CaaAnalysis } from "@/lib/caaAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
@@ -23,6 +25,8 @@ type ReportResponse = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
+  dnssecAnalysis?: DnssecAnalysis;
+  caaAnalysis?: CaaAnalysis;
   emailSecurityAnalysis?: EmailSecurityAnalysis;
   mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
@@ -421,6 +425,12 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • DNS posture: {report.dnsAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • DNSSEC posture: {report.dnssecAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
+            • CAA posture: {report.caaAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • SRI posture: {report.sriAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
@@ -579,6 +589,72 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             </>
           ) : (
             <Text style={styles.summaryBullet}>• No DNS analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>DNSSEC Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.dnssecAnalysis?.summary ?? "DNSSEC analysis details were not available for this report snapshot."}
+          </Text>
+          {report.dnssecAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.dnssecAnalysis.grade} ({report.dnssecAnalysis.score}/{report.dnssecAnalysis.maxScore}) ·
+                Status {report.dnssecAnalysis.status} · DNSKEY {report.dnssecAnalysis.dnskeyRecordCount} · DS{" "}
+                {report.dnssecAnalysis.dsRecordCount}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Zone signed: {report.dnssecAnalysis.zoneSigned ? "yes" : "no"} · Parent DS:{" "}
+                {report.dnssecAnalysis.parentHasDs ? "yes" : "no"} · Chain valid:{" "}
+                {report.dnssecAnalysis.chainValid ? "yes" : "no"}.
+              </Text>
+              {report.dnssecAnalysis.findings.length > 0 ? (
+                report.dnssecAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`dnssec-finding-${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No risky DNSSEC findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No DNSSEC analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>CAA Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.caaAnalysis?.summary ?? "CAA analysis details were not available for this report snapshot."}
+          </Text>
+          {report.caaAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.caaAnalysis.grade} ({report.caaAnalysis.score}/{report.caaAnalysis.maxScore}) · Records{" "}
+                {report.caaAnalysis.hasRecords ? "present" : "missing"} · Issuance restricted:{" "}
+                {report.caaAnalysis.restrictsIssuance ? "yes" : "no"}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Specific CAs only: {report.caaAnalysis.specificCaOnly ? "yes" : "no"} · Allowed CAs:{" "}
+                {report.caaAnalysis.allowedCertificateAuthorities.length > 0
+                  ? report.caaAnalysis.allowedCertificateAuthorities.join(", ")
+                  : "none"}
+                .
+              </Text>
+              {report.caaAnalysis.findings.length > 0 ? (
+                report.caaAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`caa-finding-${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No risky CAA findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No CAA analysis data was captured.</Text>
           )}
         </View>
 

@@ -178,4 +178,32 @@ describe("calculateGrade", () => {
       grade: "F"
     });
   });
+
+  it("adds DNSSEC bonus points using provided max score", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        dnssecScore: 3,
+        dnssecMaxScore: 3
+      })
+    ).toEqual({
+      score: 9,
+      maxScore: 11,
+      grade: "B"
+    });
+  });
+
+  it("penalizes missing CAA by contributing zero of available CAA points", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        caaScore: 0,
+        caaMaxScore: 3
+      })
+    ).toEqual({
+      score: 6,
+      maxScore: 11,
+      grade: "D"
+    });
+  });
 });
