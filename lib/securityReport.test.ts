@@ -422,7 +422,7 @@ describe("securityReport", () => {
       grade: "A",
       summary: "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
     });
-    mockAnalyzeMixedContent.mockResolvedValue({
+    mockAnalyzeMixedContent.mockReturnValue({
       available: true,
       scannedUrl: "https://example.com/",
       finalUrl: "https://example.com/",
@@ -494,7 +494,8 @@ describe("securityReport", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       headers,
       url: "https://example.com/",
-      status: 200
+      status: 200,
+      text: vi.fn().mockResolvedValue("<html><head></head><body></body></html>")
     } as Response);
 
     const report = await generateReport("example.com");
