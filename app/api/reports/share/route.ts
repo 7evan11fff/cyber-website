@@ -232,6 +232,33 @@ const EMAIL_SECURITY_ANALYSIS_SCHEMA = z.object({
   recommendations: z.array(z.string().min(1).max(500)).max(40)
 });
 
+const MIXED_CONTENT_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  category: z.enum(["active", "passive"]),
+  severity: z.enum(["critical", "warning"]),
+  element: z.enum(["script", "link", "img", "iframe", "video", "audio", "source", "form", "a"]),
+  attribute: z.enum(["src", "href", "action"]),
+  url: z.string().url(),
+  message: z.string().min(1).max(360),
+  recommendation: z.string().min(1).max(500)
+});
+
+const MIXED_CONTENT_ANALYSIS_SCHEMA = z.object({
+  available: z.boolean(),
+  scannedUrl: z.string().url().nullable(),
+  finalUrl: z.string().url().nullable(),
+  isHttpsPage: z.boolean(),
+  totalMixedContentCount: z.number().int().nonnegative(),
+  activeCount: z.number().int().nonnegative(),
+  passiveCount: z.number().int().nonnegative(),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  findings: z.array(MIXED_CONTENT_FINDING_SCHEMA).max(120),
+  recommendations: z.array(z.string().min(1).max(500)).max(20),
+  summary: z.string().min(1).max(500)
+});
+
 const SRI_RESOURCE_SCHEMA = z.object({
   id: z.string().min(1).max(80),
   resourceType: z.enum(["script", "stylesheet"]),
@@ -338,6 +365,7 @@ const REPORT_SCHEMA = z.object({
   tlsAnalysis: TLS_ANALYSIS_SCHEMA.optional(),
   dnsAnalysis: DNS_ANALYSIS_SCHEMA.optional(),
   emailSecurityAnalysis: EMAIL_SECURITY_ANALYSIS_SCHEMA.optional(),
+  mixedContentAnalysis: MIXED_CONTENT_ANALYSIS_SCHEMA.optional(),
   sriAnalysis: SRI_ANALYSIS_SCHEMA.optional(),
   securityTxtAnalysis: SECURITY_TXT_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),

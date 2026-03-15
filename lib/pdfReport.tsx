@@ -4,6 +4,7 @@ import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
+import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -23,6 +24,7 @@ type ReportResponse = {
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
   emailSecurityAnalysis?: EmailSecurityAnalysis;
+  mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
@@ -431,6 +433,9 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
               : "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • Mixed content posture: {report.mixedContentAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.
           </Text>
           <Text style={styles.summaryBullet}>
@@ -481,6 +486,33 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             </>
           ) : (
             <Text style={styles.summaryText}>Email security analysis details were not available for this report snapshot.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>Mixed Content Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.mixedContentAnalysis?.summary ?? "Mixed-content analysis details were not available for this report snapshot."}
+          </Text>
+          {report.mixedContentAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.mixedContentAnalysis.grade} ({report.mixedContentAnalysis.score}/
+                {report.mixedContentAnalysis.maxScore}) · Active {report.mixedContentAnalysis.activeCount} · Passive{" "}
+                {report.mixedContentAnalysis.passiveCount}.
+              </Text>
+              {report.mixedContentAnalysis.findings.length > 0 ? (
+                report.mixedContentAnalysis.findings.slice(0, 6).map((finding) => (
+                  <Text key={finding.id} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()} {finding.element} ({finding.attribute}): {finding.url}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No mixed-content resource references were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No mixed-content analysis data was captured.</Text>
           )}
         </View>
 

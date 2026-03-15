@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
+import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -18,6 +19,7 @@ import { HeroScanTypewriter } from "@/app/components/HeroScanTypewriter";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
 import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
+import { MixedContentCard } from "@/app/components/MixedContentCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -97,6 +99,7 @@ type ReportResponse = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   sriAnalysis?: SriAnalysis;
+  mixedContentAnalysis?: MixedContentAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
   emailSecurityAnalysis?: EmailSecurityAnalysis;
   checkedAt: string;
@@ -421,6 +424,24 @@ function isSriAnalysis(value: unknown): value is SriAnalysis {
   );
 }
 
+function isMixedContentAnalysis(value: unknown): value is MixedContentAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<MixedContentAnalysis>;
+  return (
+    typeof candidate.available === "boolean" &&
+    typeof candidate.isHttpsPage === "boolean" &&
+    typeof candidate.totalMixedContentCount === "number" &&
+    typeof candidate.activeCount === "number" &&
+    typeof candidate.passiveCount === "number" &&
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.summary === "string" &&
+    Array.isArray(candidate.findings) &&
+    Array.isArray(candidate.recommendations)
+  );
+}
+
 function isSecurityTxtAnalysis(value: unknown): value is SecurityTxtAnalysis {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Partial<SecurityTxtAnalysis>;
@@ -471,6 +492,8 @@ function isReportResponse(value: unknown): value is ReportResponse {
   const validCorsAnalysis = candidate.corsAnalysis === undefined || isCorsAnalysis(candidate.corsAnalysis);
   const validTlsAnalysis = candidate.tlsAnalysis === undefined || isTlsAnalysis(candidate.tlsAnalysis);
   const validSriAnalysis = candidate.sriAnalysis === undefined || isSriAnalysis(candidate.sriAnalysis);
+  const validMixedContentAnalysis =
+    candidate.mixedContentAnalysis === undefined || isMixedContentAnalysis(candidate.mixedContentAnalysis);
   const validSecurityTxtAnalysis =
     candidate.securityTxtAnalysis === undefined || isSecurityTxtAnalysis(candidate.securityTxtAnalysis);
   const validEmailSecurityAnalysis =
@@ -495,6 +518,7 @@ function isReportResponse(value: unknown): value is ReportResponse {
     validCorsAnalysis &&
     validTlsAnalysis &&
     validSriAnalysis &&
+    validMixedContentAnalysis &&
     validSecurityTxtAnalysis &&
     validEmailSecurityAnalysis &&
     validCookieAnalysis &&
@@ -779,6 +803,7 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **CORS:** ${report.corsAnalysis?.summary ?? "Not available"}`,
     `- **TLS/SSL:** ${report.tlsAnalysis?.summary ?? "Not available"}`,
     `- **SRI:** ${report.sriAnalysis?.summary ?? "Not available"}`,
+    `- **Mixed Content:** ${report.mixedContentAnalysis?.summary ?? "Not available"}`,
     `- **security.txt:** ${report.securityTxtAnalysis?.summary ?? "Not available"}`,
     `- **Email Security:** ${
       report.emailSecurityAnalysis
@@ -4359,6 +4384,9 @@ export default function Home() {
             </section>
             <section className="mt-4">
               <EmailSecurityCard analysis={report.emailSecurityAnalysis} />
+            </section>
+            <section className="mt-4">
+              <MixedContentCard analysis={report.mixedContentAnalysis} />
             </section>
             <section className="mt-4">
               <SecurityTxtCard analysis={report.securityTxtAnalysis} />

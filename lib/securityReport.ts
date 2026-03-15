@@ -4,6 +4,11 @@ import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookie
 import { analyzeDnsConfiguration, type DnsAnalysis } from "@/lib/dnsAnalysis";
 import { analyzeEmailSecurity, type EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
+import {
+  analyzeMixedContent,
+  buildUnavailableMixedContentAnalysis,
+  type MixedContentAnalysis
+} from "@/lib/mixedContentAnalysis";
 import { analyzeSecurityTxt, type SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
 import { analyzeSubresourceIntegrity, type SriAnalysis } from "@/lib/sriAnalysis";
@@ -37,6 +42,7 @@ export type SecurityReport = {
   tlsAnalysis: TlsAnalysis;
   dnsAnalysis: DnsAnalysis;
   emailSecurityAnalysis: EmailSecurityAnalysis;
+  mixedContentAnalysis: MixedContentAnalysis;
   sriAnalysis: SriAnalysis;
   securityTxtAnalysis: SecurityTxtAnalysis;
   checkedAt: string;
@@ -165,18 +171,39 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
   const results = analyzeSecurityHeaders(upstreamResponse.headers);
   const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
   const corsAnalysis = analyzeCorsConfiguration(upstreamResponse.headers);
+  const finalUrl = upstreamResponse.url || targetUrl;
+  const contentType = upstreamResponse.headers.get("content-type")?.toLowerCase() ?? "";
+  const isHtmlResponse = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
+  let mixedContentAnalysis: MixedContentAnalysis;
+
+  if (isHtmlResponse) {
+    try {
+      const html = await upstreamResponse.text();
+      mixedContentAnalysis = analyzeMixedContent(html, finalUrl, targetUrl);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Unable to read HTML response body.";
+      mixedContentAnalysis = buildUnavailableMixedContentAnalysis(targetUrl, finalUrl, reason);
+    }
+  } else {
+    mixedContentAnalysis = buildUnavailableMixedContentAnalysis(
+      targetUrl,
+      finalUrl,
+      "Response content-type was not HTML."
+    );
+  }
+
   const [tlsAnalysis, dnsAnalysis, emailSecurityAnalysis, sriAnalysis, securityTxtAnalysis] = await Promise.all([
-    analyzeTlsConfiguration(upstreamResponse.url, {
+    analyzeTlsConfiguration(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs
     }),
-    analyzeDnsConfiguration(upstreamResponse.url),
+    analyzeDnsConfiguration(finalUrl),
     analyzeEmailSecurity(emailAnalysisDomain),
-    analyzeSubresourceIntegrity(upstreamResponse.url, {
+    analyzeSubresourceIntegrity(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs,
       followRedirects: normalizedOptions.followRedirects,
       userAgent: normalizedOptions.userAgent
     }),
-    analyzeSecurityTxt(upstreamResponse.url, {
+    analyzeSecurityTxt(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs,
       followRedirects: normalizedOptions.followRedirects,
       userAgent: normalizedOptions.userAgent
@@ -196,13 +223,15 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     securityTxtScore: securityTxtAnalysis.score,
     securityTxtMaxScore: securityTxtAnalysis.maxScore,
     emailSecurityScore: emailSecurityAnalysis.score,
-    emailSecurityMaxScore: emailSecurityAnalysis.maxScore
+    emailSecurityMaxScore: emailSecurityAnalysis.maxScore,
+    mixedContentScore: mixedContentAnalysis.score,
+    mixedContentMaxScore: mixedContentAnalysis.maxScore
   });
   const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
   const report: SecurityReport = {
     checkedUrl: targetUrl,
-    finalUrl: upstreamResponse.url,
+    finalUrl,
     statusCode: upstreamResponse.status,
     score,
     maxScore,
@@ -213,6 +242,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     tlsAnalysis,
     dnsAnalysis,
     emailSecurityAnalysis,
+    mixedContentAnalysis,
     sriAnalysis,
     securityTxtAnalysis,
     checkedAt: new Date().toISOString(),

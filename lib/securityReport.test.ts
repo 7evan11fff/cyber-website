@@ -14,6 +14,9 @@ const { mockAnalyzeSecurityTxt } = vi.hoisted(() => ({
 const { mockAnalyzeEmailSecurity } = vi.hoisted(() => ({
   mockAnalyzeEmailSecurity: vi.fn()
 }));
+const { mockAnalyzeMixedContent } = vi.hoisted(() => ({
+  mockAnalyzeMixedContent: vi.fn()
+}));
 
 vi.mock("@/lib/tlsAnalysis", () => ({
   analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
@@ -29,6 +32,24 @@ vi.mock("@/lib/securityTxtAnalysis", () => ({
 }));
 vi.mock("@/lib/emailSecurityAnalysis", () => ({
   analyzeEmailSecurity: mockAnalyzeEmailSecurity
+}));
+vi.mock("@/lib/mixedContentAnalysis", () => ({
+  analyzeMixedContent: mockAnalyzeMixedContent,
+  buildUnavailableMixedContentAnalysis: vi.fn((scannedUrl: string | null, finalUrl: string | null) => ({
+    available: false,
+    scannedUrl,
+    finalUrl,
+    isHttpsPage: false,
+    totalMixedContentCount: 0,
+    activeCount: 0,
+    passiveCount: 0,
+    score: 0,
+    maxScore: 0,
+    grade: "N/A",
+    findings: [],
+    recommendations: ["Scan an HTML page over HTTPS to evaluate mixed-content exposure."],
+    summary: "Mixed content analysis was unavailable for this response."
+  }))
 }));
 
 import {
@@ -167,6 +188,21 @@ function buildReport(domain: string): SecurityReport {
       maxScore: 30,
       findings: [],
       recommendations: []
+    },
+    mixedContentAnalysis: {
+      available: true,
+      scannedUrl: `https://${domain}/`,
+      finalUrl: `https://${domain}/`,
+      isHttpsPage: true,
+      totalMixedContentCount: 0,
+      activeCount: 0,
+      passiveCount: 0,
+      score: 10,
+      maxScore: 10,
+      grade: "A",
+      findings: [],
+      recommendations: ["Prefer explicit HTTPS URLs for all external resources."],
+      summary: "No mixed-content HTTP resource references were detected on this HTTPS page."
     },
     sriAnalysis: {
       available: true,
@@ -386,6 +422,21 @@ describe("securityReport", () => {
       grade: "A",
       summary: "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
     });
+    mockAnalyzeMixedContent.mockResolvedValue({
+      available: true,
+      scannedUrl: "https://example.com/",
+      finalUrl: "https://example.com/",
+      isHttpsPage: true,
+      totalMixedContentCount: 0,
+      activeCount: 0,
+      passiveCount: 0,
+      score: 10,
+      maxScore: 10,
+      grade: "A",
+      findings: [],
+      recommendations: ["Prefer explicit HTTPS URLs for all external resources."],
+      summary: "No mixed-content HTTP resource references were detected on this HTTPS page."
+    });
   });
 
   afterEach(() => {
@@ -435,6 +486,7 @@ describe("securityReport", () => {
       "content-security-policy": "default-src 'self'",
       "x-frame-options": "DENY",
       "x-content-type-options": "nosniff",
+      "content-type": "text/html; charset=utf-8",
       server: "nginx"
     });
     headers.append("set-cookie", "session=abc; Path=/auth; HttpOnly; Secure; SameSite=Strict");
@@ -463,6 +515,7 @@ describe("securityReport", () => {
     expect(report.tlsAnalysis.maxScore).toBe(10);
     expect(report.dnsAnalysis.maxScore).toBe(10);
     expect(report.sriAnalysis.maxScore).toBe(8);
+    expect(report.mixedContentAnalysis.maxScore).toBe(10);
     expect(report.securityTxtAnalysis.maxScore).toBe(1);
     expect(report.emailSecurityAnalysis.maxScore).toBe(30);
     expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
@@ -484,6 +537,7 @@ describe("securityReport", () => {
       })
     );
     expect(mockAnalyzeEmailSecurity).toHaveBeenCalledWith("example.com");
+    expect(mockAnalyzeMixedContent).toHaveBeenCalled();
     expect(report.responseTimeMs).toBeGreaterThanOrEqual(0);
     expect(report.scanDurationMs).toBe(report.responseTimeMs);
     expect(report.score).toBeGreaterThan(0);

@@ -164,4 +164,18 @@ describe("calculateGrade", () => {
       grade: "B"
     });
   });
+
+  it("applies mixed-content score impact using provided max score", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        mixedContentScore: 1,
+        mixedContentMaxScore: 10
+      })
+    ).toEqual({
+      score: 7,
+      maxScore: 18,
+      grade: "F"
+    });
+  });
 });

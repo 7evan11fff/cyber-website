@@ -4,6 +4,7 @@ import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -21,6 +22,7 @@ export type SharedScanReport = {
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
   emailSecurityAnalysis?: EmailSecurityAnalysis;
+  mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
@@ -76,6 +78,9 @@ function summarizeSingleReport(report: SharedScanReport) {
   const emailSecuritySummary = report.emailSecurityAnalysis
     ? ` Email auth score: ${report.emailSecurityAnalysis.score}/${report.emailSecurityAnalysis.maxScore}.`
     : "";
+  const mixedContentSummary = report.mixedContentAnalysis
+    ? ` Mixed content: ${report.mixedContentAnalysis.summary}`
+    : "";
   const findingsPreview =
     riskyFindings.length === 0
       ? "All evaluated headers are configured."
@@ -84,7 +89,7 @@ function summarizeSingleReport(report: SharedScanReport) {
           .map((entry) => entry.label)
           .join(", ")}${riskyFindings.length > 2 ? ` (+${riskyFindings.length - 2} more)` : ""}.`;
   const title = `${domain} security header report (grade ${report.grade})`;
-  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.${cookieSummary}${securityTxtSummary}${emailSecuritySummary} ${findingsPreview}`;
+  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.${cookieSummary}${securityTxtSummary}${emailSecuritySummary}${mixedContentSummary} ${findingsPreview}`;
   return { title, description };
 }
 

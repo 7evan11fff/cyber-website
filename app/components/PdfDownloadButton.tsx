@@ -5,6 +5,7 @@ import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
+import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -22,6 +23,7 @@ type ReportResponse = {
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
   emailSecurityAnalysis?: EmailSecurityAnalysis;
+  mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
