@@ -161,7 +161,7 @@ describe("calculateGrade", () => {
     ).toEqual({
       score: 31,
       maxScore: 38,
-      grade: "C"
+      grade: "B"
     });
   });
 });

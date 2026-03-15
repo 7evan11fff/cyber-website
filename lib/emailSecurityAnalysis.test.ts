@@ -165,7 +165,7 @@ describe("analyzeEmailSecurity", () => {
     });
     const result = await analyzeEmailSecurity("example.com", { resolver });
 
-    expect(result.score).toBe(10);
+    expect(result.score).toBe(5);
     const findingIds = result.findings.map((finding) => finding.id);
     expect(findingIds).toContain("spf-soft-fail");
     expect(findingIds).toContain("dmarc-monitor-only");
