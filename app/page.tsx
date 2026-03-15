@@ -4527,7 +4527,8 @@ export default function Home() {
                       </p>
                       <p className="mt-1">
                         Add both <code className="rounded bg-slate-900/80 px-1 py-0.5">integrity</code> and{" "}
-                        <code className="rounded bg-slate-900/80 px-1 py-0.5">crossorigin="anonymous"</code> on every
+                        <code className="rounded bg-slate-900/80 px-1 py-0.5">crossorigin=&quot;anonymous&quot;</code>{" "}
+                        on every
                         external <code className="rounded bg-slate-900/80 px-1 py-0.5">script</code> and stylesheet{" "}
                         <code className="rounded bg-slate-900/80 px-1 py-0.5">link</code>.
                       </p>
