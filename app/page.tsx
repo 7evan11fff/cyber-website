@@ -29,7 +29,10 @@ import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
 import { HstsPreloadCard } from "@/app/components/HstsPreloadCard";
 import { DnssecCard } from "@/app/components/DnssecCard";
 import { CaaCard } from "@/app/components/CaaCard";
+import { CorsCard } from "@/app/components/CorsCard";
 import { CookieSecurityCard } from "@/app/components/CookieSecurityCard";
+import { SriCard } from "@/app/components/SriCard";
+import { TlsCard } from "@/app/components/TlsCard";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
@@ -375,26 +378,6 @@ const cookieStatusStyles: Record<HeaderResult["status"], string> = {
   missing: "border-rose-500/30 bg-rose-500/15 text-rose-200"
 };
 
-const corsSeverityStyles: Record<"low" | "medium" | "high" | "critical", string> = {
-  low: "border-emerald-500/30 bg-emerald-500/15 text-emerald-200",
-  medium: "border-amber-500/30 bg-amber-500/15 text-amber-200",
-  high: "border-orange-500/30 bg-orange-500/15 text-orange-200",
-  critical: "border-rose-500/40 bg-rose-500/20 text-rose-200"
-};
-
-const tlsSeverityStyles: Record<"low" | "medium" | "high" | "critical", string> = {
-  low: "border-emerald-500/30 bg-emerald-500/15 text-emerald-200",
-  medium: "border-amber-500/30 bg-amber-500/15 text-amber-200",
-  high: "border-orange-500/30 bg-orange-500/15 text-orange-200",
-  critical: "border-rose-500/40 bg-rose-500/20 text-rose-200"
-};
-
-const sriSeverityStyles: Record<"low" | "medium" | "high" | "critical", string> = {
-  low: "border-emerald-500/30 bg-emerald-500/15 text-emerald-200",
-  medium: "border-amber-500/30 bg-amber-500/15 text-amber-200",
-  high: "border-orange-500/30 bg-orange-500/15 text-orange-200",
-  critical: "border-rose-500/40 bg-rose-500/20 text-rose-200"
-};
 
 function isCorsAnalysis(value: unknown): value is CorsAnalysis {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -4202,98 +4185,7 @@ export default function Home() {
               />
             </section>
             <section className="mt-4">
-              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
-                <summary className="cursor-pointer list-none">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">TLS / SSL analysis</h3>
-                      <p className="mt-1 text-sm text-slate-400">
-                        {report.tlsAnalysis?.summary ?? "No TLS analysis is available for this report snapshot."}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        Grade {report.tlsAnalysis?.grade ?? "N/A"}
-                      </span>
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        {report.tlsAnalysis ? `${report.tlsAnalysis.score}/${report.tlsAnalysis.maxScore}` : "0/0"}
-                      </span>
-                    </div>
-                  </div>
-                </summary>
-
-                {report.tlsAnalysis ? (
-                  <div className="mt-4 space-y-4">
-                    <dl className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Issuer</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.issuer ?? "Unknown"}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">TLS Version</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.tlsVersion ?? "Unknown"}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Cipher</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.cipherName ?? "Unknown"}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Certificate Expires</dt>
-                        <dd className="mt-1 break-all text-slate-200">
-                          {report.tlsAnalysis.validTo ?? "Unknown"}
-                          {typeof report.tlsAnalysis.daysUntilExpiration === "number"
-                            ? ` (${report.tlsAnalysis.daysUntilExpiration} day${
-                                report.tlsAnalysis.daysUntilExpiration === 1 ? "" : "s"
-                              })`
-                            : ""}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Chain completeness</dt>
-                        <dd className="mt-1 break-all text-slate-200">
-                          {report.tlsAnalysis.chainComplete ? "Complete" : "Incomplete"}
-                        </dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Self-signed</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.selfSigned ? "Yes" : "No"}</dd>
-                      </div>
-                    </dl>
-
-                    {report.tlsAnalysis.findings.length === 0 ? (
-                      <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                        No risky TLS findings were detected.
-                      </p>
-                    ) : (
-                      <ul className="grid gap-3 sm:grid-cols-2">
-                        {report.tlsAnalysis.findings.map((finding) => (
-                          <li
-                            key={finding.id}
-                            className={`rounded-xl border px-3 py-3 text-sm ${tlsSeverityStyles[finding.severity]}`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="font-semibold text-slate-100">{finding.message}</p>
-                              <span className="rounded-full border border-slate-700/60 bg-slate-950/70 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-slate-200">
-                                {finding.severity}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-slate-200/90">
-                              <span className="text-slate-300">Recommendation:</span> {finding.recommendation}
-                            </p>
-                            {finding.evidence && (
-                              <p className="mt-1 break-all text-xs text-slate-200/90">
-                                <span className="text-slate-300">Evidence:</span> {finding.evidence}
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-400">This report does not include TLS analysis details.</p>
-                )}
-              </details>
+              <TlsCard analysis={report.tlsAnalysis} />
             </section>
             <section className="mt-4">
               <DnssecCard analysis={report.dnssecAnalysis} />
@@ -4314,215 +4206,10 @@ export default function Home() {
               <HstsPreloadCard analysis={report.hstsPreloadAnalysis} />
             </section>
             <section className="mt-4">
-              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
-                <summary className="cursor-pointer list-none">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">CORS analysis</h3>
-                      <p className="mt-1 text-sm text-slate-400">
-                        {report.corsAnalysis?.summary ??
-                          "No CORS analysis is available for this report snapshot."}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        Grade {report.corsAnalysis?.grade ?? "N/A"}
-                      </span>
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        {report.corsAnalysis ? `${report.corsAnalysis.score}/${report.corsAnalysis.maxScore}` : "0/0"}
-                      </span>
-                    </div>
-                  </div>
-                </summary>
-
-                {report.corsAnalysis ? (
-                  <div className="mt-4 space-y-4">
-                    <dl className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Origin</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.corsAnalysis.allowOrigin ?? "Missing"}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Methods</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.corsAnalysis.allowMethods ?? "Missing"}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Headers</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.corsAnalysis.allowHeaders ?? "Missing"}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Allow-Credentials</dt>
-                        <dd className="mt-1 break-all text-slate-200">
-                          {report.corsAnalysis.allowCredentials ?? "Missing"}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    {report.corsAnalysis.findings.length === 0 ? (
-                      <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                        No risky CORS findings were detected.
-                      </p>
-                    ) : (
-                      <ul className="grid gap-3 sm:grid-cols-2">
-                        {report.corsAnalysis.findings.map((finding) => (
-                          <li
-                            key={finding.id}
-                            className={`rounded-xl border px-3 py-3 text-sm ${corsSeverityStyles[finding.severity]}`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="font-semibold text-slate-100">{finding.message}</p>
-                              <span className="rounded-full border border-slate-700/60 bg-slate-950/70 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-slate-200">
-                                {finding.severity}
-                              </span>
-                            </div>
-                            <p className="mt-2 text-xs text-slate-200/90">
-                              <span className="text-slate-300">Header:</span> {finding.header}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-200/90">
-                              <span className="text-slate-300">Recommendation:</span> {finding.recommendation}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-400">This report does not include CORS analysis details.</p>
-                )}
-              </details>
+              <CorsCard analysis={report.corsAnalysis} />
             </section>
             <section className="mt-4">
-              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
-                <summary className="cursor-pointer list-none">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">
-                        Subresource integrity (SRI) analysis
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-400">
-                        {report.sriAnalysis?.summary ?? "No SRI analysis is available for this report snapshot."}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        Grade {report.sriAnalysis?.grade ?? "N/A"}
-                      </span>
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        {report.sriAnalysis ? `${report.sriAnalysis.score}/${report.sriAnalysis.maxScore}` : "0/0"}
-                      </span>
-                    </div>
-                  </div>
-                </summary>
-
-                {report.sriAnalysis ? (
-                  <div className="mt-4 space-y-4">
-                    <dl className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">SRI coverage</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.coveragePercent}%</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Crossorigin coverage</dt>
-                        <dd className="mt-1 break-all text-slate-200">
-                          {report.sriAnalysis.crossoriginCoveragePercent}%
-                        </dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">External resources</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.externalResourceCount}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Missing integrity</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.missingIntegrityCount}</dd>
-                      </div>
-                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                        <dt className="uppercase tracking-[0.12em] text-slate-500">Missing crossorigin</dt>
-                        <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.missingCrossoriginCount}</dd>
-                      </div>
-                    </dl>
-
-                    {report.sriAnalysis.resources.length === 0 ? (
-                      <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                        No external scripts or stylesheets were detected.
-                      </p>
-                    ) : (
-                      <ul className="grid gap-3 sm:grid-cols-2">
-                        {report.sriAnalysis.resources.map((resource) => (
-                          <li
-                            key={resource.id}
-                            className={`rounded-xl border px-3 py-3 text-sm ${
-                              resource.hasIntegrity
-                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                                : resource.isCdn && resource.resourceType === "script"
-                                  ? sriSeverityStyles.critical
-                                  : resource.resourceType === "script"
-                                    ? sriSeverityStyles.high
-                                    : sriSeverityStyles.medium
-                            }`}
-                          >
-                            <p className="break-all font-semibold text-slate-100">{resource.url}</p>
-                            <p className="mt-1 text-xs text-slate-200/90">
-                              Type: <span className="text-slate-100">{resource.resourceType}</span> · CDN:{" "}
-                              <span className="text-slate-100">{resource.isCdn ? "Yes" : "No"}</span>
-                            </p>
-                            <p className="mt-1 text-xs text-slate-200/90">
-                              Integrity:{" "}
-                              <span className="text-slate-100">{resource.hasIntegrity ? "Present" : "Missing"}</span> ·
-                              Crossorigin:{" "}
-                              <span className="text-slate-100">
-                                {resource.hasCrossorigin ? resource.crossorigin ?? "Present" : "Missing"}
-                              </span>
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {report.sriAnalysis.findings.length > 0 ? (
-                      <ul className="grid gap-3 sm:grid-cols-2">
-                        {report.sriAnalysis.findings.map((finding) => (
-                          <li
-                            key={finding.id}
-                            className={`rounded-xl border px-3 py-3 text-sm ${sriSeverityStyles[finding.severity]}`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="font-semibold text-slate-100">{finding.message}</p>
-                              <span className="rounded-full border border-slate-700/60 bg-slate-950/70 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-slate-200">
-                                {finding.severity}
-                              </span>
-                            </div>
-                            <p className="mt-1 break-all text-xs text-slate-200/90">
-                              <span className="text-slate-300">Resource:</span> {finding.resourceUrl}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-200/90">
-                              <span className="text-slate-300">Recommendation:</span> {finding.recommendation}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-
-                    <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-100">
-                      <p className="font-semibold uppercase tracking-[0.12em] text-sky-200">Fix guidance</p>
-                      <p className="mt-2">
-                        Generate SRI hashes for static assets in CI/CD to keep tags consistent. Example:{" "}
-                        <code className="rounded bg-slate-900/80 px-1 py-0.5">
-                          openssl dgst -sha384 -binary asset.js | openssl base64 -A
-                        </code>
-                      </p>
-                      <p className="mt-1">
-                        Add both <code className="rounded bg-slate-900/80 px-1 py-0.5">integrity</code> and{" "}
-                        <code className="rounded bg-slate-900/80 px-1 py-0.5">crossorigin=&quot;anonymous&quot;</code>{" "}
-                        on every
-                        external <code className="rounded bg-slate-900/80 px-1 py-0.5">script</code> and stylesheet{" "}
-                        <code className="rounded bg-slate-900/80 px-1 py-0.5">link</code>.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-400">This report does not include SRI analysis details.</p>
-                )}
-              </details>
+              <SriCard analysis={report.sriAnalysis} />
             </section>
             <section className="mt-4">
               <CookieSecurityCard analysis={report.cookieAnalysis} cookieStatusStyles={cookieStatusStyles} />

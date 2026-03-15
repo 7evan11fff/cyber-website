@@ -532,6 +532,42 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
         </View>
 
         <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>CORS Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.corsAnalysis?.summary ?? "CORS analysis details were not available for this report snapshot."}
+          </Text>
+          {report.corsAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.corsAnalysis.grade} ({report.corsAnalysis.score}/{report.corsAnalysis.maxScore}) ·
+                Allow-Origin {report.corsAnalysis.allowOrigin ?? "missing"} · Credentials{" "}
+                {report.corsAnalysis.allowsCredentials ? "enabled" : "disabled"}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Exposed headers {report.corsAnalysis.allowExposeHeaders ?? "not returned"} · Preflight{" "}
+                {report.corsAnalysis.hasPreflightConfiguration ? "configured" : "not configured"} · Max-Age{" "}
+                {report.corsAnalysis.maxAge ?? "not returned"}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Allowed methods: {report.corsAnalysis.allowMethods ?? "missing"} · Allowed request headers:{" "}
+                {report.corsAnalysis.allowHeaders ?? "missing"}.
+              </Text>
+              {report.corsAnalysis.findings.length > 0 ? (
+                report.corsAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`cors-finding-${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No risky CORS findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No CORS analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
           <Text style={styles.sectionTitle}>TLS / SSL Analysis</Text>
           <Text style={styles.summaryText}>
             {report.tlsAnalysis?.summary ?? "TLS analysis details were not available for this report snapshot."}
@@ -675,9 +711,24 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
                 {report.sriAnalysis.coveragePercent}% · Crossorigin coverage {report.sriAnalysis.crossoriginCoveragePercent}%.
               </Text>
               <Text style={styles.summaryBullet}>
-                • External resources: {report.sriAnalysis.externalResourceCount} · Missing integrity:{" "}
-                {report.sriAnalysis.missingIntegrityCount} · Missing crossorigin: {report.sriAnalysis.missingCrossoriginCount}.
+                • External resources: {report.sriAnalysis.externalResourceCount} · Protected:{" "}
+                {report.sriAnalysis.protectedResourceCount} · Unprotected:{" "}
+                {Math.max(0, report.sriAnalysis.externalResourceCount - report.sriAnalysis.protectedResourceCount)}.
               </Text>
+              <Text style={styles.summaryBullet}>
+                • Missing integrity: {report.sriAnalysis.missingIntegrityCount} · Missing crossorigin:{" "}
+                {report.sriAnalysis.missingCrossoriginCount}.
+              </Text>
+              {report.sriAnalysis.resources.some((resource) => !resource.hasIntegrity) ? (
+                report.sriAnalysis.resources
+                  .filter((resource) => !resource.hasIntegrity)
+                  .slice(0, 4)
+                  .map((resource) => (
+                    <Text key={`sri-missing-${resource.id}`} style={styles.summaryBullet}>
+                      • Needs SRI ({resource.resourceType}): {resource.url}
+                    </Text>
+                  ))
+              ) : null}
               {report.sriAnalysis.resources.length > 0 ? (
                 report.sriAnalysis.resources.slice(0, 6).map((resource) => (
                   <Text key={resource.id} style={styles.summaryBullet}>

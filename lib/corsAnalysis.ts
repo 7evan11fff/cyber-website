@@ -14,6 +14,9 @@ export type CorsAnalysis = {
   allowMethods: string | null;
   allowHeaders: string | null;
   allowCredentials: string | null;
+  allowExposeHeaders?: string | null;
+  maxAge?: string | null;
+  hasPreflightConfiguration?: boolean;
   allowsAnyOrigin: boolean;
   allowsCredentials: boolean;
   isOverlyPermissive: boolean;
@@ -79,7 +82,14 @@ export function computeCorsScore(findings: CorsFinding[]): number {
 }
 
 function summarizeCors(analysis: Omit<CorsAnalysis, "summary">): string {
-  if (!analysis.allowOrigin && !analysis.allowMethods && !analysis.allowHeaders && !analysis.allowCredentials) {
+  if (
+    !analysis.allowOrigin &&
+    !analysis.allowMethods &&
+    !analysis.allowHeaders &&
+    !analysis.allowCredentials &&
+    !analysis.allowExposeHeaders &&
+    !analysis.maxAge
+  ) {
     return "No CORS headers were returned. Cross-origin access is likely restricted by default.";
   }
 
@@ -102,12 +112,15 @@ export function analyzeCorsConfiguration(headers: Headers): CorsAnalysis {
   const allowMethods = normalizeCorsHeaderValue(headers.get("access-control-allow-methods"));
   const allowHeaders = normalizeCorsHeaderValue(headers.get("access-control-allow-headers"));
   const allowCredentials = normalizeCorsHeaderValue(headers.get("access-control-allow-credentials"));
+  const allowExposeHeaders = normalizeCorsHeaderValue(headers.get("access-control-expose-headers"));
+  const maxAge = normalizeCorsHeaderValue(headers.get("access-control-max-age"));
 
   const findings: CorsFinding[] = [];
   const allowsAnyOrigin = hasWildcardValue(allowOrigin);
   const credentialsEnabled = allowsCredentials(allowCredentials);
   const methods = parseCorsList(allowMethods);
   const requestHeaders = parseCorsList(allowHeaders);
+  const hasPreflightConfiguration = Boolean(allowMethods || allowHeaders || maxAge);
 
   if (allowsAnyOrigin && credentialsEnabled) {
     findings.push({
@@ -217,6 +230,9 @@ export function analyzeCorsConfiguration(headers: Headers): CorsAnalysis {
     allowMethods,
     allowHeaders,
     allowCredentials,
+    allowExposeHeaders,
+    maxAge,
+    hasPreflightConfiguration,
     allowsAnyOrigin,
     allowsCredentials: credentialsEnabled,
     isOverlyPermissive:
