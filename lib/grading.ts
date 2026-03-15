@@ -13,6 +13,8 @@ type GradeOptions = {
   corsMaxScore?: number;
   tlsScore?: number;
   tlsMaxScore?: number;
+  dnsScore?: number;
+  dnsMaxScore?: number;
 };
 
 const CORS_SCORE_WEIGHT = 0.5;
@@ -47,8 +49,10 @@ export function calculateGrade(results: HeaderResult[], options: GradeOptions = 
   const corsWeighted = toWeightedScorePair(corsRawScore, corsRawMaxScore, CORS_SCORE_WEIGHT);
   const tlsRawMaxScore = Math.max(0, Math.trunc(options.tlsMaxScore ?? 0));
   const tlsRawScore = Math.max(0, Math.min(Math.trunc(options.tlsScore ?? 0), tlsRawMaxScore));
-  const score = headerScore + additionalScore + corsWeighted.score + tlsRawScore;
-  const maxScore = headerMaxScore + additionalMaxScore + corsWeighted.maxScore + tlsRawMaxScore;
+  const dnsRawMaxScore = Math.max(0, Math.trunc(options.dnsMaxScore ?? 0));
+  const dnsRawScore = Math.max(0, Math.min(Math.trunc(options.dnsScore ?? 0), dnsRawMaxScore));
+  const score = headerScore + additionalScore + corsWeighted.score + tlsRawScore + dnsRawScore;
+  const maxScore = headerMaxScore + additionalMaxScore + corsWeighted.maxScore + tlsRawMaxScore + dnsRawMaxScore;
   const ratio = maxScore > 0 ? score / maxScore : 0;
 
   let grade = "F";

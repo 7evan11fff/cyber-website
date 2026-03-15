@@ -2,6 +2,7 @@ import React from "react";
 import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-pdf/renderer";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { SITE_NAME } from "@/lib/seo";
@@ -17,6 +18,7 @@ type ReportResponse = {
   cookieAnalysis?: CookieSecurityAnalysis;
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
+  dnsAnalysis?: DnsAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;
@@ -408,6 +410,9 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • TLS posture: {report.tlsAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • DNS posture: {report.dnsAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.
           </Text>
           <Text style={styles.summaryBullet}>
@@ -443,6 +448,41 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             </>
           ) : (
             <Text style={styles.summaryBullet}>• No TLS analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>DNS Security Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.dnsAnalysis?.summary ?? "DNS analysis details were not available for this report snapshot."}
+          </Text>
+          {report.dnsAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.dnsAnalysis.grade} ({report.dnsAnalysis.score}/{report.dnsAnalysis.maxScore}) · DNSSEC{" "}
+                {report.dnsAnalysis.dnssecStatus} · CAA{" "}
+                {report.dnsAnalysis.hasCaa ? "configured" : "not configured"}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • SPF {report.dnsAnalysis.spfPolicy} · DMARC {report.dnsAnalysis.dmarcPolicy}
+                {typeof report.dnsAnalysis.dmarcPct === "number" ? ` (${report.dnsAnalysis.dmarcPct}%)` : ""} · Avg DNS{" "}
+                {typeof report.dnsAnalysis.responseTimes.averageMs === "number"
+                  ? `${report.dnsAnalysis.responseTimes.averageMs} ms`
+                  : "unknown"}
+                .
+              </Text>
+              {report.dnsAnalysis.findings.length > 0 ? (
+                report.dnsAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No risky DNS findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No DNS analysis data was captured.</Text>
           )}
         </View>
 

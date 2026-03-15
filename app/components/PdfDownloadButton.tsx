@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 
@@ -16,6 +17,7 @@ type ReportResponse = {
   cookieAnalysis?: CookieSecurityAnalysis;
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
+  dnsAnalysis?: DnsAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;

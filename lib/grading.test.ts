@@ -98,4 +98,18 @@ describe("calculateGrade", () => {
       grade: "B"
     });
   });
+
+  it("adds DNS score impact using provided max score", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        dnsScore: 8,
+        dnsMaxScore: 10
+      })
+    ).toEqual({
+      score: 14,
+      maxScore: 18,
+      grade: "C"
+    });
+  });
 });

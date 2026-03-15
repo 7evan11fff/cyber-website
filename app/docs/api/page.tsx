@@ -61,8 +61,8 @@ const CHECK_RESPONSE_EXAMPLE = `{
   "checkedUrl": "https://example.com",
   "finalUrl": "https://example.com/",
   "statusCode": 200,
-  "score": 31,
-  "maxScore": 38,
+  "score": 41,
+  "maxScore": 48,
   "grade": "B",
   "responseTimeMs": 142,
   "scanDurationMs": 142,
@@ -135,6 +135,36 @@ const CHECK_RESPONSE_EXAMPLE = `{
         "evidence": "Apr  1 23:59:59 2026 GMT"
       }
     ]
+  },
+  "dnsAnalysis": {
+    "available": true,
+    "checkedHostname": "example.com",
+    "dnssecStatus": "configured",
+    "hasCaa": true,
+    "caaRecords": ["issue letsencrypt.org"],
+    "spfRecord": "v=spf1 include:_spf.google.com -all",
+    "spfRecords": ["v=spf1 include:_spf.google.com -all"],
+    "spfPolicy": "hard-fail",
+    "dmarcRecord": "v=DMARC1; p=reject; pct=100",
+    "dmarcRecords": ["v=DMARC1; p=reject; pct=100"],
+    "dmarcPolicy": "reject",
+    "dmarcPct": 100,
+    "emailSecurityApplicable": true,
+    "mxHosts": ["aspmx.l.google.com"],
+    "responseTimes": {
+      "lookupMs": 24,
+      "dnssecMs": 37,
+      "caaMs": 29,
+      "spfMs": 32,
+      "dmarcMs": 31,
+      "mxMs": 26,
+      "averageMs": 30
+    },
+    "score": 10,
+    "maxScore": 10,
+    "grade": "A",
+    "summary": "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state.",
+    "findings": []
   },
   "checkedAt": "2026-03-14T16:20:47.328Z"
 }`;
@@ -366,6 +396,9 @@ export default function ApiReferencePage() {
             <li>
               <code>tlsAnalysis</code> includes certificate validity, issuer, TLS version, cipher posture, and chain
               health findings.
+            </li>
+            <li>
+              <code>dnsAnalysis</code> includes DNSSEC, CAA, SPF, DMARC, and DNS response-time posture with findings.
             </li>
           </ul>
           <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Sample response</p>

@@ -2,9 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { mockAnalyzeTlsConfiguration } = vi.hoisted(() => ({
   mockAnalyzeTlsConfiguration: vi.fn()
 }));
+const { mockAnalyzeDnsConfiguration } = vi.hoisted(() => ({
+  mockAnalyzeDnsConfiguration: vi.fn()
+}));
 
 vi.mock("@/lib/tlsAnalysis", () => ({
   analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
+}));
+vi.mock("@/lib/dnsAnalysis", () => ({
+  analyzeDnsConfiguration: mockAnalyzeDnsConfiguration
 }));
 
 import {
@@ -80,6 +86,36 @@ function buildReport(domain: string): SecurityReport {
       findings: [],
       summary: "TLS configuration appears healthy with a valid certificate."
     },
+    dnsAnalysis: {
+      available: true,
+      checkedHostname: domain,
+      dnssecStatus: "configured",
+      hasCaa: true,
+      caaRecords: ["issue letsencrypt.org"],
+      spfRecord: "v=spf1 include:_spf.google.com -all",
+      spfRecords: ["v=spf1 include:_spf.google.com -all"],
+      spfPolicy: "hard-fail",
+      dmarcRecord: "v=DMARC1; p=reject; pct=100",
+      dmarcRecords: ["v=DMARC1; p=reject; pct=100"],
+      dmarcPolicy: "reject",
+      dmarcPct: 100,
+      emailSecurityApplicable: true,
+      mxHosts: ["mx.example.com"],
+      responseTimes: {
+        lookupMs: 20,
+        dnssecMs: 28,
+        caaMs: 25,
+        spfMs: 23,
+        dmarcMs: 24,
+        mxMs: 19,
+        averageMs: 23
+      },
+      score: 10,
+      maxScore: 10,
+      grade: "A",
+      findings: [],
+      summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -129,6 +165,36 @@ describe("securityReport", () => {
       grade: "A",
       findings: [],
       summary: "TLS configuration appears healthy with a valid certificate."
+    });
+    mockAnalyzeDnsConfiguration.mockResolvedValue({
+      available: true,
+      checkedHostname: "example.com",
+      dnssecStatus: "configured",
+      hasCaa: true,
+      caaRecords: ["issue letsencrypt.org"],
+      spfRecord: "v=spf1 include:_spf.google.com -all",
+      spfRecords: ["v=spf1 include:_spf.google.com -all"],
+      spfPolicy: "hard-fail",
+      dmarcRecord: "v=DMARC1; p=reject; pct=100",
+      dmarcRecords: ["v=DMARC1; p=reject; pct=100"],
+      dmarcPolicy: "reject",
+      dmarcPct: 100,
+      emailSecurityApplicable: true,
+      mxHosts: ["mx.example.com"],
+      responseTimes: {
+        lookupMs: 20,
+        dnssecMs: 28,
+        caaMs: 25,
+        spfMs: 23,
+        dmarcMs: 24,
+        mxMs: 19,
+        averageMs: 23
+      },
+      score: 10,
+      maxScore: 10,
+      grade: "A",
+      findings: [],
+      summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
     });
   });
 
@@ -205,9 +271,11 @@ describe("securityReport", () => {
     expect(report.cookieAnalysis.cookieCount).toBe(1);
     expect(report.corsAnalysis.maxScore).toBe(4);
     expect(report.tlsAnalysis.maxScore).toBe(10);
+    expect(report.dnsAnalysis.maxScore).toBe(10);
     expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
       timeoutMs: 10000
     });
+    expect(mockAnalyzeDnsConfiguration).toHaveBeenCalledWith("https://example.com/");
     expect(report.responseTimeMs).toBeGreaterThanOrEqual(0);
     expect(report.scanDurationMs).toBe(report.responseTimeMs);
     expect(report.score).toBeGreaterThan(0);

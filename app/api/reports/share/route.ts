@@ -134,6 +134,45 @@ const TLS_ANALYSIS_SCHEMA = z.object({
   summary: z.string().min(1).max(500)
 });
 
+const DNS_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  message: z.string().min(1).max(320),
+  recommendation: z.string().min(1).max(400),
+  evidence: z.string().nullable()
+});
+
+const DNS_ANALYSIS_SCHEMA = z.object({
+  available: z.boolean(),
+  checkedHostname: z.string().nullable(),
+  dnssecStatus: z.enum(["configured", "not-configured", "unsupported", "unknown"]),
+  hasCaa: z.boolean(),
+  caaRecords: z.array(z.string().min(1).max(280)).max(20),
+  spfRecord: z.string().nullable(),
+  spfRecords: z.array(z.string().min(1).max(500)).max(8),
+  spfPolicy: z.enum(["missing", "allow-all", "hard-fail", "soft-fail", "neutral", "missing-all"]),
+  dmarcRecord: z.string().nullable(),
+  dmarcRecords: z.array(z.string().min(1).max(500)).max(8),
+  dmarcPolicy: z.enum(["missing", "none", "quarantine", "reject", "invalid"]),
+  dmarcPct: z.number().int().min(0).max(100).nullable(),
+  emailSecurityApplicable: z.boolean(),
+  mxHosts: z.array(z.string().min(1).max(255)).max(25),
+  responseTimes: z.object({
+    lookupMs: z.number().int().nonnegative().nullable(),
+    dnssecMs: z.number().int().nonnegative().nullable(),
+    caaMs: z.number().int().nonnegative().nullable(),
+    spfMs: z.number().int().nonnegative().nullable(),
+    dmarcMs: z.number().int().nonnegative().nullable(),
+    mxMs: z.number().int().nonnegative().nullable(),
+    averageMs: z.number().int().nonnegative().nullable()
+  }),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  findings: z.array(DNS_FINDING_SCHEMA).max(16),
+  summary: z.string().min(1).max(500)
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -145,6 +184,7 @@ const REPORT_SCHEMA = z.object({
   cookieAnalysis: COOKIE_ANALYSIS_SCHEMA.optional(),
   corsAnalysis: CORS_ANALYSIS_SCHEMA.optional(),
   tlsAnalysis: TLS_ANALYSIS_SCHEMA.optional(),
+  dnsAnalysis: DNS_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
   responseTimeMs: z.number().int().nonnegative().optional(),
   scanDurationMs: z.number().int().nonnegative().optional(),

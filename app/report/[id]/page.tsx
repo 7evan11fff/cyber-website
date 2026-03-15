@@ -46,6 +46,21 @@ function resolveResponseTimeMs(report: SharedScanReport): number | null {
   return null;
 }
 
+function dnssecStatusLabel(status: "configured" | "not-configured" | "unsupported" | "unknown"): string {
+  if (status === "configured") return "Configured";
+  if (status === "not-configured") return "Not configured";
+  if (status === "unsupported") return "Resolver unsupported";
+  return "Unknown";
+}
+
+function dmarcPolicyLabel(policy: "missing" | "none" | "quarantine" | "reject" | "invalid"): string {
+  if (policy === "none") return "p=none";
+  if (policy === "quarantine") return "p=quarantine";
+  if (policy === "reject") return "p=reject";
+  if (policy === "invalid") return "Invalid";
+  return "Missing";
+}
+
 function SingleReportSection({ report }: { report: SharedScanReport }) {
   const suggestedPlatform = getSuggestedPlatformFromFramework(report.framework?.detected);
   const quickFixesHref = suggestedPlatform
@@ -224,6 +239,85 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
                     <p className="mt-1 text-xs text-slate-400">
                       Recommendation: <span className="text-slate-200">{finding.recommendation}</span>
                     </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+        </section>
+      )}
+
+      {report.dnsAnalysis && (
+        <section className="mt-5">
+          <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-100">DNS Security Analysis</h2>
+                  <p className="mt-1 text-sm text-slate-400">{report.dnsAnalysis.summary}</p>
+                </div>
+                <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                  {`${report.dnsAnalysis.score}/${report.dnsAnalysis.maxScore}`}
+                </span>
+              </div>
+            </summary>
+            <dl className="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">DNSSEC</dt>
+                <dd className="mt-1 break-all text-slate-200">{dnssecStatusLabel(report.dnsAnalysis.dnssecStatus)}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">CAA Records</dt>
+                <dd className="mt-1 break-all text-slate-200">
+                  {report.dnsAnalysis.hasCaa
+                    ? `${report.dnsAnalysis.caaRecords.length} configured`
+                    : "Not configured"}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">SPF</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.dnsAnalysis.spfPolicy}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">DMARC</dt>
+                <dd className="mt-1 break-all text-slate-200">
+                  {dmarcPolicyLabel(report.dnsAnalysis.dmarcPolicy)}
+                  {typeof report.dnsAnalysis.dmarcPct === "number" ? ` (${report.dnsAnalysis.dmarcPct}%)` : ""}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Email applicability</dt>
+                <dd className="mt-1 break-all text-slate-200">
+                  {report.dnsAnalysis.emailSecurityApplicable ? "Applicable" : "Not detected"}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Avg DNS response</dt>
+                <dd className="mt-1 break-all text-slate-200">
+                  {typeof report.dnsAnalysis.responseTimes.averageMs === "number"
+                    ? `${report.dnsAnalysis.responseTimes.averageMs} ms`
+                    : "Unknown"}
+                </dd>
+              </div>
+            </dl>
+            {report.dnsAnalysis.findings.length === 0 ? (
+              <p className="mt-3 text-sm text-emerald-200">No risky DNS findings were detected.</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {report.dnsAnalysis.findings.map((finding) => (
+                  <li key={finding.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-sm font-semibold text-slate-100">{finding.message}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Severity: <span className="text-slate-200">{finding.severity}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Recommendation: <span className="text-slate-200">{finding.recommendation}</span>
+                    </p>
+                    {finding.evidence && (
+                      <p className="mt-1 break-all text-xs text-slate-400">
+                        Evidence: <span className="text-slate-200">{finding.evidence}</span>
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
