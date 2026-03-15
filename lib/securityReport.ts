@@ -2,6 +2,7 @@ import { calculateGrade } from "@/lib/grading";
 import { analyzeCorsConfiguration, type CorsAnalysis } from "@/lib/corsAnalysis";
 import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import { analyzeDnsConfiguration, type DnsAnalysis } from "@/lib/dnsAnalysis";
+import { analyzeEmailSecurity, type EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityTxt, type SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
@@ -35,6 +36,7 @@ export type SecurityReport = {
   corsAnalysis: CorsAnalysis;
   tlsAnalysis: TlsAnalysis;
   dnsAnalysis: DnsAnalysis;
+  emailSecurityAnalysis: EmailSecurityAnalysis;
   sriAnalysis: SriAnalysis;
   securityTxtAnalysis: SecurityTxtAnalysis;
   checkedAt: string;
@@ -152,14 +154,23 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     clearTimeout(timeout);
   }
 
+  const emailAnalysisDomain = (() => {
+    try {
+      return new URL(upstreamResponse.url).hostname.toLowerCase();
+    } catch {
+      return new URL(targetUrl).hostname.toLowerCase();
+    }
+  })();
+
   const results = analyzeSecurityHeaders(upstreamResponse.headers);
   const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
   const corsAnalysis = analyzeCorsConfiguration(upstreamResponse.headers);
-  const [tlsAnalysis, dnsAnalysis, sriAnalysis, securityTxtAnalysis] = await Promise.all([
+  const [tlsAnalysis, dnsAnalysis, emailSecurityAnalysis, sriAnalysis, securityTxtAnalysis] = await Promise.all([
     analyzeTlsConfiguration(upstreamResponse.url, {
       timeoutMs: normalizedOptions.timeoutMs
     }),
     analyzeDnsConfiguration(upstreamResponse.url),
+    analyzeEmailSecurity(emailAnalysisDomain),
     analyzeSubresourceIntegrity(upstreamResponse.url, {
       timeoutMs: normalizedOptions.timeoutMs,
       followRedirects: normalizedOptions.followRedirects,
@@ -183,7 +194,9 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     sriScore: sriAnalysis.score,
     sriMaxScore: sriAnalysis.maxScore,
     securityTxtScore: securityTxtAnalysis.score,
-    securityTxtMaxScore: securityTxtAnalysis.maxScore
+    securityTxtMaxScore: securityTxtAnalysis.maxScore,
+    emailSecurityScore: emailSecurityAnalysis.score,
+    emailSecurityMaxScore: emailSecurityAnalysis.maxScore
   });
   const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
@@ -199,6 +212,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     corsAnalysis,
     tlsAnalysis,
     dnsAnalysis,
+    emailSecurityAnalysis,
     sriAnalysis,
     securityTxtAnalysis,
     checkedAt: new Date().toISOString(),

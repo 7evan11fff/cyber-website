@@ -150,4 +150,18 @@ describe("calculateGrade", () => {
       grade: "C"
     });
   });
+
+  it("adds email security score impact using provided max score", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        emailSecurityScore: 25,
+        emailSecurityMaxScore: 30
+      })
+    ).toEqual({
+      score: 31,
+      maxScore: 38,
+      grade: "C"
+    });
+  });
 });

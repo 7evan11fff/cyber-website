@@ -3,6 +3,7 @@ import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-p
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
+import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -21,6 +22,7 @@ type ReportResponse = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
+  emailSecurityAnalysis?: EmailSecurityAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
@@ -423,11 +425,63 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • security.txt posture: {report.securityTxtAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • Email auth posture:{" "}
+            {report.emailSecurityAnalysis
+              ? `${report.emailSecurityAnalysis.score}/${report.emailSecurityAnalysis.maxScore} (${report.emailSecurityAnalysis.domain})`
+              : "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.
           </Text>
           <Text style={styles.summaryBullet}>
             • Re-scan after remediation and include this report as evidence in delivery and compliance documentation.
           </Text>
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>Email Security Analysis (SPF / DKIM / DMARC)</Text>
+          {report.emailSecurityAnalysis ? (
+            <>
+              <Text style={styles.summaryText}>
+                Score {report.emailSecurityAnalysis.score}/{report.emailSecurityAnalysis.maxScore} for domain{" "}
+                {report.emailSecurityAnalysis.domain}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • SPF policy: {report.emailSecurityAnalysis.spf.policy} · DNS lookups:{" "}
+                {report.emailSecurityAnalysis.spf.dnsLookupCount}/{report.emailSecurityAnalysis.spf.lookupLimit}
+                {report.emailSecurityAnalysis.spf.tooManyLookups ? " (too many)" : ""}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • DMARC policy: {report.emailSecurityAnalysis.dmarc.policy} · rua{" "}
+                {report.emailSecurityAnalysis.dmarc.rua.length > 0
+                  ? report.emailSecurityAnalysis.dmarc.rua.join(", ")
+                  : "missing"}{" "}
+                · ruf{" "}
+                {report.emailSecurityAnalysis.dmarc.ruf.length > 0
+                  ? report.emailSecurityAnalysis.dmarc.ruf.join(", ")
+                  : "missing"}
+                .
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • DKIM selectors detected:{" "}
+                {report.emailSecurityAnalysis.dkim.presentSelectors.length > 0
+                  ? report.emailSecurityAnalysis.dkim.presentSelectors.join(", ")
+                  : "none"}
+                .
+              </Text>
+              {report.emailSecurityAnalysis.findings.length > 0 ? (
+                report.emailSecurityAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`email-security-finding-${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No high-risk email authentication findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryText}>Email security analysis details were not available for this report snapshot.</Text>
+          )}
         </View>
 
         <View style={styles.summarySection}>

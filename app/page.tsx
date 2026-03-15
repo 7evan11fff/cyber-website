@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -16,6 +17,7 @@ import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
 import { HeroScanTypewriter } from "@/app/components/HeroScanTypewriter";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
+import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -96,6 +98,7 @@ type ReportResponse = {
   tlsAnalysis?: TlsAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
+  emailSecurityAnalysis?: EmailSecurityAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;
@@ -438,6 +441,27 @@ function isSecurityTxtAnalysis(value: unknown): value is SecurityTxtAnalysis {
   );
 }
 
+function isEmailSecurityAnalysis(value: unknown): value is EmailSecurityAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<EmailSecurityAnalysis>;
+  return (
+    typeof candidate.domain === "string" &&
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.spf === "object" &&
+    candidate.spf !== null &&
+    typeof candidate.spf.policy === "string" &&
+    typeof candidate.dmarc === "object" &&
+    candidate.dmarc !== null &&
+    typeof candidate.dmarc.policy === "string" &&
+    typeof candidate.dkim === "object" &&
+    candidate.dkim !== null &&
+    typeof candidate.dkim.present === "boolean" &&
+    Array.isArray(candidate.findings) &&
+    Array.isArray(candidate.recommendations)
+  );
+}
+
 function isReportResponse(value: unknown): value is ReportResponse {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ReportResponse>;
@@ -449,6 +473,8 @@ function isReportResponse(value: unknown): value is ReportResponse {
   const validSriAnalysis = candidate.sriAnalysis === undefined || isSriAnalysis(candidate.sriAnalysis);
   const validSecurityTxtAnalysis =
     candidate.securityTxtAnalysis === undefined || isSecurityTxtAnalysis(candidate.securityTxtAnalysis);
+  const validEmailSecurityAnalysis =
+    candidate.emailSecurityAnalysis === undefined || isEmailSecurityAnalysis(candidate.emailSecurityAnalysis);
   const validCookieAnalysis =
     candidate.cookieAnalysis === undefined ||
     (typeof candidate.cookieAnalysis === "object" &&
@@ -470,6 +496,7 @@ function isReportResponse(value: unknown): value is ReportResponse {
     validTlsAnalysis &&
     validSriAnalysis &&
     validSecurityTxtAnalysis &&
+    validEmailSecurityAnalysis &&
     validCookieAnalysis &&
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string" &&
@@ -753,6 +780,11 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **TLS/SSL:** ${report.tlsAnalysis?.summary ?? "Not available"}`,
     `- **SRI:** ${report.sriAnalysis?.summary ?? "Not available"}`,
     `- **security.txt:** ${report.securityTxtAnalysis?.summary ?? "Not available"}`,
+    `- **Email Security:** ${
+      report.emailSecurityAnalysis
+        ? `${report.emailSecurityAnalysis.score}/${report.emailSecurityAnalysis.maxScore}`
+        : "Not available"
+    }`,
     `- **Checked At:** ${checkedAt}`,
     `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs ?? responseTimeMs) ?? "Not available"}`,
     `- **Detected Stack:** ${report.framework?.detected?.label ?? "Unknown"}`,
@@ -4324,6 +4356,9 @@ export default function Home() {
                   <p className="mt-3 text-sm text-slate-400">This report does not include TLS analysis details.</p>
                 )}
               </details>
+            </section>
+            <section className="mt-4">
+              <EmailSecurityCard analysis={report.emailSecurityAnalysis} />
             </section>
             <section className="mt-4">
               <SecurityTxtCard analysis={report.securityTxtAnalysis} />

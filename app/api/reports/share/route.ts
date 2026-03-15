@@ -173,6 +173,65 @@ const DNS_ANALYSIS_SCHEMA = z.object({
   summary: z.string().min(1).max(500)
 });
 
+const EMAIL_SECURITY_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(120),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  message: z.string().min(1).max(400),
+  evidence: z.string().nullable()
+});
+
+const EMAIL_SECURITY_SPF_SCHEMA = z.object({
+  domain: z.string().min(1).max(255),
+  record: z.string().nullable(),
+  records: z.array(z.string().min(1).max(500)).max(12),
+  policy: z.enum(["missing", "hard-fail", "soft-fail", "neutral", "allow-all", "missing-all"]),
+  dnsLookupCount: z.number().int().nonnegative().max(50),
+  tooManyLookups: z.boolean(),
+  lookupLimit: z.number().int().positive().max(20),
+  notes: z.array(z.string().min(1).max(320)).max(20)
+});
+
+const EMAIL_SECURITY_DMARC_SCHEMA = z.object({
+  domain: z.string().min(1).max(255),
+  record: z.string().nullable(),
+  records: z.array(z.string().min(1).max(500)).max(12),
+  policy: z.enum(["missing", "none", "quarantine", "reject", "invalid"]),
+  rua: z.array(z.string().min(1).max(500)).max(20),
+  ruf: z.array(z.string().min(1).max(500)).max(20),
+  pct: z.number().int().min(0).max(100).nullable(),
+  hasReporting: z.boolean(),
+  notes: z.array(z.string().min(1).max(320)).max(20)
+});
+
+const EMAIL_SECURITY_DKIM_SELECTOR_SCHEMA = z.object({
+  domain: z.string().min(1).max(255),
+  selector: z.string().min(1).max(120),
+  host: z.string().min(1).max(380),
+  record: z.string().nullable(),
+  records: z.array(z.string().min(1).max(500)).max(12),
+  present: z.boolean(),
+  valid: z.boolean(),
+  notes: z.array(z.string().min(1).max(320)).max(20)
+});
+
+const EMAIL_SECURITY_DKIM_SCHEMA = z.object({
+  testedSelectors: z.array(z.string().min(1).max(120)).max(20),
+  selectors: z.array(EMAIL_SECURITY_DKIM_SELECTOR_SCHEMA).max(20),
+  presentSelectors: z.array(z.string().min(1).max(120)).max(20),
+  present: z.boolean()
+});
+
+const EMAIL_SECURITY_ANALYSIS_SCHEMA = z.object({
+  domain: z.string().min(1).max(255),
+  spf: EMAIL_SECURITY_SPF_SCHEMA,
+  dmarc: EMAIL_SECURITY_DMARC_SCHEMA,
+  dkim: EMAIL_SECURITY_DKIM_SCHEMA,
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  findings: z.array(EMAIL_SECURITY_FINDING_SCHEMA).max(60),
+  recommendations: z.array(z.string().min(1).max(500)).max(40)
+});
+
 const SRI_RESOURCE_SCHEMA = z.object({
   id: z.string().min(1).max(80),
   resourceType: z.enum(["script", "stylesheet"]),
@@ -278,6 +337,7 @@ const REPORT_SCHEMA = z.object({
   corsAnalysis: CORS_ANALYSIS_SCHEMA.optional(),
   tlsAnalysis: TLS_ANALYSIS_SCHEMA.optional(),
   dnsAnalysis: DNS_ANALYSIS_SCHEMA.optional(),
+  emailSecurityAnalysis: EMAIL_SECURITY_ANALYSIS_SCHEMA.optional(),
   sriAnalysis: SRI_ANALYSIS_SCHEMA.optional(),
   securityTxtAnalysis: SECURITY_TXT_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),

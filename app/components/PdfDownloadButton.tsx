@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
+import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
@@ -20,6 +21,7 @@ type ReportResponse = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
+  emailSecurityAnalysis?: EmailSecurityAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;

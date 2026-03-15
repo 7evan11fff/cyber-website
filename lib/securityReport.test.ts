@@ -11,6 +11,9 @@ const { mockAnalyzeSubresourceIntegrity } = vi.hoisted(() => ({
 const { mockAnalyzeSecurityTxt } = vi.hoisted(() => ({
   mockAnalyzeSecurityTxt: vi.fn()
 }));
+const { mockAnalyzeEmailSecurity } = vi.hoisted(() => ({
+  mockAnalyzeEmailSecurity: vi.fn()
+}));
 
 vi.mock("@/lib/tlsAnalysis", () => ({
   analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
@@ -23,6 +26,9 @@ vi.mock("@/lib/sriAnalysis", () => ({
 }));
 vi.mock("@/lib/securityTxtAnalysis", () => ({
   analyzeSecurityTxt: mockAnalyzeSecurityTxt
+}));
+vi.mock("@/lib/emailSecurityAnalysis", () => ({
+  analyzeEmailSecurity: mockAnalyzeEmailSecurity
 }));
 
 import {
@@ -127,6 +133,40 @@ function buildReport(domain: string): SecurityReport {
       grade: "A",
       findings: [],
       summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
+    },
+    emailSecurityAnalysis: {
+      domain: domain.toLowerCase(),
+      spf: {
+        domain: domain.toLowerCase(),
+        record: "v=spf1 include:_spf.google.com -all",
+        records: ["v=spf1 include:_spf.google.com -all"],
+        policy: "hard-fail",
+        dnsLookupCount: 1,
+        tooManyLookups: false,
+        lookupLimit: 10,
+        notes: []
+      },
+      dmarc: {
+        domain: domain.toLowerCase(),
+        record: "v=DMARC1; p=reject; rua=mailto:dmarc@example.com",
+        records: ["v=DMARC1; p=reject; rua=mailto:dmarc@example.com"],
+        policy: "reject",
+        rua: ["mailto:dmarc@example.com"],
+        ruf: [],
+        pct: null,
+        hasReporting: true,
+        notes: []
+      },
+      dkim: {
+        testedSelectors: ["google", "selector1", "selector2", "default", "mail"],
+        selectors: [],
+        presentSelectors: ["google"],
+        present: true
+      },
+      score: 30,
+      maxScore: 30,
+      findings: [],
+      recommendations: []
     },
     sriAnalysis: {
       available: true,
@@ -277,6 +317,40 @@ describe("securityReport", () => {
       resources: [],
       summary: "All detected external scripts and stylesheets include SRI hashes and crossorigin attributes."
     });
+    mockAnalyzeEmailSecurity.mockResolvedValue({
+      domain: "example.com",
+      spf: {
+        domain: "example.com",
+        record: "v=spf1 include:_spf.google.com -all",
+        records: ["v=spf1 include:_spf.google.com -all"],
+        policy: "hard-fail",
+        dnsLookupCount: 1,
+        tooManyLookups: false,
+        lookupLimit: 10,
+        notes: []
+      },
+      dmarc: {
+        domain: "example.com",
+        record: "v=DMARC1; p=reject; rua=mailto:dmarc@example.com",
+        records: ["v=DMARC1; p=reject; rua=mailto:dmarc@example.com"],
+        policy: "reject",
+        rua: ["mailto:dmarc@example.com"],
+        ruf: [],
+        pct: null,
+        hasReporting: true,
+        notes: []
+      },
+      dkim: {
+        testedSelectors: ["google", "selector1", "selector2", "default", "mail"],
+        selectors: [],
+        presentSelectors: ["google"],
+        present: true
+      },
+      score: 30,
+      maxScore: 30,
+      findings: [],
+      recommendations: []
+    });
     mockAnalyzeSecurityTxt.mockResolvedValue({
       available: true,
       checkedUrl: "https://example.com/",
@@ -390,6 +464,7 @@ describe("securityReport", () => {
     expect(report.dnsAnalysis.maxScore).toBe(10);
     expect(report.sriAnalysis.maxScore).toBe(8);
     expect(report.securityTxtAnalysis.maxScore).toBe(1);
+    expect(report.emailSecurityAnalysis.maxScore).toBe(30);
     expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
       timeoutMs: 10000
     });
@@ -408,6 +483,7 @@ describe("securityReport", () => {
         followRedirects: true
       })
     );
+    expect(mockAnalyzeEmailSecurity).toHaveBeenCalledWith("example.com");
     expect(report.responseTimeMs).toBeGreaterThanOrEqual(0);
     expect(report.scanDurationMs).toBe(report.responseTimeMs);
     expect(report.score).toBeGreaterThan(0);
