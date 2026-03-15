@@ -4,6 +4,7 @@ import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookie
 import { analyzeDnsConfiguration, type DnsAnalysis } from "@/lib/dnsAnalysis";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
+import { analyzeSubresourceIntegrity, type SriAnalysis } from "@/lib/sriAnalysis";
 import { analyzeTlsConfiguration, type TlsAnalysis } from "@/lib/tlsAnalysis";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
@@ -33,6 +34,7 @@ export type SecurityReport = {
   corsAnalysis: CorsAnalysis;
   tlsAnalysis: TlsAnalysis;
   dnsAnalysis: DnsAnalysis;
+  sriAnalysis: SriAnalysis;
   checkedAt: string;
   framework: FrameworkInfo;
   responseTimeMs: number;
@@ -151,11 +153,16 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
   const results = analyzeSecurityHeaders(upstreamResponse.headers);
   const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
   const corsAnalysis = analyzeCorsConfiguration(upstreamResponse.headers);
-  const [tlsAnalysis, dnsAnalysis] = await Promise.all([
+  const [tlsAnalysis, dnsAnalysis, sriAnalysis] = await Promise.all([
     analyzeTlsConfiguration(upstreamResponse.url, {
       timeoutMs: normalizedOptions.timeoutMs
     }),
-    analyzeDnsConfiguration(upstreamResponse.url)
+    analyzeDnsConfiguration(upstreamResponse.url),
+    analyzeSubresourceIntegrity(upstreamResponse.url, {
+      timeoutMs: normalizedOptions.timeoutMs,
+      followRedirects: normalizedOptions.followRedirects,
+      userAgent: normalizedOptions.userAgent
+    })
   ]);
   const { score, grade, maxScore } = calculateGrade(results, {
     additionalScore: cookieAnalysis.score,
@@ -165,7 +172,9 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     tlsScore: tlsAnalysis.score,
     tlsMaxScore: tlsAnalysis.maxScore,
     dnsScore: dnsAnalysis.score,
-    dnsMaxScore: dnsAnalysis.maxScore
+    dnsMaxScore: dnsAnalysis.maxScore,
+    sriScore: sriAnalysis.score,
+    sriMaxScore: sriAnalysis.maxScore
   });
   const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
@@ -181,6 +190,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     corsAnalysis,
     tlsAnalysis,
     dnsAnalysis,
+    sriAnalysis,
     checkedAt: new Date().toISOString(),
     framework: detectFrameworkInfo(upstreamResponse.headers),
     responseTimeMs,

@@ -3,6 +3,7 @@ import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-p
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
+import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { SITE_NAME } from "@/lib/seo";
@@ -19,6 +20,7 @@ type ReportResponse = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
+  sriAnalysis?: SriAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;
@@ -413,6 +415,9 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • DNS posture: {report.dnsAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • SRI posture: {report.sriAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.
           </Text>
           <Text style={styles.summaryBullet}>
@@ -483,6 +488,37 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             </>
           ) : (
             <Text style={styles.summaryBullet}>• No DNS analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>Subresource Integrity (SRI) Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.sriAnalysis?.summary ?? "SRI analysis details were not available for this report snapshot."}
+          </Text>
+          {report.sriAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.sriAnalysis.grade} ({report.sriAnalysis.score}/{report.sriAnalysis.maxScore}) · Coverage{" "}
+                {report.sriAnalysis.coveragePercent}% · Crossorigin coverage {report.sriAnalysis.crossoriginCoveragePercent}%.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • External resources: {report.sriAnalysis.externalResourceCount} · Missing integrity:{" "}
+                {report.sriAnalysis.missingIntegrityCount} · Missing crossorigin: {report.sriAnalysis.missingCrossoriginCount}.
+              </Text>
+              {report.sriAnalysis.resources.length > 0 ? (
+                report.sriAnalysis.resources.slice(0, 6).map((resource) => (
+                  <Text key={resource.id} style={styles.summaryBullet}>
+                    • {resource.resourceType.toUpperCase()} {resource.hasIntegrity ? "SRI" : "NO-SRI"} /{" "}
+                    {resource.hasCrossorigin ? "crossorigin" : "no-crossorigin"}: {resource.url}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No external scripts/stylesheets were detected on this page.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No SRI analysis data was captured.</Text>
           )}
         </View>
 

@@ -173,6 +173,46 @@ const DNS_ANALYSIS_SCHEMA = z.object({
   summary: z.string().min(1).max(500)
 });
 
+const SRI_RESOURCE_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  resourceType: z.enum(["script", "stylesheet"]),
+  url: z.string().url(),
+  host: z.string().min(1).max(255),
+  isCdn: z.boolean(),
+  hasIntegrity: z.boolean(),
+  integrity: z.string().nullable(),
+  hasCrossorigin: z.boolean(),
+  crossorigin: z.string().nullable()
+});
+
+const SRI_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  message: z.string().min(1).max(320),
+  recommendation: z.string().min(1).max(400),
+  resourceUrl: z.string().url(),
+  resourceType: z.enum(["script", "stylesheet"]),
+  isCdn: z.boolean()
+});
+
+const SRI_ANALYSIS_SCHEMA = z.object({
+  available: z.boolean(),
+  scannedUrl: z.string().url().nullable(),
+  finalUrl: z.string().url().nullable(),
+  externalResourceCount: z.number().int().nonnegative(),
+  protectedResourceCount: z.number().int().nonnegative(),
+  missingIntegrityCount: z.number().int().nonnegative(),
+  missingCrossoriginCount: z.number().int().nonnegative(),
+  coveragePercent: z.number().int().min(0).max(100),
+  crossoriginCoveragePercent: z.number().int().min(0).max(100),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  findings: z.array(SRI_FINDING_SCHEMA).max(80),
+  resources: z.array(SRI_RESOURCE_SCHEMA).max(120),
+  summary: z.string().min(1).max(500)
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -185,6 +225,7 @@ const REPORT_SCHEMA = z.object({
   corsAnalysis: CORS_ANALYSIS_SCHEMA.optional(),
   tlsAnalysis: TLS_ANALYSIS_SCHEMA.optional(),
   dnsAnalysis: DNS_ANALYSIS_SCHEMA.optional(),
+  sriAnalysis: SRI_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
   responseTimeMs: z.number().int().nonnegative().optional(),
   scanDurationMs: z.number().int().nonnegative().optional(),

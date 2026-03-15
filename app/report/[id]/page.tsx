@@ -326,6 +326,79 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
         </section>
       )}
 
+      {report.sriAnalysis && (
+        <section className="mt-5">
+          <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-100">Subresource Integrity (SRI) Analysis</h2>
+                  <p className="mt-1 text-sm text-slate-400">{report.sriAnalysis.summary}</p>
+                </div>
+                <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                  {`${report.sriAnalysis.score}/${report.sriAnalysis.maxScore}`}
+                </span>
+              </div>
+            </summary>
+            <dl className="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">SRI coverage</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.coveragePercent}%</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Crossorigin coverage</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.crossoriginCoveragePercent}%</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">External resources</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.externalResourceCount}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Missing integrity</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.missingIntegrityCount}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Missing crossorigin</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.sriAnalysis.missingCrossoriginCount}</dd>
+              </div>
+            </dl>
+            {report.sriAnalysis.resources.length === 0 ? (
+              <p className="mt-3 text-sm text-emerald-200">No external scripts or stylesheets were detected.</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {report.sriAnalysis.resources.map((resource) => (
+                  <li key={resource.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="break-all text-sm font-semibold text-slate-100">{resource.url}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Type: <span className="text-slate-200">{resource.resourceType}</span> · CDN:{" "}
+                      <span className="text-slate-200">{resource.isCdn ? "Yes" : "No"}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Integrity: <span className="text-slate-200">{resource.hasIntegrity ? "Present" : "Missing"}</span> ·
+                      Crossorigin:{" "}
+                      <span className="text-slate-200">{resource.hasCrossorigin ? resource.crossorigin ?? "Present" : "Missing"}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-100">
+              <p className="font-semibold uppercase tracking-[0.12em] text-sky-200">Fix guidance</p>
+              <p className="mt-2">
+                Generate SRI hashes in CI/CD to avoid drift. Example:{" "}
+                <code className="rounded bg-slate-900/80 px-1 py-0.5">
+                  openssl dgst -sha384 -binary asset.js | openssl base64 -A
+                </code>
+              </p>
+              <p className="mt-1">
+                Then add both <code className="rounded bg-slate-900/80 px-1 py-0.5">integrity</code> and{" "}
+                <code className="rounded bg-slate-900/80 px-1 py-0.5">crossorigin="anonymous"</code> on the tag.
+              </p>
+            </div>
+          </details>
+        </section>
+      )}
+
       <section className="mt-5">
         <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
           <summary className="cursor-pointer list-none">

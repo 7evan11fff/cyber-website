@@ -3,6 +3,7 @@ import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 
 export type SharedScanReport = {
@@ -17,6 +18,7 @@ export type SharedScanReport = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
+  sriAnalysis?: SriAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;

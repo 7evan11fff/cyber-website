@@ -5,12 +5,18 @@ const { mockAnalyzeTlsConfiguration } = vi.hoisted(() => ({
 const { mockAnalyzeDnsConfiguration } = vi.hoisted(() => ({
   mockAnalyzeDnsConfiguration: vi.fn()
 }));
+const { mockAnalyzeSubresourceIntegrity } = vi.hoisted(() => ({
+  mockAnalyzeSubresourceIntegrity: vi.fn()
+}));
 
 vi.mock("@/lib/tlsAnalysis", () => ({
   analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
 }));
 vi.mock("@/lib/dnsAnalysis", () => ({
   analyzeDnsConfiguration: mockAnalyzeDnsConfiguration
+}));
+vi.mock("@/lib/sriAnalysis", () => ({
+  analyzeSubresourceIntegrity: mockAnalyzeSubresourceIntegrity
 }));
 
 import {
@@ -116,6 +122,23 @@ function buildReport(domain: string): SecurityReport {
       findings: [],
       summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
     },
+    sriAnalysis: {
+      available: true,
+      scannedUrl: `https://${domain}/`,
+      finalUrl: `https://${domain}/`,
+      externalResourceCount: 2,
+      protectedResourceCount: 2,
+      missingIntegrityCount: 0,
+      missingCrossoriginCount: 0,
+      coveragePercent: 100,
+      crossoriginCoveragePercent: 100,
+      score: 8,
+      maxScore: 8,
+      grade: "A",
+      findings: [],
+      resources: [],
+      summary: "All detected external scripts and stylesheets include SRI hashes and crossorigin attributes."
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -196,6 +219,23 @@ describe("securityReport", () => {
       findings: [],
       summary: "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state."
     });
+    mockAnalyzeSubresourceIntegrity.mockResolvedValue({
+      available: true,
+      scannedUrl: "https://example.com/",
+      finalUrl: "https://example.com/",
+      externalResourceCount: 2,
+      protectedResourceCount: 2,
+      missingIntegrityCount: 0,
+      missingCrossoriginCount: 0,
+      coveragePercent: 100,
+      crossoriginCoveragePercent: 100,
+      score: 8,
+      maxScore: 8,
+      grade: "A",
+      findings: [],
+      resources: [],
+      summary: "All detected external scripts and stylesheets include SRI hashes and crossorigin attributes."
+    });
   });
 
   afterEach(() => {
@@ -272,10 +312,18 @@ describe("securityReport", () => {
     expect(report.corsAnalysis.maxScore).toBe(4);
     expect(report.tlsAnalysis.maxScore).toBe(10);
     expect(report.dnsAnalysis.maxScore).toBe(10);
+    expect(report.sriAnalysis.maxScore).toBe(8);
     expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
       timeoutMs: 10000
     });
     expect(mockAnalyzeDnsConfiguration).toHaveBeenCalledWith("https://example.com/");
+    expect(mockAnalyzeSubresourceIntegrity).toHaveBeenCalledWith(
+      "https://example.com/",
+      expect.objectContaining({
+        timeoutMs: 10000,
+        followRedirects: true
+      })
+    );
     expect(report.responseTimeMs).toBeGreaterThanOrEqual(0);
     expect(report.scanDurationMs).toBe(report.responseTimeMs);
     expect(report.score).toBeGreaterThan(0);

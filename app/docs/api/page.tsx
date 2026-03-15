@@ -166,6 +166,33 @@ const CHECK_RESPONSE_EXAMPLE = `{
     "summary": "DNS posture looks healthy with DNSSEC, CAA, SPF, and DMARC controls in a secure state.",
     "findings": []
   },
+  "sriAnalysis": {
+    "available": true,
+    "scannedUrl": "https://example.com/",
+    "finalUrl": "https://example.com/",
+    "externalResourceCount": 3,
+    "protectedResourceCount": 2,
+    "missingIntegrityCount": 1,
+    "missingCrossoriginCount": 1,
+    "coveragePercent": 67,
+    "crossoriginCoveragePercent": 33,
+    "score": 5,
+    "maxScore": 8,
+    "grade": "C",
+    "summary": "SRI coverage is 67% with 1 external resource missing integrity attributes (1 critical findings).",
+    "findings": [
+      {
+        "id": "missing-integrity-1",
+        "severity": "critical",
+        "message": "Script is loaded from an external origin without an integrity hash.",
+        "recommendation": "Add an integrity attribute with a sha384/sha512 hash and pair it with crossorigin=\"anonymous\".",
+        "resourceUrl": "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+        "resourceType": "script",
+        "isCdn": true
+      }
+    ],
+    "resources": []
+  },
   "checkedAt": "2026-03-14T16:20:47.328Z"
 }`;
 
@@ -399,6 +426,10 @@ export default function ApiReferencePage() {
             </li>
             <li>
               <code>dnsAnalysis</code> includes DNSSEC, CAA, SPF, DMARC, and DNS response-time posture with findings.
+            </li>
+            <li>
+              <code>sriAnalysis</code> includes external script/stylesheet SRI coverage, crossorigin posture, and
+              per-resource remediation findings.
             </li>
           </ul>
           <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Sample response</p>

@@ -112,4 +112,18 @@ describe("calculateGrade", () => {
       grade: "C"
     });
   });
+
+  it("adds SRI score impact using provided max score", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        sriScore: 6,
+        sriMaxScore: 8
+      })
+    ).toEqual({
+      score: 12,
+      maxScore: 16,
+      grade: "C"
+    });
+  });
 });
