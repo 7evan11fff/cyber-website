@@ -23,6 +23,9 @@ const { mockAnalyzeEmailSecurity } = vi.hoisted(() => ({
 const { mockAnalyzeMixedContent } = vi.hoisted(() => ({
   mockAnalyzeMixedContent: vi.fn()
 }));
+const { mockAnalyzeHstsPreloadStatus } = vi.hoisted(() => ({
+  mockAnalyzeHstsPreloadStatus: vi.fn()
+}));
 
 vi.mock("@/lib/tlsAnalysis", () => ({
   analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
@@ -62,6 +65,9 @@ vi.mock("@/lib/mixedContentAnalysis", () => ({
     recommendations: ["Scan an HTML page over HTTPS to evaluate mixed-content exposure."],
     summary: "Mixed content analysis was unavailable for this response."
   }))
+}));
+vi.mock("@/lib/hstsPreloadAnalysis", () => ({
+  analyzeHstsPreloadStatus: mockAnalyzeHstsPreloadStatus
 }));
 
 import {
@@ -316,6 +322,60 @@ function buildReport(domain: string): SecurityReport {
       grade: "A",
       summary: "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
     },
+    hstsPreloadAnalysis: {
+      available: true,
+      checkedDomain: domain.toLowerCase(),
+      apiStatus: "preloaded",
+      status: "preloaded",
+      eligibility: "unknown",
+      onPreloadList: true,
+      submissionUrl: `https://hstspreload.org/?domain=${encodeURIComponent(domain.toLowerCase())}`,
+      header: {
+        raw: "max-age=63072000; includeSubDomains; preload",
+        hasHeader: true,
+        maxAge: 63072000,
+        hasSufficientMaxAge: true,
+        hasIncludeSubDomains: true,
+        hasPreloadDirective: true
+      },
+      requirements: [
+        {
+          id: "max-age",
+          label: "max-age >= 31536000",
+          passed: true,
+          details: "Detected max-age=63072000."
+        },
+        {
+          id: "include-subdomains",
+          label: "includeSubDomains directive",
+          passed: true,
+          details: "includeSubDomains directive detected."
+        },
+        {
+          id: "preload-directive",
+          label: "preload directive",
+          passed: true,
+          details: "preload directive detected."
+        }
+      ],
+      apiErrors: [],
+      apiWarnings: [],
+      findings: [
+        {
+          id: "hsts-preload-preloaded",
+          severity: "info",
+          message: "Domain is preloaded in major browsers.",
+          recommendation: "Maintain strict HTTPS posture across all subdomains."
+        }
+      ],
+      recommendations: [
+        "Keep Strict-Transport-Security enabled with includeSubDomains and preload to remain eligible."
+      ],
+      score: 3,
+      maxScore: 3,
+      grade: "A",
+      summary: `${domain.toLowerCase()} is currently included in the HSTS preload list.`
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -530,6 +590,60 @@ describe("securityReport", () => {
       grade: "A",
       summary: "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
     });
+    mockAnalyzeHstsPreloadStatus.mockResolvedValue({
+      available: true,
+      checkedDomain: "example.com",
+      apiStatus: "preloaded",
+      status: "preloaded",
+      eligibility: "unknown",
+      onPreloadList: true,
+      submissionUrl: "https://hstspreload.org/?domain=example.com",
+      header: {
+        raw: "max-age=63072000; includeSubDomains; preload",
+        hasHeader: true,
+        maxAge: 63072000,
+        hasSufficientMaxAge: true,
+        hasIncludeSubDomains: true,
+        hasPreloadDirective: true
+      },
+      requirements: [
+        {
+          id: "max-age",
+          label: "max-age >= 31536000",
+          passed: true,
+          details: "Detected max-age=63072000."
+        },
+        {
+          id: "include-subdomains",
+          label: "includeSubDomains directive",
+          passed: true,
+          details: "includeSubDomains directive detected."
+        },
+        {
+          id: "preload-directive",
+          label: "preload directive",
+          passed: true,
+          details: "preload directive detected."
+        }
+      ],
+      apiErrors: [],
+      apiWarnings: [],
+      findings: [
+        {
+          id: "hsts-preload-preloaded",
+          severity: "info",
+          message: "Domain is preloaded in major browsers.",
+          recommendation: "Maintain strict HTTPS posture across all subdomains."
+        }
+      ],
+      recommendations: [
+        "Keep Strict-Transport-Security enabled with includeSubDomains and preload to remain eligible."
+      ],
+      score: 3,
+      maxScore: 3,
+      grade: "A",
+      summary: "example.com is currently included in the HSTS preload list."
+    });
     mockAnalyzeMixedContent.mockReturnValue({
       available: true,
       scannedUrl: "https://example.com/",
@@ -628,6 +742,7 @@ describe("securityReport", () => {
     expect(report.sriAnalysis.maxScore).toBe(8);
     expect(report.mixedContentAnalysis.maxScore).toBe(10);
     expect(report.securityTxtAnalysis.maxScore).toBe(1);
+    expect(report.hstsPreloadAnalysis.maxScore).toBe(3);
     expect(report.emailSecurityAnalysis.maxScore).toBe(30);
     expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
       timeoutMs: 10000
@@ -647,6 +762,13 @@ describe("securityReport", () => {
       expect.objectContaining({
         timeoutMs: 10000,
         followRedirects: true
+      })
+    );
+    expect(mockAnalyzeHstsPreloadStatus).toHaveBeenCalledWith(
+      "https://example.com/",
+      null,
+      expect.objectContaining({
+        timeoutMs: 10000
       })
     );
     expect(mockAnalyzeEmailSecurity).toHaveBeenCalledWith("example.com");

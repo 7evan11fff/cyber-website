@@ -6,6 +6,7 @@ import { analyzeDnsConfiguration, type DnsAnalysis } from "@/lib/dnsAnalysis";
 import { analyzeDnssecConfiguration, type DnssecAnalysis } from "@/lib/dnssecAnalysis";
 import { analyzeEmailSecurity, type EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
+import { analyzeHstsPreloadStatus, type HstsPreloadAnalysis } from "@/lib/hstsPreloadAnalysis";
 import {
   analyzeMixedContent,
   buildUnavailableMixedContentAnalysis,
@@ -49,6 +50,7 @@ export type SecurityReport = {
   mixedContentAnalysis: MixedContentAnalysis;
   sriAnalysis: SriAnalysis;
   securityTxtAnalysis: SecurityTxtAnalysis;
+  hstsPreloadAnalysis: HstsPreloadAnalysis;
   checkedAt: string;
   framework: FrameworkInfo;
   responseTimeMs: number;
@@ -176,6 +178,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
   const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
   const corsAnalysis = analyzeCorsConfiguration(upstreamResponse.headers);
   const finalUrl = upstreamResponse.url || targetUrl;
+  const hstsHeaderValue = upstreamResponse.headers.get("strict-transport-security");
   const contentType = upstreamResponse.headers.get("content-type")?.toLowerCase() ?? "";
   const isHtmlResponse = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
   let mixedContentAnalysis: MixedContentAnalysis;
@@ -196,7 +199,16 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     );
   }
 
-  const [tlsAnalysis, dnsAnalysis, dnssecAnalysis, caaAnalysis, emailSecurityAnalysis, sriAnalysis, securityTxtAnalysis] =
+  const [
+    tlsAnalysis,
+    dnsAnalysis,
+    dnssecAnalysis,
+    caaAnalysis,
+    emailSecurityAnalysis,
+    sriAnalysis,
+    securityTxtAnalysis,
+    hstsPreloadAnalysis
+  ] =
     await Promise.all([
     analyzeTlsConfiguration(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs
@@ -213,6 +225,10 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     analyzeSecurityTxt(finalUrl, {
       timeoutMs: normalizedOptions.timeoutMs,
       followRedirects: normalizedOptions.followRedirects,
+      userAgent: normalizedOptions.userAgent
+    }),
+    analyzeHstsPreloadStatus(finalUrl, hstsHeaderValue, {
+      timeoutMs: normalizedOptions.timeoutMs,
       userAgent: normalizedOptions.userAgent
     })
     ]);
@@ -236,7 +252,9 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     dnssecScore: dnssecAnalysis.score,
     dnssecMaxScore: dnssecAnalysis.maxScore,
     caaScore: caaAnalysis.score,
-    caaMaxScore: caaAnalysis.maxScore
+    caaMaxScore: caaAnalysis.maxScore,
+    hstsPreloadScore: hstsPreloadAnalysis.score,
+    hstsPreloadMaxScore: hstsPreloadAnalysis.maxScore
   });
   const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
@@ -258,6 +276,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     mixedContentAnalysis,
     sriAnalysis,
     securityTxtAnalysis,
+    hstsPreloadAnalysis,
     checkedAt: new Date().toISOString(),
     framework: detectFrameworkInfo(upstreamResponse.headers),
     responseTimeMs,

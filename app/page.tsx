@@ -10,6 +10,7 @@ import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { CaaAnalysis } from "@/lib/caaAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { DnssecAnalysis } from "@/lib/dnssecAnalysis";
+import type { HstsPreloadAnalysis } from "@/lib/hstsPreloadAnalysis";
 import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
@@ -25,6 +26,7 @@ import { HeaderResultsGrid } from "@/app/components/HeaderResultsGrid";
 import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
 import { MixedContentCard } from "@/app/components/MixedContentCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
+import { HstsPreloadCard } from "@/app/components/HstsPreloadCard";
 import { DnssecCard } from "@/app/components/DnssecCard";
 import { CaaCard } from "@/app/components/CaaCard";
 import { CookieSecurityCard } from "@/app/components/CookieSecurityCard";
@@ -110,6 +112,7 @@ type ReportResponse = {
   sriAnalysis?: SriAnalysis;
   mixedContentAnalysis?: MixedContentAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
+  hstsPreloadAnalysis?: HstsPreloadAnalysis;
   emailSecurityAnalysis?: EmailSecurityAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
@@ -506,6 +509,30 @@ function isSecurityTxtAnalysis(value: unknown): value is SecurityTxtAnalysis {
   );
 }
 
+function isHstsPreloadAnalysis(value: unknown): value is HstsPreloadAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<HstsPreloadAnalysis>;
+  return (
+    typeof candidate.available === "boolean" &&
+    typeof candidate.checkedDomain === "string" &&
+    (candidate.apiStatus === null || typeof candidate.apiStatus === "string") &&
+    (candidate.status === "preloaded" || candidate.status === "pending" || candidate.status === "not-preloaded") &&
+    (candidate.eligibility === "eligible" || candidate.eligibility === "ineligible" || candidate.eligibility === "unknown") &&
+    typeof candidate.onPreloadList === "boolean" &&
+    typeof candidate.submissionUrl === "string" &&
+    typeof candidate.header === "object" &&
+    candidate.header !== null &&
+    typeof candidate.header.hasHeader === "boolean" &&
+    Array.isArray(candidate.requirements) &&
+    Array.isArray(candidate.findings) &&
+    Array.isArray(candidate.recommendations) &&
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.summary === "string"
+  );
+}
+
 function isEmailSecurityAnalysis(value: unknown): value is EmailSecurityAnalysis {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Partial<EmailSecurityAnalysis>;
@@ -542,6 +569,8 @@ function isReportResponse(value: unknown): value is ReportResponse {
     candidate.mixedContentAnalysis === undefined || isMixedContentAnalysis(candidate.mixedContentAnalysis);
   const validSecurityTxtAnalysis =
     candidate.securityTxtAnalysis === undefined || isSecurityTxtAnalysis(candidate.securityTxtAnalysis);
+  const validHstsPreloadAnalysis =
+    candidate.hstsPreloadAnalysis === undefined || isHstsPreloadAnalysis(candidate.hstsPreloadAnalysis);
   const validEmailSecurityAnalysis =
     candidate.emailSecurityAnalysis === undefined || isEmailSecurityAnalysis(candidate.emailSecurityAnalysis);
   const validCookieAnalysis =
@@ -568,6 +597,7 @@ function isReportResponse(value: unknown): value is ReportResponse {
     validSriAnalysis &&
     validMixedContentAnalysis &&
     validSecurityTxtAnalysis &&
+    validHstsPreloadAnalysis &&
     validEmailSecurityAnalysis &&
     validCookieAnalysis &&
     typeof candidate.grade === "string" &&
@@ -855,6 +885,7 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **SRI:** ${report.sriAnalysis?.summary ?? "Not available"}`,
     `- **Mixed Content:** ${report.mixedContentAnalysis?.summary ?? "Not available"}`,
     `- **security.txt:** ${report.securityTxtAnalysis?.summary ?? "Not available"}`,
+    `- **HSTS Preload:** ${report.hstsPreloadAnalysis?.summary ?? "Not available"}`,
     `- **Email Security:** ${
       report.emailSecurityAnalysis
         ? `${report.emailSecurityAnalysis.score}/${report.emailSecurityAnalysis.maxScore}`
@@ -4278,6 +4309,9 @@ export default function Home() {
             </section>
             <section className="mt-4">
               <SecurityTxtCard analysis={report.securityTxtAnalysis} />
+            </section>
+            <section className="mt-4">
+              <HstsPreloadCard analysis={report.hstsPreloadAnalysis} />
             </section>
             <section className="mt-4">
               <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>

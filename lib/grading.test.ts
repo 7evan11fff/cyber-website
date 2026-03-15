@@ -206,4 +206,18 @@ describe("calculateGrade", () => {
       grade: "D"
     });
   });
+
+  it("adds HSTS preload status score impact", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        hstsPreloadScore: 2,
+        hstsPreloadMaxScore: 3
+      })
+    ).toEqual({
+      score: 8,
+      maxScore: 11,
+      grade: "C"
+    });
+  });
 });

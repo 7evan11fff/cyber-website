@@ -352,6 +352,49 @@ const SECURITY_TXT_ANALYSIS_SCHEMA = z.object({
   summary: z.string().min(1).max(500)
 });
 
+const HSTS_PRELOAD_HEADER_SCHEMA = z.object({
+  raw: z.string().min(1).max(500).nullable(),
+  hasHeader: z.boolean(),
+  maxAge: z.number().int().nonnegative().nullable(),
+  hasSufficientMaxAge: z.boolean(),
+  hasIncludeSubDomains: z.boolean(),
+  hasPreloadDirective: z.boolean()
+});
+
+const HSTS_PRELOAD_REQUIREMENT_SCHEMA = z.object({
+  id: z.enum(["max-age", "include-subdomains", "preload-directive"]),
+  label: z.string().min(1).max(120),
+  passed: z.boolean(),
+  details: z.string().min(1).max(320)
+});
+
+const HSTS_PRELOAD_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  severity: z.enum(["info", "warning"]),
+  message: z.string().min(1).max(400),
+  recommendation: z.string().min(1).max(500)
+});
+
+const HSTS_PRELOAD_ANALYSIS_SCHEMA = z.object({
+  available: z.boolean(),
+  checkedDomain: z.string().min(1).max(255),
+  apiStatus: z.string().min(1).max(120).nullable(),
+  status: z.enum(["preloaded", "pending", "not-preloaded"]),
+  eligibility: z.enum(["eligible", "ineligible", "unknown"]),
+  onPreloadList: z.boolean(),
+  submissionUrl: z.string().url(),
+  header: HSTS_PRELOAD_HEADER_SCHEMA,
+  requirements: z.array(HSTS_PRELOAD_REQUIREMENT_SCHEMA).max(6),
+  apiErrors: z.array(z.string().min(1).max(400)).max(20),
+  apiWarnings: z.array(z.string().min(1).max(400)).max(20),
+  findings: z.array(HSTS_PRELOAD_FINDING_SCHEMA).max(20),
+  recommendations: z.array(z.string().min(1).max(500)).max(20),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  summary: z.string().min(1).max(500)
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -368,6 +411,7 @@ const REPORT_SCHEMA = z.object({
   mixedContentAnalysis: MIXED_CONTENT_ANALYSIS_SCHEMA.optional(),
   sriAnalysis: SRI_ANALYSIS_SCHEMA.optional(),
   securityTxtAnalysis: SECURITY_TXT_ANALYSIS_SCHEMA.optional(),
+  hstsPreloadAnalysis: HSTS_PRELOAD_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
   responseTimeMs: z.number().int().nonnegative().optional(),
   scanDurationMs: z.number().int().nonnegative().optional(),

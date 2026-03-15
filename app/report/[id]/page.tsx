@@ -8,6 +8,7 @@ import { DnssecCard } from "@/app/components/DnssecCard";
 import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
 import { MixedContentCard } from "@/app/components/MixedContentCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
+import { HstsPreloadCard } from "@/app/components/HstsPreloadCard";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
@@ -423,6 +424,10 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
 
       <section className="mt-5">
         <SecurityTxtCard analysis={report.securityTxtAnalysis} />
+      </section>
+
+      <section className="mt-5">
+        <HstsPreloadCard analysis={report.hstsPreloadAnalysis} />
       </section>
 
       <section className="mt-5">

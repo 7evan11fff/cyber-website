@@ -7,6 +7,7 @@ import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { DnssecAnalysis } from "@/lib/dnssecAnalysis";
 import type { CaaAnalysis } from "@/lib/caaAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
+import type { HstsPreloadAnalysis } from "@/lib/hstsPreloadAnalysis";
 import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
@@ -30,6 +31,7 @@ type ReportResponse = {
   mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
+  hstsPreloadAnalysis?: HstsPreloadAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;

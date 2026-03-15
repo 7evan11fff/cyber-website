@@ -6,6 +6,7 @@ import type { DnssecAnalysis } from "@/lib/dnssecAnalysis";
 import type { CaaAnalysis } from "@/lib/caaAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
 import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import type { HstsPreloadAnalysis } from "@/lib/hstsPreloadAnalysis";
 import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
@@ -29,6 +30,7 @@ export type SharedScanReport = {
   mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
+  hstsPreloadAnalysis?: HstsPreloadAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;
@@ -85,6 +87,9 @@ function summarizeSingleReport(report: SharedScanReport) {
   const mixedContentSummary = report.mixedContentAnalysis
     ? ` Mixed content: ${report.mixedContentAnalysis.summary}`
     : "";
+  const hstsPreloadSummary = report.hstsPreloadAnalysis
+    ? ` HSTS preload: ${report.hstsPreloadAnalysis.summary}`
+    : "";
   const dnssecSummary = report.dnssecAnalysis ? ` DNSSEC: ${report.dnssecAnalysis.summary}` : "";
   const caaSummary = report.caaAnalysis ? ` CAA: ${report.caaAnalysis.summary}` : "";
   const findingsPreview =
@@ -95,7 +100,7 @@ function summarizeSingleReport(report: SharedScanReport) {
           .map((entry) => entry.label)
           .join(", ")}${riskyFindings.length > 2 ? ` (+${riskyFindings.length - 2} more)` : ""}.`;
   const title = `${domain} security header report (grade ${report.grade})`;
-  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.${cookieSummary}${securityTxtSummary}${emailSecuritySummary}${mixedContentSummary}${dnssecSummary}${caaSummary} ${findingsPreview}`;
+  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.${cookieSummary}${securityTxtSummary}${emailSecuritySummary}${mixedContentSummary}${hstsPreloadSummary}${dnssecSummary}${caaSummary} ${findingsPreview}`;
   return { title, description };
 }
 

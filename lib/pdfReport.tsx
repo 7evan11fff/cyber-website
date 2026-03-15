@@ -6,6 +6,7 @@ import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { DnssecAnalysis } from "@/lib/dnssecAnalysis";
 import type { CaaAnalysis } from "@/lib/caaAnalysis";
 import type { EmailSecurityAnalysis } from "@/lib/emailSecurityAnalysis";
+import type { HstsPreloadAnalysis } from "@/lib/hstsPreloadAnalysis";
 import type { MixedContentAnalysis } from "@/lib/mixedContentAnalysis";
 import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
@@ -31,6 +32,7 @@ type ReportResponse = {
   mixedContentAnalysis?: MixedContentAnalysis;
   sriAnalysis?: SriAnalysis;
   securityTxtAnalysis?: SecurityTxtAnalysis;
+  hstsPreloadAnalysis?: HstsPreloadAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;
@@ -437,6 +439,9 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • security.txt posture: {report.securityTxtAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • HSTS preload posture: {report.hstsPreloadAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Email auth posture:{" "}
             {report.emailSecurityAnalysis
               ? `${report.emailSecurityAnalysis.score}/${report.emailSecurityAnalysis.maxScore} (${report.emailSecurityAnalysis.domain})`
@@ -722,6 +727,39 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             </>
           ) : (
             <Text style={styles.summaryBullet}>• No security.txt analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>HSTS Preload Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.hstsPreloadAnalysis?.summary ?? "HSTS preload analysis details were not available for this report snapshot."}
+          </Text>
+          {report.hstsPreloadAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.hstsPreloadAnalysis.grade} ({report.hstsPreloadAnalysis.score}/
+                {report.hstsPreloadAnalysis.maxScore}) · Status {report.hstsPreloadAnalysis.status} · Eligibility{" "}
+                {report.hstsPreloadAnalysis.eligibility}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Header checks: max-age{" "}
+                {report.hstsPreloadAnalysis.header.hasSufficientMaxAge ? "pass" : "fail"} · includeSubDomains{" "}
+                {report.hstsPreloadAnalysis.header.hasIncludeSubDomains ? "pass" : "fail"} · preload{" "}
+                {report.hstsPreloadAnalysis.header.hasPreloadDirective ? "pass" : "fail"}.
+              </Text>
+              {report.hstsPreloadAnalysis.findings.length > 0 ? (
+                report.hstsPreloadAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`hsts-preload-finding-${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No HSTS preload findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No HSTS preload analysis data was captured.</Text>
           )}
         </View>
 

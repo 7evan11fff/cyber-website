@@ -27,6 +27,8 @@ type GradeOptions = {
   dnssecMaxScore?: number;
   caaScore?: number;
   caaMaxScore?: number;
+  hstsPreloadScore?: number;
+  hstsPreloadMaxScore?: number;
 };
 
 const CORS_SCORE_WEIGHT = 0.5;
@@ -84,6 +86,11 @@ export function calculateGrade(results: HeaderResult[], options: GradeOptions = 
   const dnssecRawScore = Math.max(0, Math.min(Math.trunc(options.dnssecScore ?? 0), dnssecRawMaxScore));
   const caaRawMaxScore = Math.max(0, Math.trunc(options.caaMaxScore ?? 0));
   const caaRawScore = Math.max(0, Math.min(Math.trunc(options.caaScore ?? 0), caaRawMaxScore));
+  const hstsPreloadRawMaxScore = Math.max(0, Math.trunc(options.hstsPreloadMaxScore ?? 0));
+  const hstsPreloadRawScore = Math.max(
+    0,
+    Math.min(Math.trunc(options.hstsPreloadScore ?? 0), hstsPreloadRawMaxScore)
+  );
   const score =
     headerScore +
     additionalScore +
@@ -95,7 +102,8 @@ export function calculateGrade(results: HeaderResult[], options: GradeOptions = 
     emailSecurityRawScore +
     mixedContentRawScore +
     dnssecRawScore +
-    caaRawScore;
+    caaRawScore +
+    hstsPreloadRawScore;
   const maxScore =
     headerMaxScore +
     additionalMaxScore +
@@ -107,7 +115,8 @@ export function calculateGrade(results: HeaderResult[], options: GradeOptions = 
     emailSecurityRawMaxScore +
     mixedContentRawMaxScore +
     dnssecRawMaxScore +
-    caaRawMaxScore;
+    caaRawMaxScore +
+    hstsPreloadRawMaxScore;
   const ratio = maxScore > 0 ? score / maxScore : 0;
 
   let grade = "F";
