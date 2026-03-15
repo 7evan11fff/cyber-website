@@ -3,6 +3,7 @@ import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-p
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
+import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
@@ -21,6 +22,7 @@ type ReportResponse = {
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
   sriAnalysis?: SriAnalysis;
+  securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;
@@ -418,6 +420,9 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • SRI posture: {report.sriAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • security.txt posture: {report.securityTxtAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.
           </Text>
           <Text style={styles.summaryBullet}>
@@ -519,6 +524,42 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             </>
           ) : (
             <Text style={styles.summaryBullet}>• No SRI analysis data was captured.</Text>
+          )}
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>security.txt Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.securityTxtAnalysis?.summary ?? "security.txt analysis details were not available for this report snapshot."}
+          </Text>
+          {report.securityTxtAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.securityTxtAnalysis.grade} ({report.securityTxtAnalysis.score}/
+                {report.securityTxtAnalysis.maxScore}) · Present{" "}
+                {report.securityTxtAnalysis.validation.present ? "yes" : "no"} · HTTPS{" "}
+                {report.securityTxtAnalysis.validation.usesHttps ? "yes" : "no"} · Valid{" "}
+                {report.securityTxtAnalysis.validation.isValid ? "yes" : "no"}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Contact{" "}
+                {report.securityTxtAnalysis.fields.contact.length > 0
+                  ? report.securityTxtAnalysis.fields.contact.join(", ")
+                  : "missing"}{" "}
+                · Expires {report.securityTxtAnalysis.fields.expires ?? "missing"}.
+              </Text>
+              {report.securityTxtAnalysis.warnings.length > 0 ? (
+                report.securityTxtAnalysis.warnings.slice(0, 4).map((warning, index) => (
+                  <Text key={`security-txt-warning-${index}`} style={styles.summaryBullet}>
+                    • WARNING: {warning}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No security.txt validation warnings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No security.txt analysis data was captured.</Text>
           )}
         </View>
 

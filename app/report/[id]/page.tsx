@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
+import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
 import { absoluteUrl, buildPageMetadata } from "@/lib/seo";
@@ -398,6 +399,10 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
           </details>
         </section>
       )}
+
+      <section className="mt-5">
+        <SecurityTxtCard analysis={report.securityTxtAnalysis} />
+      </section>
 
       <section className="mt-5">
         <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>

@@ -193,6 +193,41 @@ const CHECK_RESPONSE_EXAMPLE = `{
     ],
     "resources": []
   },
+  "securityTxtAnalysis": {
+    "available": true,
+    "checkedUrl": "https://example.com/",
+    "fetchedUrl": "https://example.com/.well-known/security.txt",
+    "fetchedFrom": "/.well-known/security.txt",
+    "fallbackUsed": false,
+    "statusCode": 200,
+    "fields": {
+      "contact": ["mailto:security@example.com"],
+      "expires": "2027-01-31T00:00:00Z",
+      "encryption": ["https://example.com/pgp-key.txt"],
+      "acknowledgments": ["https://example.com/hall-of-fame"],
+      "preferredLanguages": ["en"],
+      "canonical": ["https://example.com/.well-known/security.txt"],
+      "policy": ["https://example.com/security-policy"],
+      "hiring": []
+    },
+    "foundFields": ["contact", "expires", "encryption", "preferredLanguages", "canonical", "policy"],
+    "validation": {
+      "present": true,
+      "usesHttps": true,
+      "hasContact": true,
+      "hasExpires": true,
+      "expiresValidFormat": true,
+      "expiresExpired": false,
+      "expiresExpiringSoon": false,
+      "isValid": true
+    },
+    "warnings": [],
+    "recommendations": [],
+    "score": 1,
+    "maxScore": 1,
+    "grade": "A",
+    "summary": "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
+  },
   "checkedAt": "2026-03-14T16:20:47.328Z"
 }`;
 
@@ -430,6 +465,10 @@ export default function ApiReferencePage() {
             <li>
               <code>sriAnalysis</code> includes external script/stylesheet SRI coverage, crossorigin posture, and
               per-resource remediation findings.
+            </li>
+            <li>
+              <code>securityTxtAnalysis</code> includes parsed Contact/Expires metadata, HTTPS/source validation, and
+              lightweight recommendations.
             </li>
           </ul>
           <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Sample response</p>

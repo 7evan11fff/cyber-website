@@ -17,6 +17,8 @@ type GradeOptions = {
   dnsMaxScore?: number;
   sriScore?: number;
   sriMaxScore?: number;
+  securityTxtScore?: number;
+  securityTxtMaxScore?: number;
 };
 
 const CORS_SCORE_WEIGHT = 0.5;
@@ -55,9 +57,21 @@ export function calculateGrade(results: HeaderResult[], options: GradeOptions = 
   const dnsRawScore = Math.max(0, Math.min(Math.trunc(options.dnsScore ?? 0), dnsRawMaxScore));
   const sriRawMaxScore = Math.max(0, Math.trunc(options.sriMaxScore ?? 0));
   const sriRawScore = Math.max(0, Math.min(Math.trunc(options.sriScore ?? 0), sriRawMaxScore));
-  const score = headerScore + additionalScore + corsWeighted.score + tlsRawScore + dnsRawScore + sriRawScore;
+  const securityTxtRawMaxScore = Math.max(0, Math.trunc(options.securityTxtMaxScore ?? 0));
+  const securityTxtRawScore = Math.max(
+    0,
+    Math.min(Math.trunc(options.securityTxtScore ?? 0), securityTxtRawMaxScore)
+  );
+  const score =
+    headerScore + additionalScore + corsWeighted.score + tlsRawScore + dnsRawScore + sriRawScore + securityTxtRawScore;
   const maxScore =
-    headerMaxScore + additionalMaxScore + corsWeighted.maxScore + tlsRawMaxScore + dnsRawMaxScore + sriRawMaxScore;
+    headerMaxScore +
+    additionalMaxScore +
+    corsWeighted.maxScore +
+    tlsRawMaxScore +
+    dnsRawMaxScore +
+    sriRawMaxScore +
+    securityTxtRawMaxScore;
   const ratio = maxScore > 0 ? score / maxScore : 0;
 
   let grade = "F";

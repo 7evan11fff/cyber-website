@@ -3,6 +3,7 @@ import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { DnsAnalysis } from "@/lib/dnsAnalysis";
 import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 
@@ -19,6 +20,7 @@ export type SharedScanReport = {
   tlsAnalysis?: TlsAnalysis;
   dnsAnalysis?: DnsAnalysis;
   sriAnalysis?: SriAnalysis;
+  securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;
@@ -66,6 +68,9 @@ function summarizeSingleReport(report: SharedScanReport) {
     report.cookieAnalysis && report.cookieAnalysis.cookieCount > 0
       ? ` Cookies analyzed: ${report.cookieAnalysis.cookieCount}, cookie grade ${report.cookieAnalysis.grade}.`
       : "";
+  const securityTxtSummary = report.securityTxtAnalysis
+    ? ` security.txt: ${report.securityTxtAnalysis.summary}`
+    : "";
   const findingsPreview =
     riskyFindings.length === 0
       ? "All evaluated headers are configured."
@@ -74,7 +79,7 @@ function summarizeSingleReport(report: SharedScanReport) {
           .map((entry) => entry.label)
           .join(", ")}${riskyFindings.length > 2 ? ` (+${riskyFindings.length - 2} more)` : ""}.`;
   const title = `${domain} security header report (grade ${report.grade})`;
-  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.${cookieSummary} ${findingsPreview}`;
+  const description = `${domain} scored ${report.score}/${maxScore} with grade ${report.grade}. Missing headers: ${missingCount}.${cookieSummary}${securityTxtSummary} ${findingsPreview}`;
   return { title, description };
 }
 

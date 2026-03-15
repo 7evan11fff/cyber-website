@@ -213,6 +213,59 @@ const SRI_ANALYSIS_SCHEMA = z.object({
   summary: z.string().min(1).max(500)
 });
 
+const SECURITY_TXT_FIELDS_SCHEMA = z.object({
+  contact: z.array(z.string().min(1).max(500)).max(12),
+  expires: z.string().min(1).max(120).nullable(),
+  encryption: z.array(z.string().min(1).max(500)).max(12),
+  acknowledgments: z.array(z.string().min(1).max(500)).max(12),
+  preferredLanguages: z.array(z.string().min(1).max(64)).max(12),
+  canonical: z.array(z.string().min(1).max(500)).max(12),
+  policy: z.array(z.string().min(1).max(500)).max(12),
+  hiring: z.array(z.string().min(1).max(500)).max(12)
+});
+
+const SECURITY_TXT_VALIDATION_SCHEMA = z.object({
+  present: z.boolean(),
+  usesHttps: z.boolean(),
+  hasContact: z.boolean(),
+  hasExpires: z.boolean(),
+  expiresValidFormat: z.boolean(),
+  expiresExpired: z.boolean(),
+  expiresExpiringSoon: z.boolean(),
+  isValid: z.boolean()
+});
+
+const SECURITY_TXT_ANALYSIS_SCHEMA = z.object({
+  available: z.boolean(),
+  checkedUrl: z.string().url(),
+  fetchedUrl: z.string().url().nullable(),
+  fetchedFrom: z.enum(["/.well-known/security.txt", "/security.txt"]).nullable(),
+  fallbackUsed: z.boolean(),
+  statusCode: z.number().int().min(100).max(599).nullable(),
+  fields: SECURITY_TXT_FIELDS_SCHEMA,
+  foundFields: z
+    .array(
+      z.enum([
+        "contact",
+        "expires",
+        "encryption",
+        "acknowledgments",
+        "preferredLanguages",
+        "canonical",
+        "policy",
+        "hiring"
+      ])
+    )
+    .max(8),
+  validation: SECURITY_TXT_VALIDATION_SCHEMA,
+  warnings: z.array(z.string().min(1).max(320)).max(20),
+  recommendations: z.array(z.string().min(1).max(400)).max(20),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  summary: z.string().min(1).max(500)
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -226,6 +279,7 @@ const REPORT_SCHEMA = z.object({
   tlsAnalysis: TLS_ANALYSIS_SCHEMA.optional(),
   dnsAnalysis: DNS_ANALYSIS_SCHEMA.optional(),
   sriAnalysis: SRI_ANALYSIS_SCHEMA.optional(),
+  securityTxtAnalysis: SECURITY_TXT_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
   responseTimeMs: z.number().int().nonnegative().optional(),
   scanDurationMs: z.number().int().nonnegative().optional(),

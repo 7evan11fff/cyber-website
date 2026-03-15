@@ -49,6 +49,7 @@ const RESPONSE_EXAMPLE = `{
   "finalUrl": "https://example.com/",
   "statusCode": 200,
   "score": 16,
+  "maxScore": 17,
   "grade": "A",
   "results": [
     {
@@ -60,6 +61,40 @@ const RESPONSE_EXAMPLE = `{
       "guidance": "Use at least one year with includeSubDomains."
     }
   ],
+  "securityTxtAnalysis": {
+    "available": true,
+    "checkedUrl": "https://example.com/",
+    "fetchedUrl": "https://example.com/.well-known/security.txt",
+    "fetchedFrom": "/.well-known/security.txt",
+    "fallbackUsed": false,
+    "statusCode": 200,
+    "fields": {
+      "contact": ["mailto:security@example.com"],
+      "expires": "2027-01-31T00:00:00Z",
+      "encryption": [],
+      "acknowledgments": [],
+      "preferredLanguages": ["en"],
+      "canonical": ["https://example.com/.well-known/security.txt"],
+      "policy": ["https://example.com/security-policy"],
+      "hiring": []
+    },
+    "validation": {
+      "present": true,
+      "usesHttps": true,
+      "hasContact": true,
+      "hasExpires": true,
+      "expiresValidFormat": true,
+      "expiresExpired": false,
+      "expiresExpiringSoon": false,
+      "isValid": true
+    },
+    "warnings": [],
+    "recommendations": [],
+    "score": 1,
+    "maxScore": 1,
+    "grade": "A",
+    "summary": "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
+  },
   "checkedAt": "2026-03-14T16:20:47.328Z"
 }`;
 
@@ -105,7 +140,8 @@ export default function ApiDocsPage() {
             <code className="ml-1 rounded bg-slate-950 px-2 py-1 text-slate-100">{`{ "url": "https://example.com" }`}</code>
           </p>
           <p className="mt-3 text-sm text-slate-300">
-            The response includes grade, score, status code, normalized final URL, and per-header guidance.
+            The response includes grade, score, status code, normalized final URL, per-header guidance, and optional
+            deeper modules like CORS/TLS/DNS/SRI/security.txt analysis.
           </p>
         </article>
 

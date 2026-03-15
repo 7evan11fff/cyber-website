@@ -126,4 +126,28 @@ describe("calculateGrade", () => {
       grade: "C"
     });
   });
+
+  it("applies only a positive security.txt bump when valid", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        securityTxtScore: 1,
+        securityTxtMaxScore: 1
+      })
+    ).toEqual({
+      score: 7,
+      maxScore: 9,
+      grade: "C"
+    });
+    expect(
+      calculateGrade(results, {
+        securityTxtScore: 0,
+        securityTxtMaxScore: 0
+      })
+    ).toEqual({
+      score: 6,
+      maxScore: 8,
+      grade: "C"
+    });
+  });
 });

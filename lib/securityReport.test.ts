@@ -8,6 +8,9 @@ const { mockAnalyzeDnsConfiguration } = vi.hoisted(() => ({
 const { mockAnalyzeSubresourceIntegrity } = vi.hoisted(() => ({
   mockAnalyzeSubresourceIntegrity: vi.fn()
 }));
+const { mockAnalyzeSecurityTxt } = vi.hoisted(() => ({
+  mockAnalyzeSecurityTxt: vi.fn()
+}));
 
 vi.mock("@/lib/tlsAnalysis", () => ({
   analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
@@ -17,6 +20,9 @@ vi.mock("@/lib/dnsAnalysis", () => ({
 }));
 vi.mock("@/lib/sriAnalysis", () => ({
   analyzeSubresourceIntegrity: mockAnalyzeSubresourceIntegrity
+}));
+vi.mock("@/lib/securityTxtAnalysis", () => ({
+  analyzeSecurityTxt: mockAnalyzeSecurityTxt
 }));
 
 import {
@@ -139,6 +145,41 @@ function buildReport(domain: string): SecurityReport {
       resources: [],
       summary: "All detected external scripts and stylesheets include SRI hashes and crossorigin attributes."
     },
+    securityTxtAnalysis: {
+      available: true,
+      checkedUrl: `https://${domain}/`,
+      fetchedUrl: `https://${domain}/.well-known/security.txt`,
+      fetchedFrom: "/.well-known/security.txt",
+      fallbackUsed: false,
+      statusCode: 200,
+      fields: {
+        contact: ["mailto:security@example.com"],
+        expires: "2027-01-01T00:00:00Z",
+        encryption: [],
+        acknowledgments: [],
+        preferredLanguages: ["en"],
+        canonical: [`https://${domain}/.well-known/security.txt`],
+        policy: [`https://${domain}/security-policy`],
+        hiring: []
+      },
+      foundFields: ["contact", "expires", "preferredLanguages", "canonical", "policy"],
+      validation: {
+        present: true,
+        usesHttps: true,
+        hasContact: true,
+        hasExpires: true,
+        expiresValidFormat: true,
+        expiresExpired: false,
+        expiresExpiringSoon: false,
+        isValid: true
+      },
+      warnings: [],
+      recommendations: [],
+      score: 1,
+      maxScore: 1,
+      grade: "A",
+      summary: "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -236,6 +277,41 @@ describe("securityReport", () => {
       resources: [],
       summary: "All detected external scripts and stylesheets include SRI hashes and crossorigin attributes."
     });
+    mockAnalyzeSecurityTxt.mockResolvedValue({
+      available: true,
+      checkedUrl: "https://example.com/",
+      fetchedUrl: "https://example.com/.well-known/security.txt",
+      fetchedFrom: "/.well-known/security.txt",
+      fallbackUsed: false,
+      statusCode: 200,
+      fields: {
+        contact: ["mailto:security@example.com"],
+        expires: "2027-01-01T00:00:00Z",
+        encryption: [],
+        acknowledgments: [],
+        preferredLanguages: ["en"],
+        canonical: ["https://example.com/.well-known/security.txt"],
+        policy: ["https://example.com/security-policy"],
+        hiring: []
+      },
+      foundFields: ["contact", "expires", "preferredLanguages", "canonical", "policy"],
+      validation: {
+        present: true,
+        usesHttps: true,
+        hasContact: true,
+        hasExpires: true,
+        expiresValidFormat: true,
+        expiresExpired: false,
+        expiresExpiringSoon: false,
+        isValid: true
+      },
+      warnings: [],
+      recommendations: [],
+      score: 1,
+      maxScore: 1,
+      grade: "A",
+      summary: "security.txt is present, served over HTTPS, and includes valid Contact and Expires metadata."
+    });
   });
 
   afterEach(() => {
@@ -313,11 +389,19 @@ describe("securityReport", () => {
     expect(report.tlsAnalysis.maxScore).toBe(10);
     expect(report.dnsAnalysis.maxScore).toBe(10);
     expect(report.sriAnalysis.maxScore).toBe(8);
+    expect(report.securityTxtAnalysis.maxScore).toBe(1);
     expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
       timeoutMs: 10000
     });
     expect(mockAnalyzeDnsConfiguration).toHaveBeenCalledWith("https://example.com/");
     expect(mockAnalyzeSubresourceIntegrity).toHaveBeenCalledWith(
+      "https://example.com/",
+      expect.objectContaining({
+        timeoutMs: 10000,
+        followRedirects: true
+      })
+    );
+    expect(mockAnalyzeSecurityTxt).toHaveBeenCalledWith(
       "https://example.com/",
       expect.objectContaining({
         timeoutMs: 10000,

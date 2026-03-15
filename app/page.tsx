@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { SecurityTxtAnalysis } from "@/lib/securityTxtAnalysis";
 import type { SriAnalysis } from "@/lib/sriAnalysis";
 import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
@@ -15,6 +16,7 @@ import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
 import { HeroScanTypewriter } from "@/app/components/HeroScanTypewriter";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
 import { SecurityCard } from "@/app/components/SecurityCard";
+import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
@@ -93,6 +95,7 @@ type ReportResponse = {
   corsAnalysis?: CorsAnalysis;
   tlsAnalysis?: TlsAnalysis;
   sriAnalysis?: SriAnalysis;
+  securityTxtAnalysis?: SecurityTxtAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;
@@ -415,6 +418,26 @@ function isSriAnalysis(value: unknown): value is SriAnalysis {
   );
 }
 
+function isSecurityTxtAnalysis(value: unknown): value is SecurityTxtAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<SecurityTxtAnalysis>;
+  return (
+    typeof candidate.available === "boolean" &&
+    typeof candidate.checkedUrl === "string" &&
+    (candidate.fetchedUrl === null || typeof candidate.fetchedUrl === "string") &&
+    typeof candidate.summary === "string" &&
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.validation === "object" &&
+    candidate.validation !== null &&
+    typeof candidate.validation.present === "boolean" &&
+    typeof candidate.validation.isValid === "boolean" &&
+    Array.isArray(candidate.warnings) &&
+    Array.isArray(candidate.recommendations)
+  );
+}
+
 function isReportResponse(value: unknown): value is ReportResponse {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ReportResponse>;
@@ -424,6 +447,8 @@ function isReportResponse(value: unknown): value is ReportResponse {
   const validCorsAnalysis = candidate.corsAnalysis === undefined || isCorsAnalysis(candidate.corsAnalysis);
   const validTlsAnalysis = candidate.tlsAnalysis === undefined || isTlsAnalysis(candidate.tlsAnalysis);
   const validSriAnalysis = candidate.sriAnalysis === undefined || isSriAnalysis(candidate.sriAnalysis);
+  const validSecurityTxtAnalysis =
+    candidate.securityTxtAnalysis === undefined || isSecurityTxtAnalysis(candidate.securityTxtAnalysis);
   const validCookieAnalysis =
     candidate.cookieAnalysis === undefined ||
     (typeof candidate.cookieAnalysis === "object" &&
@@ -444,6 +469,7 @@ function isReportResponse(value: unknown): value is ReportResponse {
     validCorsAnalysis &&
     validTlsAnalysis &&
     validSriAnalysis &&
+    validSecurityTxtAnalysis &&
     validCookieAnalysis &&
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string" &&
@@ -726,6 +752,7 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **CORS:** ${report.corsAnalysis?.summary ?? "Not available"}`,
     `- **TLS/SSL:** ${report.tlsAnalysis?.summary ?? "Not available"}`,
     `- **SRI:** ${report.sriAnalysis?.summary ?? "Not available"}`,
+    `- **security.txt:** ${report.securityTxtAnalysis?.summary ?? "Not available"}`,
     `- **Checked At:** ${checkedAt}`,
     `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs ?? responseTimeMs) ?? "Not available"}`,
     `- **Detected Stack:** ${report.framework?.detected?.label ?? "Unknown"}`,
@@ -4297,6 +4324,9 @@ export default function Home() {
                   <p className="mt-3 text-sm text-slate-400">This report does not include TLS analysis details.</p>
                 )}
               </details>
+            </section>
+            <section className="mt-4">
+              <SecurityTxtCard analysis={report.securityTxtAnalysis} />
             </section>
             <section className="mt-4">
               <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
