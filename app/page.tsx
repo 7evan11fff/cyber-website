@@ -17,10 +17,13 @@ import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
 import { HeroScanTypewriter } from "@/app/components/HeroScanTypewriter";
 import { ScannerOnboardingTour } from "@/app/components/ScannerOnboardingTour";
-import { SecurityCard } from "@/app/components/SecurityCard";
+import { ScanInputForm } from "@/app/components/ScanInputForm";
+import { ScanResultsPanel } from "@/app/components/ScanResultsPanel";
+import { HeaderResultsGrid } from "@/app/components/HeaderResultsGrid";
 import { EmailSecurityCard } from "@/app/components/EmailSecurityCard";
 import { MixedContentCard } from "@/app/components/MixedContentCard";
 import { SecurityTxtCard } from "@/app/components/SecurityTxtCard";
+import { CookieSecurityCard } from "@/app/components/CookieSecurityCard";
 import { ScanHistoryCsvDownloadButton } from "@/app/components/ScanHistoryCsvDownloadButton";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SiteNav } from "@/app/components/SiteNav";
@@ -3207,184 +3210,35 @@ export default function Home() {
           Scan one site for a detailed report, or compare two sites side by side to spot header gaps.
         </p>
 
-        <div className="mt-6 inline-flex w-full rounded-xl border border-slate-700 bg-slate-950/80 p-1 sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setMode("single")}
-            aria-pressed={mode === "single"}
-            aria-label="Switch to single scan mode"
-            className={`flex-1 min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium transition sm:flex-none ${
-              mode === "single"
-                ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
-                : "text-slate-300 hover:text-sky-200"
-            }`}
-          >
-            Single Scan
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("compare");
+        <ScanInputForm
+          mode={mode}
+          loading={loading}
+          shortcutsOpen={shortcutsOpen}
+          sampleSites={SAMPLE_SITES}
+          maxBulkUrls={MAX_BULK_URLS}
+          bulkUrlCount={bulkUrlCount}
+          singleUrl={url}
+          compareUrlA={compareUrlA}
+          compareUrlB={compareUrlB}
+          bulkUrlsInput={bulkUrlsInput}
+          singleUrlInputRef={singleUrlInputRef}
+          compareUrlAInputRef={compareUrlAInputRef}
+          onModeChange={(nextMode) => {
+            setMode(nextMode);
+            if (nextMode === "compare") {
               setMobileCompareView("siteA");
-            }}
-            aria-pressed={mode === "compare"}
-            aria-label="Switch to compare mode"
-            className={`flex-1 min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium transition sm:flex-none ${
-              mode === "compare"
-                ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
-                : "text-slate-300 hover:text-sky-200"
-            }`}
-          >
-            Compare
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("bulk")}
-            aria-pressed={mode === "bulk"}
-            aria-label="Switch to bulk scan mode"
-            className={`flex-1 min-h-11 rounded-lg px-4 py-2.5 text-sm font-medium transition sm:flex-none ${
-              mode === "bulk"
-                ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-950/70"
-                : "text-slate-300 hover:text-sky-200"
-            }`}
-          >
-            Bulk Scan
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <p>
-            Shortcuts: <span className="text-slate-300">Cmd/Ctrl+Enter</span> scan,{" "}
-            <span className="text-slate-300">Cmd/Ctrl+K</span> quick scan/focus URL,{" "}
-            <span className="text-slate-300">1-6</span> jump headers,{" "}
-            <span className="text-slate-300">Ctrl+P</span> PDF.
-          </p>
-          <button
-            type="button"
-            onClick={openShortcutsModal}
-            aria-haspopup="dialog"
-            aria-expanded={shortcutsOpen}
-            aria-controls="keyboard-shortcuts-modal"
-            className="rounded-md border border-slate-700 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
-          >
-            Keyboard help (?)
-          </button>
-        </div>
-
-        {mode === "single" ? (
-          <>
-            <form onSubmit={onSingleSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <label htmlFor="single-site-url" className="sr-only">
-                Website URL to scan
-              </label>
-              <input
-                id="single-site-url"
-                ref={singleUrlInputRef}
-                type="text"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="example.com or https://example.com"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                aria-describedby="single-scan-hint"
-                required
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-sky-500 px-5 py-4 font-medium text-slate-950 transition hover:bg-sky-400 sm:w-auto disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-              >
-                {loading ? "Scanning..." : "Check"}
-              </button>
-            </form>
-            <p id="single-scan-hint" className="mt-2 text-xs text-slate-500">
-              Enter a domain or full URL and press Cmd/Ctrl+Enter to scan.
-            </p>
-
-            <div className="mt-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Try sample sites</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {SAMPLE_SITES.map((sample) => (
-                  <button
-                    key={sample}
-                    type="button"
-                    onClick={() => onSampleClick(sample)}
-                    disabled={loading}
-                    className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-200 transition hover:border-sky-500/60 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {sample}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : mode === "compare" ? (
-          <form onSubmit={onCompareSubmit} className="mt-6">
-            <div className="grid gap-3 md:grid-cols-2">
-              <label htmlFor="compare-site-a-url" className="sr-only">
-                Site A URL
-              </label>
-              <input
-                id="compare-site-a-url"
-                ref={compareUrlAInputRef}
-                type="text"
-                value={compareUrlA}
-                onChange={(event) => setCompareUrlA(event.target.value)}
-                placeholder="Site A (example.com)"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                required
-              />
-              <label htmlFor="compare-site-b-url" className="sr-only">
-                Site B URL
-              </label>
-              <input
-                id="compare-site-b-url"
-                type="text"
-                value={compareUrlB}
-                onChange={(event) => setCompareUrlB(event.target.value)}
-                placeholder="Site B (example.org)"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-3 w-full rounded-xl bg-sky-500 px-5 py-4 font-medium text-slate-950 transition hover:bg-sky-400 sm:w-auto disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-            >
-              {loading ? "Comparing..." : "Compare Headers"}
-            </button>
-            <p className="mt-2 text-xs text-slate-500">
-              Tip: enter two domains, then use Cmd/Ctrl+Enter to run comparison.
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={onBulkSubmit} className="mt-6 space-y-3">
-            <label htmlFor="bulk-scan-urls" className="sr-only">
-              Website URLs for bulk scan
-            </label>
-            <textarea
-              id="bulk-scan-urls"
-              value={bulkUrlsInput}
-              onChange={(event) => setBulkUrlsInput(event.target.value)}
-              placeholder={"example.com\nhttps://mozilla.org\ncloudflare.com"}
-              rows={8}
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-              aria-describedby="bulk-scan-hint"
-              required
-            />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p id="bulk-scan-hint" className="text-xs text-slate-500">
-                Enter one URL per line (up to {MAX_BULK_URLS}). {bulkUrlCount}/{MAX_BULK_URLS} URLs added.
-              </p>
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-              >
-                {loading ? "Scanning..." : "Run Bulk Scan"}
-              </button>
-            </div>
-          </form>
-        )}
+            }
+          }}
+          onOpenShortcutsModal={openShortcutsModal}
+          onSingleSubmit={onSingleSubmit}
+          onCompareSubmit={onCompareSubmit}
+          onBulkSubmit={onBulkSubmit}
+          onSingleUrlChange={setUrl}
+          onCompareUrlAChange={setCompareUrlA}
+          onCompareUrlBChange={setCompareUrlB}
+          onBulkUrlsInputChange={setBulkUrlsInput}
+          onSampleClick={onSampleClick}
+        />
 
         <section className="mt-4 rounded-xl border border-slate-800/90 bg-slate-950/60">
           <button
@@ -3986,31 +3840,17 @@ export default function Home() {
         )}
       </section>
 
-      <section
-        id="scan-results-area"
-        className="relative overscroll-y-contain"
+      <ScanResultsPanel
+        pullRefreshing={pullRefreshing}
+        pullRefreshDistance={pullRefreshDistance}
+        pullRefreshLabel={pullRefreshLabel}
+        loadingContent={
+          loading ? mode === "bulk" ? <LoadingSkeleton /> : <ScanResultsLoadingSkeleton mode={mode} /> : null
+        }
         onTouchStart={onResultsPullStart}
         onTouchMove={onResultsPullMove}
         onTouchEnd={onResultsPullEnd}
-        onTouchCancel={onResultsPullEnd}
-        aria-label="Main scan results area"
       >
-        <div
-          className="pointer-events-none flex justify-center transition-all duration-150"
-          style={{
-            maxHeight: pullRefreshing || pullRefreshDistance > 0 ? 42 : 0,
-            opacity: pullRefreshing || pullRefreshDistance > 0 ? 1 : 0
-          }}
-          aria-hidden="true"
-        >
-          <p className="inline-flex min-h-9 items-center rounded-full border border-sky-500/30 bg-slate-900/90 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-sky-200">
-            {pullRefreshLabel}
-          </p>
-        </div>
-        {loading && mode === "bulk" && <LoadingSkeleton />}
-        {loading && mode !== "bulk" && <ScanResultsLoadingSkeleton mode={mode} />}
-
-        <div className="lazy-section">
         {!loading && report && (
           <>
             {scorePercent !== null && scorePercent < 80 && (
@@ -4274,19 +4114,14 @@ export default function Home() {
               </div>
               </article>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                {report.results.map((header, index) => (
-                  <SecurityCard
-                    key={header.key}
-                    cardId={`header-card-single-${header.key}`}
-                    header={header}
-                    detectedFramework={report.framework?.detected}
-                    animationDelayMs={index * 55}
-                    shortcutNumber={index < 6 ? index + 1 : undefined}
-                    onSelect={openHeaderDetailModal}
-                  />
-                ))}
-              </div>
+              <HeaderResultsGrid
+                headers={report.results}
+                cardIdPrefix="header-card-single"
+                detectedFramework={report.framework?.detected}
+                animationStepMs={55}
+                showShortcuts
+                onSelect={openHeaderDetailModal}
+              />
             </section>
             <section className="mt-4">
               <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
@@ -4603,68 +4438,7 @@ export default function Home() {
               </details>
             </section>
             <section className="mt-4">
-              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
-                <summary className="cursor-pointer list-none">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">
-                        Cookie security analysis
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-400">
-                        {report.cookieAnalysis?.summary ?? "No Set-Cookie headers were returned by this response."}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        Grade {report.cookieAnalysis?.grade ?? "N/A"}
-                      </span>
-                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
-                        {report.cookieAnalysis
-                          ? `${report.cookieAnalysis.score}/${report.cookieAnalysis.maxScore || 0}`
-                          : "0/0"}
-                      </span>
-                    </div>
-                  </div>
-                </summary>
-
-                {report.cookieAnalysis && report.cookieAnalysis.cookieCount > 0 ? (
-                  <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {report.cookieAnalysis.cookies.map((cookie) => (
-                      <li
-                        key={`${cookie.name}-${cookie.raw}`}
-                        className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="break-all text-sm font-semibold text-slate-100">{cookie.name}</p>
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase ${
-                              cookieStatusStyles[cookie.status]
-                            }`}
-                          >
-                            {cookie.status}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs text-slate-400">
-                          HttpOnly: <span className="text-slate-200">{cookie.httpOnly ? "Yes" : "No"}</span> · Secure:{" "}
-                          <span className="text-slate-200">{cookie.secure ? "Yes" : "No"}</span> · SameSite:{" "}
-                          <span className="text-slate-200">{cookie.sameSite}</span>
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          Path: <span className="text-slate-200">{cookie.path ?? "(default)"}</span> · Domain:{" "}
-                          <span className="text-slate-200">{cookie.domain ?? "(host-only)"}</span>
-                        </p>
-                        {cookie.findings.length > 0 && (
-                          <p className="mt-2 text-xs text-slate-400">
-                            Findings: <span className="text-slate-200">{cookie.findings.join(", ")}</span>
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-400">No cookies were set in the scanned response.</p>
-                )}
-              </details>
+              <CookieSecurityCard analysis={report.cookieAnalysis} cookieStatusStyles={cookieStatusStyles} />
             </section>
             <Suspense fallback={<SuspensePanelFallback label="Fix suggestions panel" />}>
               <FixSuggestionsPanel results={report.results} framework={report.framework} />
@@ -4746,43 +4520,32 @@ export default function Home() {
             >
               <section className={mobileCompareView === "siteA" ? "block" : "hidden lg:block"}>
                 <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site A Headers</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {comparison.siteA.results.map((header, index) => (
-                    <SecurityCard
-                      key={`a-${header.key}`}
-                      cardId={`header-card-site-a-${header.key}`}
-                      header={header}
-                      detectedFramework={comparison.siteA.framework?.detected}
-                      highlighted={differingHeaderKeys.has(header.key)}
-                      animationDelayMs={index * 45}
-                      shortcutNumber={index < 6 ? index + 1 : undefined}
-                      onSelect={openHeaderDetailModal}
-                    />
-                  ))}
-                </div>
+                <HeaderResultsGrid
+                  headers={comparison.siteA.results}
+                  cardIdPrefix="header-card-site-a"
+                  detectedFramework={comparison.siteA.framework?.detected}
+                  highlightedHeaderKeys={differingHeaderKeys}
+                  animationStepMs={45}
+                  showShortcuts
+                  onSelect={openHeaderDetailModal}
+                />
               </section>
               <section className={mobileCompareView === "siteB" ? "block" : "hidden lg:block"}>
                 <h3 className="mb-3 text-sm uppercase tracking-[0.2em] text-slate-400">Site B Headers</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {comparison.siteB.results.map((header, index) => (
-                    <SecurityCard
-                      key={`b-${header.key}`}
-                      cardId={`header-card-site-b-${header.key}`}
-                      header={header}
-                      detectedFramework={comparison.siteB.framework?.detected}
-                      highlighted={differingHeaderKeys.has(header.key)}
-                      animationDelayMs={index * 45}
-                      shortcutNumber={index < 6 ? index + 1 : undefined}
-                      onSelect={openHeaderDetailModal}
-                    />
-                  ))}
-                </div>
+                <HeaderResultsGrid
+                  headers={comparison.siteB.results}
+                  cardIdPrefix="header-card-site-b"
+                  detectedFramework={comparison.siteB.framework?.detected}
+                  highlightedHeaderKeys={differingHeaderKeys}
+                  animationStepMs={45}
+                  showShortcuts
+                  onSelect={openHeaderDetailModal}
+                />
               </section>
             </div>
           </section>
         )}
-        </div>
-      </section>
+      </ScanResultsPanel>
 
       {activeHeaderDetail && activeHeaderDeepDive && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center p-3 sm:items-center sm:p-4">
