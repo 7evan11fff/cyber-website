@@ -1,4 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const { mockAnalyzeTlsConfiguration } = vi.hoisted(() => ({
+  mockAnalyzeTlsConfiguration: vi.fn()
+}));
+
+vi.mock("@/lib/tlsAnalysis", () => ({
+  analyzeTlsConfiguration: mockAnalyzeTlsConfiguration
+}));
+
 import {
   BADGE_CACHE_TTL_MS,
   cacheDomainReport,
@@ -42,6 +50,36 @@ function buildReport(domain: string): SecurityReport {
       findings: [],
       summary: "No CORS headers were returned. Cross-origin access is likely restricted by default."
     },
+    tlsAnalysis: {
+      available: true,
+      checkedHostname: domain,
+      checkedPort: 443,
+      tlsVersion: "TLSv1.3",
+      isInsecureTlsVersion: false,
+      prefersTls13: true,
+      cipherName: "TLS_AES_256_GCM_SHA384",
+      cipherVersion: "TLSv1.3",
+      weakAlgorithms: [],
+      issuer: "Let's Encrypt",
+      issuerCategory: "Let's Encrypt",
+      subject: domain,
+      validFrom: "Jan 01 00:00:00 2025 GMT",
+      validTo: "Jan 01 00:00:00 2027 GMT",
+      daysUntilExpiration: 365,
+      certificateValid: true,
+      certificateExpired: false,
+      certificateExpiringSoon: false,
+      chainComplete: true,
+      chainLength: 3,
+      selfSigned: false,
+      authorized: true,
+      authorizationError: null,
+      score: 10,
+      maxScore: 10,
+      grade: "A",
+      findings: [],
+      summary: "TLS configuration appears healthy with a valid certificate."
+    },
     checkedAt: new Date().toISOString(),
     framework: {
       server: "nginx",
@@ -62,6 +100,36 @@ describe("securityReport", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    mockAnalyzeTlsConfiguration.mockResolvedValue({
+      available: true,
+      checkedHostname: "example.com",
+      checkedPort: 443,
+      tlsVersion: "TLSv1.3",
+      isInsecureTlsVersion: false,
+      prefersTls13: true,
+      cipherName: "TLS_AES_256_GCM_SHA384",
+      cipherVersion: "TLSv1.3",
+      weakAlgorithms: [],
+      issuer: "Let's Encrypt",
+      issuerCategory: "Let's Encrypt",
+      subject: "example.com",
+      validFrom: "Jan 01 00:00:00 2025 GMT",
+      validTo: "Jan 01 00:00:00 2027 GMT",
+      daysUntilExpiration: 365,
+      certificateValid: true,
+      certificateExpired: false,
+      certificateExpiringSoon: false,
+      chainComplete: true,
+      chainLength: 3,
+      selfSigned: false,
+      authorized: true,
+      authorizationError: null,
+      score: 10,
+      maxScore: 10,
+      grade: "A",
+      findings: [],
+      summary: "TLS configuration appears healthy with a valid certificate."
+    });
   });
 
   afterEach(() => {
@@ -136,6 +204,10 @@ describe("securityReport", () => {
     expect(report.results).toHaveLength(11);
     expect(report.cookieAnalysis.cookieCount).toBe(1);
     expect(report.corsAnalysis.maxScore).toBe(4);
+    expect(report.tlsAnalysis.maxScore).toBe(10);
+    expect(mockAnalyzeTlsConfiguration).toHaveBeenCalledWith("https://example.com/", {
+      timeoutMs: 10000
+    });
     expect(report.responseTimeMs).toBeGreaterThanOrEqual(0);
     expect(report.scanDurationMs).toBe(report.responseTimeMs);
     expect(report.score).toBeGreaterThan(0);

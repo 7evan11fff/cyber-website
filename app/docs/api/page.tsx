@@ -61,8 +61,8 @@ const CHECK_RESPONSE_EXAMPLE = `{
   "checkedUrl": "https://example.com",
   "finalUrl": "https://example.com/",
   "statusCode": 200,
-  "score": 15,
-  "maxScore": 28,
+  "score": 31,
+  "maxScore": 38,
   "grade": "B",
   "responseTimeMs": 142,
   "scanDurationMs": 142,
@@ -95,6 +95,44 @@ const CHECK_RESPONSE_EXAMPLE = `{
         "message": "Access-Control-Allow-Origin allows all origins.",
         "recommendation": "Restrict Access-Control-Allow-Origin to explicit trusted origins.",
         "value": "*"
+      }
+    ]
+  },
+  "tlsAnalysis": {
+    "available": true,
+    "checkedHostname": "example.com",
+    "checkedPort": 443,
+    "tlsVersion": "TLSv1.3",
+    "isInsecureTlsVersion": false,
+    "prefersTls13": true,
+    "cipherName": "TLS_AES_256_GCM_SHA384",
+    "cipherVersion": "TLSv1.3",
+    "weakAlgorithms": [],
+    "issuer": "Let's Encrypt",
+    "issuerCategory": "Let's Encrypt",
+    "subject": "example.com",
+    "validFrom": "Jan  1 00:00:00 2026 GMT",
+    "validTo": "Apr  1 23:59:59 2026 GMT",
+    "daysUntilExpiration": 18,
+    "certificateValid": true,
+    "certificateExpired": false,
+    "certificateExpiringSoon": true,
+    "chainComplete": true,
+    "chainLength": 3,
+    "selfSigned": false,
+    "authorized": true,
+    "authorizationError": null,
+    "score": 8,
+    "maxScore": 10,
+    "grade": "B",
+    "summary": "TLS findings detected: 1 medium risk issue.",
+    "findings": [
+      {
+        "id": "certificate-expiring-soon",
+        "severity": "medium",
+        "message": "TLS certificate expires in 18 days.",
+        "recommendation": "Renew the certificate before expiry to avoid outages and trust warnings.",
+        "evidence": "Apr  1 23:59:59 2026 GMT"
       }
     ]
   },
@@ -324,6 +362,10 @@ export default function ApiReferencePage() {
             </li>
             <li>
               <code>corsAnalysis</code> includes CORS findings, score, grade, and parsed allow-* headers.
+            </li>
+            <li>
+              <code>tlsAnalysis</code> includes certificate validity, issuer, TLS version, cipher posture, and chain
+              health findings.
             </li>
           </ul>
           <p className="mt-4 text-xs uppercase tracking-[0.14em] text-slate-500">Sample response</p>

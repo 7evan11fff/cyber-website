@@ -2,6 +2,7 @@ import type { HeaderResult } from "@/lib/securityHeaders";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
 import type { FrameworkInfo } from "@/lib/frameworkDetection";
+import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 
 export type SharedScanReport = {
   checkedUrl: string;
@@ -13,6 +14,7 @@ export type SharedScanReport = {
   results: HeaderResult[];
   cookieAnalysis?: CookieSecurityAnalysis;
   corsAnalysis?: CorsAnalysis;
+  tlsAnalysis?: TlsAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;

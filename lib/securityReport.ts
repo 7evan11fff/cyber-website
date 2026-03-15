@@ -3,6 +3,7 @@ import { analyzeCorsConfiguration, type CorsAnalysis } from "@/lib/corsAnalysis"
 import { analyzeCookieSecurity, type CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import { detectFrameworkInfo, type FrameworkInfo } from "@/lib/frameworkDetection";
 import { analyzeSecurityHeaders, type HeaderResult } from "@/lib/securityHeaders";
+import { analyzeTlsConfiguration, type TlsAnalysis } from "@/lib/tlsAnalysis";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const DEFAULT_SCANNER_USER_AGENT = "SecurityHeaderChecker/1.0 (+https://vercel.com)";
@@ -29,6 +30,7 @@ export type SecurityReport = {
   results: HeaderResult[];
   cookieAnalysis: CookieSecurityAnalysis;
   corsAnalysis: CorsAnalysis;
+  tlsAnalysis: TlsAnalysis;
   checkedAt: string;
   framework: FrameworkInfo;
   responseTimeMs: number;
@@ -147,11 +149,16 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
   const results = analyzeSecurityHeaders(upstreamResponse.headers);
   const cookieAnalysis = analyzeCookieSecurity(upstreamResponse.headers);
   const corsAnalysis = analyzeCorsConfiguration(upstreamResponse.headers);
+  const tlsAnalysis = await analyzeTlsConfiguration(upstreamResponse.url, {
+    timeoutMs: normalizedOptions.timeoutMs
+  });
   const { score, grade, maxScore } = calculateGrade(results, {
     additionalScore: cookieAnalysis.score,
     additionalMaxScore: cookieAnalysis.maxScore,
     corsScore: corsAnalysis.score,
-    corsMaxScore: corsAnalysis.maxScore
+    corsMaxScore: corsAnalysis.maxScore,
+    tlsScore: tlsAnalysis.score,
+    tlsMaxScore: tlsAnalysis.maxScore
   });
   const responseTimeMs = Math.max(0, Date.now() - requestStartedAtMs);
 
@@ -165,6 +172,7 @@ export async function runSecurityScan(inputUrl: string, options?: SecurityScanOp
     results,
     cookieAnalysis,
     corsAnalysis,
+    tlsAnalysis,
     checkedAt: new Date().toISOString(),
     framework: detectFrameworkInfo(upstreamResponse.headers),
     responseTimeMs,

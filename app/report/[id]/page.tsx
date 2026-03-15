@@ -162,6 +162,76 @@ function SingleReportSection({ report }: { report: SharedScanReport }) {
         </section>
       )}
 
+      {report.tlsAnalysis && (
+        <section className="mt-5">
+          <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-100">TLS / SSL Analysis</h2>
+                  <p className="mt-1 text-sm text-slate-400">{report.tlsAnalysis.summary}</p>
+                </div>
+                <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300">
+                  {`${report.tlsAnalysis.score}/${report.tlsAnalysis.maxScore}`}
+                </span>
+              </div>
+            </summary>
+            <dl className="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Issuer</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.issuer ?? "Unknown"}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">TLS Version</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.tlsVersion ?? "Unknown"}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Cipher</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.cipherName ?? "Unknown"}</dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Certificate Expires</dt>
+                <dd className="mt-1 break-all text-slate-200">
+                  {report.tlsAnalysis.validTo ?? "Unknown"}
+                  {typeof report.tlsAnalysis.daysUntilExpiration === "number"
+                    ? ` (${report.tlsAnalysis.daysUntilExpiration} day${
+                        report.tlsAnalysis.daysUntilExpiration === 1 ? "" : "s"
+                      })`
+                    : ""}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Chain completeness</dt>
+                <dd className="mt-1 break-all text-slate-200">
+                  {report.tlsAnalysis.chainComplete ? "Complete" : "Incomplete"}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                <dt className="uppercase tracking-[0.12em] text-slate-500">Self-signed</dt>
+                <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.selfSigned ? "Yes" : "No"}</dd>
+              </div>
+            </dl>
+            {report.tlsAnalysis.findings.length === 0 ? (
+              <p className="mt-3 text-sm text-emerald-200">No risky TLS findings were detected.</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {report.tlsAnalysis.findings.map((finding) => (
+                  <li key={finding.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-sm font-semibold text-slate-100">{finding.message}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Severity: <span className="text-slate-200">{finding.severity}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Recommendation: <span className="text-slate-200">{finding.recommendation}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+        </section>
+      )}
+
       <section className="mt-5">
         <details className="group rounded-2xl border border-slate-800/90 bg-slate-950/70 p-4" open>
           <summary className="cursor-pointer list-none">

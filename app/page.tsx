@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { AnimatedGradeCircle } from "@/app/components/AnimatedGradeCircle";
 import { KeyboardShortcutsHelp } from "@/app/components/KeyboardShortcutsHelp";
@@ -89,6 +90,7 @@ type ReportResponse = {
   results: HeaderResult[];
   cookieAnalysis?: CookieSecurityAnalysis;
   corsAnalysis?: CorsAnalysis;
+  tlsAnalysis?: TlsAnalysis;
   checkedAt: string;
   framework?: FrameworkInfo;
   responseTimeMs?: number;
@@ -357,10 +359,30 @@ const corsSeverityStyles: Record<"low" | "medium" | "high" | "critical", string>
   critical: "border-rose-500/40 bg-rose-500/20 text-rose-200"
 };
 
+const tlsSeverityStyles: Record<"low" | "medium" | "high" | "critical", string> = {
+  low: "border-emerald-500/30 bg-emerald-500/15 text-emerald-200",
+  medium: "border-amber-500/30 bg-amber-500/15 text-amber-200",
+  high: "border-orange-500/30 bg-orange-500/15 text-orange-200",
+  critical: "border-rose-500/40 bg-rose-500/20 text-rose-200"
+};
+
 function isCorsAnalysis(value: unknown): value is CorsAnalysis {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Partial<CorsAnalysis>;
   return (
+    typeof candidate.score === "number" &&
+    typeof candidate.maxScore === "number" &&
+    typeof candidate.grade === "string" &&
+    typeof candidate.summary === "string" &&
+    Array.isArray(candidate.findings)
+  );
+}
+
+function isTlsAnalysis(value: unknown): value is TlsAnalysis {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<TlsAnalysis>;
+  return (
+    typeof candidate.available === "boolean" &&
     typeof candidate.score === "number" &&
     typeof candidate.maxScore === "number" &&
     typeof candidate.grade === "string" &&
@@ -376,6 +398,7 @@ function isReportResponse(value: unknown): value is ReportResponse {
   const validResponseTime = candidate.responseTimeMs === undefined || typeof candidate.responseTimeMs === "number";
   const validScanDuration = candidate.scanDurationMs === undefined || typeof candidate.scanDurationMs === "number";
   const validCorsAnalysis = candidate.corsAnalysis === undefined || isCorsAnalysis(candidate.corsAnalysis);
+  const validTlsAnalysis = candidate.tlsAnalysis === undefined || isTlsAnalysis(candidate.tlsAnalysis);
   const validCookieAnalysis =
     candidate.cookieAnalysis === undefined ||
     (typeof candidate.cookieAnalysis === "object" &&
@@ -394,6 +417,7 @@ function isReportResponse(value: unknown): value is ReportResponse {
     validResponseTime &&
     validScanDuration &&
     validCorsAnalysis &&
+    validTlsAnalysis &&
     validCookieAnalysis &&
     typeof candidate.grade === "string" &&
     typeof candidate.checkedAt === "string" &&
@@ -674,6 +698,7 @@ function formatReportAsMarkdown(report: ReportResponse, shareUrl: string | null)
     `- **Response Time:** ${responseTimeMs === null ? "Not available" : `${responseTimeMs} ms`}`,
     `- **Cookie Security:** ${report.cookieAnalysis?.summary ?? "No Set-Cookie headers returned."}`,
     `- **CORS:** ${report.corsAnalysis?.summary ?? "Not available"}`,
+    `- **TLS/SSL:** ${report.tlsAnalysis?.summary ?? "Not available"}`,
     `- **Checked At:** ${checkedAt}`,
     `- **Scan Duration:** ${formatScanDuration(report.scanDurationMs ?? responseTimeMs) ?? "Not available"}`,
     `- **Detected Stack:** ${report.framework?.detected?.label ?? "Unknown"}`,
@@ -4151,6 +4176,100 @@ export default function Home() {
                   />
                 ))}
               </div>
+            </section>
+            <section className="mt-4">
+              <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>
+                <summary className="cursor-pointer list-none">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200">TLS / SSL analysis</h3>
+                      <p className="mt-1 text-sm text-slate-400">
+                        {report.tlsAnalysis?.summary ?? "No TLS analysis is available for this report snapshot."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.1em]">
+                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
+                        Grade {report.tlsAnalysis?.grade ?? "N/A"}
+                      </span>
+                      <span className="rounded-full border border-slate-700 bg-slate-950/80 px-2.5 py-1 text-slate-300">
+                        {report.tlsAnalysis ? `${report.tlsAnalysis.score}/${report.tlsAnalysis.maxScore}` : "0/0"}
+                      </span>
+                    </div>
+                  </div>
+                </summary>
+
+                {report.tlsAnalysis ? (
+                  <div className="mt-4 space-y-4">
+                    <dl className="grid gap-2 text-xs text-slate-400 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Issuer</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.issuer ?? "Unknown"}</dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">TLS Version</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.tlsVersion ?? "Unknown"}</dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Cipher</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.cipherName ?? "Unknown"}</dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Certificate Expires</dt>
+                        <dd className="mt-1 break-all text-slate-200">
+                          {report.tlsAnalysis.validTo ?? "Unknown"}
+                          {typeof report.tlsAnalysis.daysUntilExpiration === "number"
+                            ? ` (${report.tlsAnalysis.daysUntilExpiration} day${
+                                report.tlsAnalysis.daysUntilExpiration === 1 ? "" : "s"
+                              })`
+                            : ""}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Chain completeness</dt>
+                        <dd className="mt-1 break-all text-slate-200">
+                          {report.tlsAnalysis.chainComplete ? "Complete" : "Incomplete"}
+                        </dd>
+                      </div>
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
+                        <dt className="uppercase tracking-[0.12em] text-slate-500">Self-signed</dt>
+                        <dd className="mt-1 break-all text-slate-200">{report.tlsAnalysis.selfSigned ? "Yes" : "No"}</dd>
+                      </div>
+                    </dl>
+
+                    {report.tlsAnalysis.findings.length === 0 ? (
+                      <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                        No risky TLS findings were detected.
+                      </p>
+                    ) : (
+                      <ul className="grid gap-3 sm:grid-cols-2">
+                        {report.tlsAnalysis.findings.map((finding) => (
+                          <li
+                            key={finding.id}
+                            className={`rounded-xl border px-3 py-3 text-sm ${tlsSeverityStyles[finding.severity]}`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-semibold text-slate-100">{finding.message}</p>
+                              <span className="rounded-full border border-slate-700/60 bg-slate-950/70 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-slate-200">
+                                {finding.severity}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-200/90">
+                              <span className="text-slate-300">Recommendation:</span> {finding.recommendation}
+                            </p>
+                            {finding.evidence && (
+                              <p className="mt-1 break-all text-xs text-slate-200/90">
+                                <span className="text-slate-300">Evidence:</span> {finding.evidence}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-400">This report does not include TLS analysis details.</p>
+                )}
+              </details>
             </section>
             <section className="mt-4">
               <details className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4" open>

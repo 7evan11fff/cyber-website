@@ -82,4 +82,20 @@ describe("calculateGrade", () => {
       grade: "B"
     });
   });
+
+  it("adds TLS score impact up to 10 points", () => {
+    const results = buildResults(["good", "good", "good", "missing"]);
+    expect(
+      calculateGrade(results, {
+        corsScore: 4,
+        corsMaxScore: 4,
+        tlsScore: 10,
+        tlsMaxScore: 10
+      })
+    ).toEqual({
+      score: 18,
+      maxScore: 20,
+      grade: "B"
+    });
+  });
 });

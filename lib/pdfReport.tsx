@@ -2,6 +2,7 @@ import React from "react";
 import { Document, Page, Path, StyleSheet, Svg, Text, View, pdf } from "@react-pdf/renderer";
 import type { CookieSecurityAnalysis } from "@/lib/cookieSecurity";
 import type { CorsAnalysis } from "@/lib/corsAnalysis";
+import type { TlsAnalysis } from "@/lib/tlsAnalysis";
 import type { HeaderResult } from "@/lib/securityHeaders";
 import { SITE_NAME } from "@/lib/seo";
 
@@ -15,6 +16,7 @@ type ReportResponse = {
   results: HeaderResult[];
   cookieAnalysis?: CookieSecurityAnalysis;
   corsAnalysis?: CorsAnalysis;
+  tlsAnalysis?: TlsAnalysis;
   checkedAt: string;
   responseTimeMs?: number;
   scanDurationMs?: number;
@@ -403,11 +405,45 @@ function SecurityReportDocument({ report, generatedAt }: { report: ReportRespons
             • CORS posture: {report.corsAnalysis?.summary ?? "Not available for this report snapshot."}
           </Text>
           <Text style={styles.summaryBullet}>
+            • TLS posture: {report.tlsAnalysis?.summary ?? "Not available for this report snapshot."}
+          </Text>
+          <Text style={styles.summaryBullet}>
             • Prioritize missing headers first, then weak policies, to reduce exploit surface for client-facing pages.
           </Text>
           <Text style={styles.summaryBullet}>
             • Re-scan after remediation and include this report as evidence in delivery and compliance documentation.
           </Text>
+        </View>
+
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionTitle}>TLS / SSL Analysis</Text>
+          <Text style={styles.summaryText}>
+            {report.tlsAnalysis?.summary ?? "TLS analysis details were not available for this report snapshot."}
+          </Text>
+          {report.tlsAnalysis ? (
+            <>
+              <Text style={styles.summaryBullet}>
+                • Grade {report.tlsAnalysis.grade} ({report.tlsAnalysis.score}/{report.tlsAnalysis.maxScore}) · Version{" "}
+                {report.tlsAnalysis.tlsVersion ?? "Unknown"} · Cipher {report.tlsAnalysis.cipherName ?? "Unknown"}.
+              </Text>
+              <Text style={styles.summaryBullet}>
+                • Issuer: {report.tlsAnalysis.issuer ?? "Unknown"} · Chain:{" "}
+                {report.tlsAnalysis.chainComplete ? "complete" : "incomplete"} · Self-signed:{" "}
+                {report.tlsAnalysis.selfSigned ? "yes" : "no"}.
+              </Text>
+              {report.tlsAnalysis.findings.length > 0 ? (
+                report.tlsAnalysis.findings.slice(0, 4).map((finding, index) => (
+                  <Text key={`${finding.id}-${index}`} style={styles.summaryBullet}>
+                    • {finding.severity.toUpperCase()}: {finding.message}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.summaryBullet}>• No risky TLS findings were detected.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.summaryBullet}>• No TLS analysis data was captured.</Text>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>Detailed Header Breakdown</Text>

@@ -95,6 +95,45 @@ const CORS_ANALYSIS_SCHEMA = z.object({
   summary: z.string().min(1).max(500)
 });
 
+const TLS_FINDING_SCHEMA = z.object({
+  id: z.string().min(1).max(80),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  message: z.string().min(1).max(320),
+  recommendation: z.string().min(1).max(400),
+  evidence: z.string().nullable()
+});
+
+const TLS_ANALYSIS_SCHEMA = z.object({
+  available: z.boolean(),
+  checkedHostname: z.string().nullable(),
+  checkedPort: z.number().int().positive().nullable(),
+  tlsVersion: z.string().nullable(),
+  isInsecureTlsVersion: z.boolean(),
+  prefersTls13: z.boolean(),
+  cipherName: z.string().nullable(),
+  cipherVersion: z.string().nullable(),
+  weakAlgorithms: z.array(z.string().min(1).max(40)).max(5),
+  issuer: z.string().nullable(),
+  issuerCategory: z.string().min(1).max(80),
+  subject: z.string().nullable(),
+  validFrom: z.string().nullable(),
+  validTo: z.string().nullable(),
+  daysUntilExpiration: z.number().int().nullable(),
+  certificateValid: z.boolean(),
+  certificateExpired: z.boolean(),
+  certificateExpiringSoon: z.boolean(),
+  chainComplete: z.boolean(),
+  chainLength: z.number().int().nonnegative(),
+  selfSigned: z.boolean(),
+  authorized: z.boolean(),
+  authorizationError: z.string().nullable(),
+  score: z.number().int().nonnegative(),
+  maxScore: z.number().int().nonnegative(),
+  grade: z.string().min(1).max(8),
+  findings: z.array(TLS_FINDING_SCHEMA).max(12),
+  summary: z.string().min(1).max(500)
+});
+
 const REPORT_SCHEMA = z.object({
   checkedUrl: z.string().url(),
   finalUrl: z.string().url(),
@@ -105,6 +144,7 @@ const REPORT_SCHEMA = z.object({
   results: z.array(HEADER_RESULT_SCHEMA).min(1).max(40),
   cookieAnalysis: COOKIE_ANALYSIS_SCHEMA.optional(),
   corsAnalysis: CORS_ANALYSIS_SCHEMA.optional(),
+  tlsAnalysis: TLS_ANALYSIS_SCHEMA.optional(),
   checkedAt: z.string().datetime(),
   responseTimeMs: z.number().int().nonnegative().optional(),
   scanDurationMs: z.number().int().nonnegative().optional(),
